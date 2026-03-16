@@ -1,0 +1,78 @@
+<?php
+
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\WilayahController;
+use App\Http\Controllers\SatkerController;
+use App\Http\Controllers\JabatanController;
+use App\Http\Controllers\PegawaiController;
+use App\Http\Controllers\PenugasanController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\PeriodeController;
+use App\Http\Controllers\getProfileController;
+use App\Http\Controllers\ProxyController;
+use Illuminate\Support\Facades\Route;
+
+
+Route::get('/proxy-kemenag', [ProxyController::class, 'searchPegawai']);
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/wilayah', [WilayahController::class, 'index'])->name('wilayah.index');
+    Route::get('/wilayah/create', [WilayahController::class, 'create'])->name('wilayah.create');
+    Route::post('/wilayah', [WilayahController::class, 'store'])->name('wilayah.store');
+    Route::get('/wilayah/{id}/edit', [WilayahController::class, 'edit'])->name('wilayah.edit');
+    Route::put('/wilayah/{id}', [WilayahController::class, 'update'])->name('wilayah.update');
+    Route::delete('/wilayah/{id}', [WilayahController::class, 'destroy'])->name('wilayah.destroy');
+
+    Route::get('/sakter', [SatkerController::class, 'index'])->name('satker.index');
+    Route::get('/sakter/laporan', [SatkerController::class, 'index2'])->name('satker.laporan');
+    Route::post('/store', [SatkerController::class, 'store'])->name('satker.store');
+    Route::put('/satker/{id}', [SatkerController::class, 'update'])->name('satker.update');
+    Route::delete('/satker/{id}', [SatkerController::class, 'destroy'])->name('satker.destroy');
+    Route::get('/satker/users/{id}', [SatkerController::class, 'getUsersBySatker'])->name('satker.users');
+    Route::get('/satker/generate-code', [SatkerController::class, 'generateCode'])->name('satker.generate-code');
+
+    Route::get('/jabatan', [JabatanController::class, 'index'])->name('jabatan.index');
+    Route::post('/jabatan/store', [JabatanController::class, 'store'])->name('jabatan.store');
+    Route::put('/jabatan/{id}', [JabatanController::class, 'update'])->name('jabatan.update');
+    Route::delete('/jabatan/{id}', [JabatanController::class, 'destroy'])->name('jabatan.destroy');
+
+    Route::get('/pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
+
+    Route::get('/penugasan', [PenugasanController::class, 'index'])->name('penugasan.index');
+    Route::post('/penugasan', [PenugasanController::class, 'store'])->name('penugasan.store');
+    Route::put('/penugasan/{id}', [PenugasanController::class, 'update'])->name('penugasan.update');
+    Route::delete('/penugasan/{id}', [PenugasanController::class, 'destroy'])->name('penugasan.destroy');
+    Route::put('/penugasan/unassign/{id}', [PenugasanController::class, 'unassign'])->name('penugasan.unassign');
+
+
+    Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit.index');
+
+    Route::get('/periode', [PeriodeController::class, 'index'])->name('periode.index');
+    Route::post('/periode/periode/store', [PeriodeController::class, 'store'])->name('periode.store');
+    Route::put('/periode/{id}/update', [PeriodeController::class, 'update'])->name('periode.update');
+    Route::delete('/periode/{id}/delete', [PeriodeController::class, 'destroy'])->name('periode.destroy');
+
+    Route::get('/pegawai/search', [getProfileController::class, 'searchByNIP'])->name('pegawai.search');
+    Route::post('/pegawai/update-satker', 
+    [PegawaiController::class, 'updateSatker'])
+    ->name('pegawai.update-satker');
+    Route::get('/bulking/list', [PegawaiController::class, 'bulkingList'])
+    ->name('bulking.list');
+
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';
