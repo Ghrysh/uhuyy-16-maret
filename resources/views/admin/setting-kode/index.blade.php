@@ -7,9 +7,47 @@
     <p class="text-sm text-gray-500 mt-1">Konfigurasi pola kode otomatis berdasarkan Wilayah, Level, dan Jabatan.</p>
 </div>
 
+<script>
+    window.rumusDatabase = @json($rumusList);
+</script>
+
 <div x-data="{ 
         tab: 'auto_number', 
         editModalOpen: false,
+        rumusData: window.rumusDatabase,
+        
+        // Form Auto Number
+        auto_wilayah: '', auto_jenis: '', auto_ref: '',
+        activeAutoSetup: null,
+
+        // Form Fix Code
+        fix_wilayah: '', fix_jenis: '', fix_ref: '',
+        activeFixSetup: null,
+
+        checkSetup(type) {
+            let w = type === 'auto' ? this.auto_wilayah : this.fix_wilayah;
+            let j = type === 'auto' ? this.auto_jenis : this.fix_jenis;
+            let r = type === 'auto' ? this.auto_ref : this.fix_ref;
+
+            let wStr = w ? w.toString() : null;
+            let jStr = j ? j.toString() : null;
+            let rStr = r ? r.toString() : null;
+
+            let found = this.rumusData.find(item => {
+                let dbW = item.tingkat_wilayah_id ? item.tingkat_wilayah_id.toString() : null;
+                let dbJ = item.jenis_satker_id ? item.jenis_satker_id.toString() : null;
+                let dbR = item.ref_jabatan_satker_id ? item.ref_jabatan_satker_id.toString() : null;
+                
+                return dbW === wStr && dbJ === jStr && dbR === rStr && (item.is_applied == 1 || item.is_applied === true);
+            });
+
+            if (type === 'auto') {
+                this.activeAutoSetup = found || null;
+            } else {
+                this.activeFixSetup = found || null;
+            }
+        },
+
         init() {
             let sessionTab = '{{ session('tab') }}';
             let navType = window.performance.getEntriesByType('navigation')[0]?.type;
@@ -24,6 +62,16 @@
             this.$watch('tab', value => {
                 localStorage.setItem('settingKodeTab', value);
             });
+
+            // Pantau Form Auto
+            this.$watch('auto_wilayah', () => this.checkSetup('auto'));
+            this.$watch('auto_jenis', () => this.checkSetup('auto'));
+            this.$watch('auto_ref', () => this.checkSetup('auto'));
+            
+            // Pantau Form Fix
+            this.$watch('fix_wilayah', () => this.checkSetup('fix'));
+            this.$watch('fix_jenis', () => this.checkSetup('fix'));
+            this.$watch('fix_ref', () => this.checkSetup('fix'));
         }
     }" 
     @open-edit-modal.window="editModalOpen = true" 
