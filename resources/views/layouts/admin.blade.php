@@ -87,27 +87,32 @@
                 </button>
 
                 <div id="masterDropdown"
-                    class="dropdown-container bg-black/10 {{ request()->routeIs('admin.*') ? 'open' : '' }}">
+                    class="dropdown-container bg-black/10 {{ request()->routeIs('admin.wilayah.*', 'admin.satker.*', 'admin.setting-kode.*', 'admin.jabatan.*', 'admin.pegawai.*', 'admin.periode.*') ? 'open' : '' }}">
+                    
                     <a href="{{ route('admin.wilayah.index') }}"
                         class="{{ request()->routeIs('admin.wilayah.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-location-dot w-5 text-xs"></i> <span>Wilayah</span>
                     </a>
+                    
                     <a href="{{ route('admin.satker.index') }}"
                         class="{{ request()->routeIs('admin.satker.index') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-building w-5 text-xs"></i> <span>Satuan Kerja</span>
                     </a>
-                    {{-- <a href="{{ route('admin.satker.laporan') }}"
-                        class="{{ request()->routeIs('admin.satker.laporan') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
-                        <i class="fas fa-building w-5 text-xs"></i> <span>laporan</span>
-                    </a> --}}
+
+                    <a href="{{ route('admin.setting-kode.index') }}"
+                        class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-code w-5 text-xs"></i> <span>Rumus Kode</span>
+                    </a>
                     <a href="{{ route('admin.jabatan.index') }}"
                         class="{{ request()->routeIs('admin.jabatan.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-id-card w-5 text-xs"></i> <span>Jabatan Fungsional</span>
                     </a>
+                    
                     <a href="{{ route('admin.pegawai.index') }}"
                         class="{{ request()->routeIs('admin.pegawai.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-users w-5 text-xs"></i> <span>Pegawai</span>
                     </a>
+                    
                     <a href="{{ route('admin.periode.index') }}"
                         class="{{ request()->routeIs('admin.periode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-calendar-alt w-5 text-xs"></i> <span>Periode</span>

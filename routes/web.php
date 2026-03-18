@@ -52,7 +52,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/penugasan/{id}', [PenugasanController::class, 'destroy'])->name('penugasan.destroy');
     Route::put('/penugasan/unassign/{id}', [PenugasanController::class, 'unassign'])->name('penugasan.unassign');
 
-
     Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit.index');
 
     Route::get('/periode', [PeriodeController::class, 'index'])->name('periode.index');
@@ -67,6 +66,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/bulking/list', [PegawaiController::class, 'bulkingList'])
     ->name('bulking.list');
 
+    Route::get('/setting-kode', [\App\Http\Controllers\SettingKodeController::class, 'index'])->name('setting-kode.index');
+    Route::post('/setting-kode/rumus', [\App\Http\Controllers\SettingKodeController::class, 'storeRumus'])->name('setting-kode.storeRumus');
+    Route::put('/setting-kode/manual/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateManual'])->name('setting-kode.updateManual');
+    Route::post('/setting-kode/sync', [\App\Http\Controllers\SettingKodeController::class, 'syncAllCodes'])->name('setting-kode.sync');
+
+    Route::put('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateRumus'])->name('setting-kode.updateRumus');
+    Route::delete('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'destroyRumus'])->name('setting-kode.destroyRumus');
+    Route::post('/setting-kode/rumus/{id}/apply', [\App\Http\Controllers\SettingKodeController::class, 'applyRumus'])->name('setting-kode.applyRumus');
 });
 
 Route::middleware('auth')->group(function () {
