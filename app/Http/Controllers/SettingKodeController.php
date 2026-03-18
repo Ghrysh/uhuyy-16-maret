@@ -65,9 +65,6 @@ class SettingKodeController extends Controller
 
         DB::table('rumus_kodes')->where('id', $id)->update([
             'nama_rumus' => $request->nama_rumus,
-            'tingkat_wilayah_id' => $request->tingkat_wilayah_id,
-            'jenis_satker_id' => $request->jenis_satker_id,
-            'ref_jabatan_satker_id' => $request->ref_jabatan_satker_id,
             'kode_awalan' => $awalan,
             'is_auto_number' => $is_auto,
             'digit_auto_number' => $is_auto ? $digit : null,
@@ -91,7 +88,7 @@ class SettingKodeController extends Controller
         $rumus = DB::table('rumus_kodes')->where('id', $id)->first();
         if(!$rumus) return back()->with('error', 'Rumus tidak ditemukan!');
 
-        // 1. Nonaktifkan rumus lama yang kriterianya persis sama
+        // 1. Nonaktifkan rumus lama
         DB::table('rumus_kodes')
             ->where(function($q) use ($rumus) {
                 if ($rumus->tingkat_wilayah_id) $q->where('tingkat_wilayah_id', $rumus->tingkat_wilayah_id);
@@ -107,18 +104,20 @@ class SettingKodeController extends Controller
             })
             ->update(['is_applied' => false]);
 
-        // 2. Aktifkan rumus yang dipilih
+        // 2. Aktifkan rumus ini
         DB::table('rumus_kodes')->where('id', $id)->update(['is_applied' => true]);
 
-        // 3. Cari ID data Satker lama yang terdampak
+        // 3. CARI TARGET: Kunci utamanya ada di sini!
         $query = Satker::query();
         
+        // HUKUM KEKEBALAN ESELON 1 (SEKJEN/IRJEN AMAN)
         if ($rumus->jenis_satker_id) {
             $query->where('jenis_satker_id', $rumus->jenis_satker_id);
+        } else {
+            $query->whereNotNull('parent_satker_id');
         }
         
-        // --- LOGIKA SUPER AMAN: Hanya update yang ID jabatannya benar-benar MATCH ---
-        // (Kita tidak boleh menebak data NULL lagi agar tidak merusak satker lain)
+        // LOGIKA KETAT: WAJIB SAMA PERSIS
         if ($rumus->ref_jabatan_satker_id) {
             $query->where('ref_jabatan_satker_id', $rumus->ref_jabatan_satker_id);
         } else {
@@ -168,7 +167,7 @@ class SettingKodeController extends Controller
                 $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
             }
 
-            // SAFEGUARD ANTI CRASH: Tambahkan urutan jika kode sudah dipakai
+            // Mencegah error duplikat kode
             $originalKodeBaru = $kodeBaru;
             $counter = 1;
             while (Satker::where('kode_satker', $kodeBaru)->where('id', '!=', $satker->id)->exists()) {
@@ -176,11 +175,9 @@ class SettingKodeController extends Controller
                 $counter++;
             }
 
-            // Eksekusi Update
+            // EKSEKUSI UPDATE
             if ($satker->kode_satker !== $kodeBaru) {
-                DB::table('satker')->where('id', $satker->id)->update([
-                    'kode_satker' => $kodeBaru
-                ]);
+                DB::table('satker')->where('id', $satker->id)->update(['kode_satker' => $kodeBaru]);
                 $berhasil++;
 
                 // Cascade update bawahan
@@ -196,16 +193,11 @@ class SettingKodeController extends Controller
     private function cascadeUpdateKode($parentId, $kodeLama, $kodeBaru)
     {
         $children = DB::table('satker')->where('parent_satker_id', $parentId)->get();
-        
         foreach ($children as $child) {
             $childKodeLama = $child->kode_satker;
-
             if (str_starts_with($childKodeLama, $kodeLama)) {
-
                 $childKodeBaru = $kodeBaru . substr($childKodeLama, strlen($kodeLama));
-
                 DB::table('satker')->where('id', $child->id)->update(['kode_satker' => $childKodeBaru]);
-
                 $this->cascadeUpdateKode($child->id, $childKodeLama, $childKodeBaru);
             }
         }
