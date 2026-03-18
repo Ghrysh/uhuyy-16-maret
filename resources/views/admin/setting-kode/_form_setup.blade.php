@@ -32,21 +32,22 @@
         </div>
     </div>
 
-    <div x-show="{{ $activeVar }}" x-cloak x-transition.opacity duration.500ms class="mb-5 p-3 bg-blue-50 border border-blue-300 rounded-lg shadow-inner">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+<div class="mb-5 transition-all duration-300">
+        
+        <div x-show="{{ $activeVar }} !== null" x-cloak x-transition.opacity class="p-3 bg-blue-50 border border-blue-300 rounded-lg shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div class="flex items-start">
                 <div class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <i class="fas fa-info text-lg"></i>
+                    <i class="fas fa-exclamation-triangle text-sm"></i>
                 </div>
                 <div class="ml-3">
                     <span class="font-bold text-blue-900 text-sm block">Perhatian: Ada Setup yang Sedang Aktif!</span>
-                    <p class="text-[11px] text-blue-700 leading-tight">Jika Anda membuat setup baru untuk kombinasi 3 filter di atas, maka setup lama ini akan otomatis terganti (dinonaktifkan).</p>
+                    <p class="text-[11px] text-blue-700 leading-tight">Jika Anda membuat setup baru untuk filter di atas, maka setup lama ini akan terganti (dinonaktifkan).</p>
                 </div>
             </div>
-            <div class="bg-white p-2 rounded shadow-sm border border-blue-200 text-xs w-full sm:w-auto flex-shrink-0">
-                <div class="font-bold text-[#112D4E] border-b pb-1 mb-1 border-gray-100" x-text="{{ $activeVar }}?.nama_rumus"></div>
+            <div class="bg-white p-2 rounded shadow-sm border border-blue-200 text-[10px] w-full sm:w-auto flex-shrink-0 min-w-[200px]">
+                <div class="font-bold text-[#112D4E] border-b pb-1 mb-1 border-gray-100 truncate" x-text="{{ $activeVar }}?.nama_rumus"></div>
                 <div class="flex justify-between items-center gap-4">
-                    <span class="text-gray-500">Pola/Rumus:</span>
+                    <span class="text-gray-500">Pola Lama:</span>
                     <span class="font-mono font-bold text-blue-700" x-text="{{ $activeVar }}?.pola"></span>
                 </div>
                 <div class="flex justify-between items-center gap-4 mt-0.5">
@@ -55,9 +56,28 @@
                 </div>
             </div>
         </div>
+
+        <div x-show="{{ $activeVar }} === null" x-cloak x-transition.opacity class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-start">
+                <div class="bg-emerald-500 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <i class="fas fa-info-circle text-sm"></i>
+                </div>
+                <div class="ml-3">
+                    <span class="font-bold text-emerald-900 text-sm block">Kombinasi Baru (Belum Ada Setup Rumus)</span>
+                    <p class="text-[11px] text-emerald-700 leading-tight">Jika Anda tidak membuat setup rumus, maka sistem secara otomatis akan menggunakan referensi bawaan di samping ini:</p>
+                </div>
+            </div>
+            <div class="bg-white p-2 rounded shadow-sm border border-emerald-200 text-xs w-full sm:w-auto flex-shrink-0 min-w-[200px]">
+                <span class="text-gray-500 block text-[10px] mb-0.5 border-b border-gray-100 pb-0.5">Kode Dasar Bawaan Sistem (Saat Ini):</span>
+                <span class="font-mono font-bold text-emerald-700 text-sm flex items-center mt-1">
+                    <i class="fas fa-hashtag text-[10px] mr-1.5 opacity-50"></i>
+                    <span x-text="getDefaultCode('{{ $prefix }}')"></span>
+                </span>
+            </div>
+        </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-3 border rounded shadow-sm">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-3 border rounded shadow-sm relative z-10">
         <div>
             <label class="block text-xs font-bold text-gray-700">Nama Setup (Identitas)</label>
             <input type="text" name="nama_rumus" placeholder="Cth: Setup Wadir PTKN" class="mt-1 block w-full rounded p-2 border text-sm" required>

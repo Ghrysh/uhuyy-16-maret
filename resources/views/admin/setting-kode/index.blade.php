@@ -8,13 +8,16 @@
 </div>
 
 <script>
+    // Data dilempar ke window agar aman
     window.rumusDatabase = @json($rumusList);
+    window.refJabatanDatabase = @json($refJabatans); // <-- TAMBAHAN: Tarik data referensi jabatan
 </script>
 
 <div x-data="{ 
         tab: 'auto_number', 
         editModalOpen: false,
         rumusData: window.rumusDatabase,
+        refData: window.refJabatanDatabase, // <-- TAMBAHAN: Masukkan ke Alpine
         
         // Form Auto Number
         auto_wilayah: '', auto_jenis: '', auto_ref: '',
@@ -24,27 +27,49 @@
         fix_wilayah: '', fix_jenis: '', fix_ref: '',
         activeFixSetup: null,
 
+        // FUNGSI BARU: Mengambil Kode Dasar Bawaan Sistem
+        getDefaultCode(type) {
+            let r = type === 'auto' ? this.auto_ref : this.fix_ref;
+            if (!r) return '[ Belum Pilih Jabatan ]';
+            
+            let jab = this.refData.find(item => item.id == r);
+            return jab && jab.kode_dasar ? jab.kode_dasar : '[ Tidak Ada / Default Urut ]';
+        },
+
         checkSetup(type) {
             let w = type === 'auto' ? this.auto_wilayah : this.fix_wilayah;
             let j = type === 'auto' ? this.auto_jenis : this.fix_jenis;
             let r = type === 'auto' ? this.auto_ref : this.fix_ref;
 
-            let wStr = w ? w.toString() : null;
-            let jStr = j ? j.toString() : null;
-            let rStr = r ? r.toString() : null;
+            let wStr = (w === '' || w === null) ? null : String(w).toLowerCase();
+            let jStr = (j === '' || j === null) ? null : String(j).toLowerCase();
+            let rStr = (r === '' || r === null) ? null : String(r).toLowerCase();
 
-            let found = this.rumusData.find(item => {
-                let dbW = item.tingkat_wilayah_id ? item.tingkat_wilayah_id.toString() : null;
-                let dbJ = item.jenis_satker_id ? item.jenis_satker_id.toString() : null;
-                let dbR = item.ref_jabatan_satker_id ? item.ref_jabatan_satker_id.toString() : null;
+            let matches = this.rumusData.filter(item => {
+                let dbW = item.tingkat_wilayah_id ? String(item.tingkat_wilayah_id).toLowerCase() : null;
+                let dbJ = item.jenis_satker_id ? String(item.jenis_satker_id).toLowerCase() : null;
+                let dbR = item.ref_jabatan_satker_id ? String(item.ref_jabatan_satker_id).toLowerCase() : null;
                 
-                return dbW === wStr && dbJ === jStr && dbR === rStr && (item.is_applied == 1 || item.is_applied === true);
+                let isAktif = (item.is_applied == 1 || item.is_applied === true);
+                let isTypeMatch = type === 'auto' ? (item.is_auto_number == 1 || item.is_auto_number === true) : (item.is_auto_number == 0 || item.is_auto_number === false);
+
+                let matchW = (dbW === null) || (dbW === wStr);
+                let matchJ = (dbJ === null) || (dbJ === jStr);
+                let matchR = (dbR === null) || (dbR === rStr);
+
+                return matchW && matchJ && matchR && isAktif && isTypeMatch;
+            });
+
+            matches.sort((a, b) => {
+                let scoreA = (a.tingkat_wilayah_id ? 1 : 0) + (a.jenis_satker_id ? 1 : 0) + (a.ref_jabatan_satker_id ? 1 : 0);
+                let scoreB = (b.tingkat_wilayah_id ? 1 : 0) + (b.jenis_satker_id ? 1 : 0) + (b.ref_jabatan_satker_id ? 1 : 0);
+                return scoreB - scoreA;
             });
 
             if (type === 'auto') {
-                this.activeAutoSetup = found || null;
+                this.activeAutoSetup = matches.length > 0 ? matches[0] : null;
             } else {
-                this.activeFixSetup = found || null;
+                this.activeFixSetup = matches.length > 0 ? matches[0] : null;
             }
         },
 
@@ -63,12 +88,13 @@
                 localStorage.setItem('settingKodeTab', value);
             });
 
-            // Pantau Form Auto
+            this.checkSetup('auto');
+            this.checkSetup('fix');
+
             this.$watch('auto_wilayah', () => this.checkSetup('auto'));
             this.$watch('auto_jenis', () => this.checkSetup('auto'));
             this.$watch('auto_ref', () => this.checkSetup('auto'));
             
-            // Pantau Form Fix
             this.$watch('fix_wilayah', () => this.checkSetup('fix'));
             this.$watch('fix_jenis', () => this.checkSetup('fix'));
             this.$watch('fix_ref', () => this.checkSetup('fix'));
