@@ -225,82 +225,96 @@ class SatkerController extends Controller
         $jenisId = $request->jenis_id;
         $parentId = $request->parent_id;
         $refJabatanId = $request->ref_jabatan_satker_id;
-
-        $nomorParentId = '';
-        $middleCode = '';
-
-        // =========================
-        // AMBIL KODE PARENT
-        // =========================
-        if ($parentId) {
-            $parent = Satker::find($parentId);
-            if ($parent) {
-                $nomorParentId = $parent->kode_satker;
-            }
+        
+        // 1. Ambil Tingkat Wilayah (Pusat/PTKN/Prov) berdasarkan wilayah yang dipilih user
+        $wilayahId = $request->wilayah_id;
+        $tingkatWilayahId = null;
+        if ($wilayahId) {
+            $wilayah = \App\Models\Wilayah::find($wilayahId);
+            if ($wilayah) $tingkatWilayahId = $wilayah->tingkat_wilayah_id;
         }
 
-        // =========================
-        // CEK REF JABATAN SATKER
-        // =========================
-        if ($refJabatanId) {
-
-            $ref = RefJabatanSatker::find($refJabatanId);
-
-            if ($ref) {
-
-                $baseCode = $ref->kode_dasar;
-
-                // ambil satker terakhir dengan jabatan sama
-                $last = Satker::where('parent_satker_id', $parentId)
-                    ->where('ref_jabatan_satker_id', $refJabatanId)
-                    ->orderBy('kode_satker', 'desc')
-                    ->first();
-
-                if ($last) {
-
-                    // ambil 2 digit terakhir
-                    $lastNumber = substr($last->kode_satker, -2);
-
-                    $next = intval($lastNumber) + 1;
-
-                    $middleCode = str_pad($next, 2, '0', STR_PAD_LEFT);
-
+        // 2. BACA DARI SETUP RUMUS (Bukan lagi dari ref_jabatan_satker)
+        $setup = DB::table('rumus_kodes')
+            ->where('is_applied', 1)
+            ->where(function ($q) use ($tingkatWilayahId) {
+                $q->where('tingkat_wilayah_id', $tingkatWilayahId)->orWhereNull('tingkat_wilayah_id');
+            })
+            ->where(function ($q) use ($jenisId) {
+                $q->where('jenis_satker_id', $jenisId)->orWhereNull('jenis_satker_id');
+            })
+            ->where(function ($q) use ($refJabatanId) {
+                if ($refJabatanId) {
+                    $q->where('ref_jabatan_satker_id', $refJabatanId)->orWhereNull('ref_jabatan_satker_id');
                 } else {
-
-                    // gunakan kode dasar
-                    $middleCode = $baseCode;
+                    $q->whereNull('ref_jabatan_satker_id');
                 }
-            }
+            })
+            ->orderByRaw('(CASE WHEN tingkat_wilayah_id IS NOT NULL THEN 1 ELSE 0 END) + 
+                          (CASE WHEN jenis_satker_id IS NOT NULL THEN 1 ELSE 0 END) + 
+                          (CASE WHEN ref_jabatan_satker_id IS NOT NULL THEN 1 ELSE 0 END) DESC')
+            ->first();
+
+        // Jika user belum bikin Setup, beri tahu dengan Error
+        if (!$setup) {
+            return response()->json(['error' => 'Setup Rumus belum dikonfigurasi untuk kombinasi ini. Silakan buat di menu Setup Kode.'], 404);
         }
 
-        // =========================
-        // FALLBACK JIKA TIDAK ADA
-        // =========================
-        if (!$middleCode) {
+        $kodeBaru = $setup->pola;
 
-            $lastChild = Satker::where('parent_satker_id', $parentId)
+        if (str_contains($kodeBaru, '[PARENT]')) {
+            $parent = Satker::find($parentId);
+            $parentCode = $parent ? $parent->kode_satker : '';
+            $kodeBaru = str_replace('[PARENT]', $parentCode, $kodeBaru);
+        }
+
+        if (str_contains($kodeBaru, '[KODE_WILAYAH]')) {
+            $wilayah = \App\Models\Wilayah::find($wilayahId);
+            $kodeWilayah = $wilayah ? $wilayah->kode_wilayah : ''; 
+            $kodeBaru = str_replace('[KODE_WILAYAH]', $kodeWilayah, $kodeBaru);
+        }
+
+        if (str_contains($kodeBaru, '[KODE_JF]')) {
+            $jabatanFungsionalId = $request->jabatan_id; 
+            $jf = \App\Models\JabatanFungsional::find($jabatanFungsionalId);
+            $kodeJf = $jf ? $jf->kode : '';
+            $kodeBaru = str_replace('[KODE_JF]', $kodeJf, $kodeBaru);
+        }
+
+        if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
+            $digit = (int)$matches[1];
+            $prefixPattern = explode('[INC', $setup->pola)[0];
+
+            if (str_contains($prefixPattern, '[PARENT]')) {
+                 $prefixPattern = str_replace('[PARENT]', $parentCode ?? '', $prefixPattern);
+            }
+            if (str_contains($prefixPattern, '[KODE_WILAYAH]')) {
+                 $prefixPattern = str_replace('[KODE_WILAYAH]', $kodeWilayah ?? '', $prefixPattern);
+            }
+            if (str_contains($prefixPattern, '[KODE_JF]')) {
+                 $prefixPattern = str_replace('[KODE_JF]', $kodeJf ?? '', $prefixPattern);
+            }
+
+            $lastSibling = Satker::where('parent_satker_id', $parentId)
+                ->where('kode_satker', 'like', $prefixPattern . '%')
                 ->orderBy('kode_satker', 'desc')
                 ->first();
 
-            $nextNumber = 1;
-
-            if ($lastChild) {
-
-                $lastTwo = substr($lastChild->kode_satker, -2);
-
-                $nextNumber = is_numeric($lastTwo) ? intval($lastTwo) + 1 : 1;
+            $nextNum = 1;
+            if ($lastSibling) {
+                $lastNumStr = substr($lastSibling->kode_satker, -$digit);
+                if (is_numeric($lastNumStr)) {
+                    $nextNum = intval($lastNumStr) + 1;
+                }
             }
-
-            $middleCode = str_pad($nextNumber, 2, '0', STR_PAD_LEFT);
+            
+            $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
+            $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
         }
 
-        // =========================
-        // FINAL CODE
-        // =========================
-        $finalCode = $nomorParentId . $middleCode;
-
         return response()->json([
-            'code' => $finalCode
+            'code' => $kodeBaru,
+            'default_nama' => $setup->default_nama_satker ?? ''
         ]);
     }
 }

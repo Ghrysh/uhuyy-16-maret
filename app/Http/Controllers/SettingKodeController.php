@@ -73,7 +73,7 @@ class SettingKodeController extends Controller
             'digit_auto_number' => $is_auto ? $digit : null,
             'default_nama_satker' => $request->default_nama_satker,
             'pola' => $pola,
-            'is_applied' => false, // Reset status
+            'is_applied' => false,
             'updated_at' => now(),
         ]);
 
@@ -91,59 +91,124 @@ class SettingKodeController extends Controller
         $rumus = DB::table('rumus_kodes')->where('id', $id)->first();
         if(!$rumus) return back()->with('error', 'Rumus tidak ditemukan!');
 
-        $query = Satker::query();
-        if ($rumus->jenis_satker_id) $query->where('jenis_satker_id', $rumus->jenis_satker_id);
-        if ($rumus->ref_jabatan_satker_id) $query->where('ref_jabatan_satker_id', $rumus->ref_jabatan_satker_id);
+        // 1. Nonaktifkan rumus lama yang kriterianya persis sama
+        DB::table('rumus_kodes')
+            ->where(function($q) use ($rumus) {
+                if ($rumus->tingkat_wilayah_id) $q->where('tingkat_wilayah_id', $rumus->tingkat_wilayah_id);
+                else $q->whereNull('tingkat_wilayah_id');
+            })
+            ->where(function($q) use ($rumus) {
+                if ($rumus->jenis_satker_id) $q->where('jenis_satker_id', $rumus->jenis_satker_id);
+                else $q->whereNull('jenis_satker_id');
+            })
+            ->where(function($q) use ($rumus) {
+                if ($rumus->ref_jabatan_satker_id) $q->where('ref_jabatan_satker_id', $rumus->ref_jabatan_satker_id);
+                else $q->whereNull('ref_jabatan_satker_id');
+            })
+            ->update(['is_applied' => false]);
 
+        // 2. Aktifkan rumus yang dipilih
+        DB::table('rumus_kodes')->where('id', $id)->update(['is_applied' => true]);
+
+        // 3. Cari ID data Satker lama yang terdampak
+        $query = Satker::query();
+        
+        if ($rumus->jenis_satker_id) {
+            $query->where('jenis_satker_id', $rumus->jenis_satker_id);
+        }
+        
+        // --- LOGIKA SUPER AMAN: Hanya update yang ID jabatannya benar-benar MATCH ---
+        // (Kita tidak boleh menebak data NULL lagi agar tidak merusak satker lain)
+        if ($rumus->ref_jabatan_satker_id) {
+            $query->where('ref_jabatan_satker_id', $rumus->ref_jabatan_satker_id);
+        } else {
+            $query->whereNull('ref_jabatan_satker_id');
+        }
+        
         if ($rumus->tingkat_wilayah_id) {
             $query->whereHas('wilayah', function($q) use ($rumus) {
                 $q->where('tingkat_wilayah_id', $rumus->tingkat_wilayah_id);
             });
         }
         
-        $targetSatkers = $query->orderBy('id', 'asc')->get();
+        $targetIds = $query->orderBy('created_at', 'asc')->pluck('id')->toArray();
         $berhasil = 0;
 
-        foreach ($targetSatkers as $satker) {
+        foreach ($targetIds as $satkerId) {
+            $satker = Satker::with('wilayah')->find($satkerId);
+            if (!$satker) continue;
+
+            $kodeLama = $satker->kode_satker;
             $kodeBaru = $rumus->pola;
+
+            // Terjemahkan [PARENT]
             if (str_contains($kodeBaru, '[PARENT]')) {
-                $parentCode = $satker->parent ? $satker->parent->kode_satker : '';
+                $parent = Satker::find($satker->parent_satker_id); 
+                $parentCode = $parent ? $parent->kode_satker : '';
                 $kodeBaru = str_replace('[PARENT]', $parentCode, $kodeBaru);
             }
 
-            if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
-                $digit = (int)$matches[1];
-                $sibling = Satker::where('parent_satker_id', $satker->parent_satker_id)
-                                 ->where('id', '<', $satker->id)
-                                 ->orderBy('kode_satker', 'desc')
-                                 ->first();
-                
-                $nextNum = 1;
-                if ($sibling) {
-                    $lastNumStr = substr($sibling->kode_satker, -$digit);
-                    if (is_numeric($lastNumStr)) {
-                        $nextNum = intval($lastNumStr) + 1;
-                    }
-                }
-                $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
-                $kodeBaru = preg_replace('/\[INC:\d+\]/', $incStr, $kodeBaru);
+            // Terjemahkan [KODE_WILAYAH]
+            if (str_contains($kodeBaru, '[KODE_WILAYAH]')) {
+                $kodeWilayah = $satker->wilayah ? $satker->wilayah->kode_wilayah : '';
+                $kodeBaru = str_replace('[KODE_WILAYAH]', $kodeWilayah, $kodeBaru);
             }
 
+            // Terjemahkan [INC:X]
+            if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
+                $digit = (int)$matches[1];
+                $sibQuery = Satker::where('parent_satker_id', $satker->parent_satker_id)
+                                  ->where('jenis_satker_id', $satker->jenis_satker_id)
+                                  ->where('ref_jabatan_satker_id', $satker->ref_jabatan_satker_id);
+                
+                $siblings = $sibQuery->orderBy('created_at', 'asc')->pluck('id')->toArray();
+                $posisi = array_search($satker->id, $siblings);
+                $nextNum = ($posisi !== false) ? $posisi + 1 : 1;
+                $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
+                $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
+            }
+
+            // SAFEGUARD ANTI CRASH: Tambahkan urutan jika kode sudah dipakai
+            $originalKodeBaru = $kodeBaru;
+            $counter = 1;
+            while (Satker::where('kode_satker', $kodeBaru)->where('id', '!=', $satker->id)->exists()) {
+                $kodeBaru = $originalKodeBaru . str_pad($counter, 2, '0', STR_PAD_LEFT);
+                $counter++;
+            }
+
+            // Eksekusi Update
             if ($satker->kode_satker !== $kodeBaru) {
-                $satker->update(['kode_satker' => $kodeBaru]);
+                DB::table('satker')->where('id', $satker->id)->update([
+                    'kode_satker' => $kodeBaru
+                ]);
                 $berhasil++;
+
+                // Cascade update bawahan
+                if ($kodeLama !== $kodeBaru) {
+                    $this->cascadeUpdateKode($satker->id, $kodeLama, $kodeBaru);
+                }
             }
         }
 
-        DB::table('rumus_kodes')
-            ->where('tingkat_wilayah_id', $rumus->tingkat_wilayah_id)
-            ->where('jenis_satker_id', $rumus->jenis_satker_id)
-            ->where('ref_jabatan_satker_id', $rumus->ref_jabatan_satker_id)
-            ->update(['is_applied' => false]);
+        return back()->with('success', "Berhasil! $berhasil Data Satker (beserta anak bawahannya) otomatis menyesuaikan Rumus Baru.");
+    }
 
-        DB::table('rumus_kodes')->where('id', $id)->update(['is_applied' => true]);
+    private function cascadeUpdateKode($parentId, $kodeLama, $kodeBaru)
+    {
+        $children = DB::table('satker')->where('parent_satker_id', $parentId)->get();
+        
+        foreach ($children as $child) {
+            $childKodeLama = $child->kode_satker;
 
-        return back()->with('success', "Berhasil! $berhasil kode diubah. Rumus lama yang sekriteria telah otomatis dialihkan.");
+            if (str_starts_with($childKodeLama, $kodeLama)) {
+
+                $childKodeBaru = $kodeBaru . substr($childKodeLama, strlen($kodeLama));
+
+                DB::table('satker')->where('id', $child->id)->update(['kode_satker' => $childKodeBaru]);
+
+                $this->cascadeUpdateKode($child->id, $childKodeLama, $childKodeBaru);
+            }
+        }
     }
 
     public function updateManual(Request $request, $id)

@@ -1669,17 +1669,17 @@
             btn.disabled = true;
 
             try {
-                const refJabatanId = document.getElementById("ref_jabatan_satker_id")?.value;
+                const wilayahId = document.getElementById('wilayah_id')?.value || '';
+                const refJabatanId = document.getElementById("ref_jabatan_satker_id")?.value || document.getElementById('jabatan_id')?.value || '';
 
-                // 1. TAMBAHKAN TIMESTAMP UNTUK CACHE BUSTING
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId,
                     parent_id: parentId,
                     ref_jabatan_satker_id: refJabatanId,
-                    _t: Date.now() // Timestamp agar URL selalu unik
+                    wilayah_id: wilayahId,
+                    _t: Date.now()
                 });
 
-                // 2. GUNAKAN OPSI cache: 'no-store'
                 const response = await fetch(`/admin/satker/generate-code?${queryParams}`, {
                     method: 'GET',
                     headers: {
@@ -1694,7 +1694,6 @@
 
                 const container = document.getElementById('kode_container');
 
-                // Bersihkan input lama sebelum render baru
                 container.querySelectorAll('input').forEach(el => el.remove());
 
                 if (jenisId === "1") {
@@ -1708,18 +1707,9 @@
                     const parentSelect = document.getElementById('parent_satker_id');
                     const parentText = parentSelect?.options[parentSelect.selectedIndex]?.text || '';
                     const displayParentKode = parentText.split(' - ')[0].trim();
-
-                    const status = document.getElementById("tanpa_jabatan").value;
-                    const kategoriUnit = document.getElementById("kategori_unit")?.value;
                     const prefixLength = displayParentKode.length;
 
-                    let middle = "";
-                    if (status === "wakil_rektor" || status === "manajerial" || (status === "jabatan_kanwil" && !
-                            kategoriUnit)) {
-                        middle = data.code ? data.code.slice(prefixLength, prefixLength + 2) : getMiddleCode();
-                    } else {
-                        middle = getMiddleCode();
-                    }
+                    const middle = (data.code || "").substring(prefixLength);
 
                     let htmlInputs = `
                 <input type="text" value="${displayParentKode}" readonly
@@ -1730,7 +1720,19 @@
                     container.insertAdjacentHTML('afterbegin', htmlInputs);
                 }
 
-                updateFullCode();
+                const finalInput = document.getElementById('kode_satker_full');
+                if (finalInput) finalInput.value = data.code;
+
+                if (data.default_nama) {
+                    const namaInput = document.querySelector('input[name="nama_satker"]');
+                    if (namaInput && namaInput.value.trim() === '') {
+                        namaInput.value = data.default_nama;
+                    }
+                }
+
+                if (typeof updateFullCode === "function") {
+                    updateFullCode();
+                }
 
             } catch (error) {
                 Toast.fire({
