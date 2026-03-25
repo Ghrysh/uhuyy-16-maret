@@ -10,14 +10,11 @@ class RumusKodeSeeder extends Seeder
     private function getJabatanId($keyword) 
     {
         return DB::table('ref_jabatan_satker')
-            ->where('label_jabatan', 'ILIKE', "%{$keyword}%")
-            ->orWhere('key_jabatan', 'ILIKE', "%{$keyword}%")
+            ->where('key_jabatan', 'ILIKE', "%{$keyword}%")
+            ->orWhere('label_jabatan', 'ILIKE', "%{$keyword}%")
             ->value('id');
     }
 
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $now = now();
@@ -34,238 +31,115 @@ class RumusKodeSeeder extends Seeder
                 'is_applied' => true,
             ],
 
-            // 1. WAKIL REKTOR / WAKIL KETUA (Kode Dasar: 9)
+            // ==========================================
+            // A. JABATAN STRUKTURAL KHUSUS & PATEN
+            // ==========================================
             [
-                'nama_rumus' => 'Setup Wakil Rektor / Wakil Ketua',
+                'nama_rumus' => 'Setup Tata Usaha (Paten 01)',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Wakil Rektor'),
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Wakil Rektor Bidang', 'pola' => '[PARENT]9[INC:1]', 'is_applied' => true,
+                'ref_jabatan_satker_id' => $this->getJabatanId('tata_usaha') ?? $this->getJabatanId('Tata Usaha'),
+                'kode_awalan' => '01', 'is_auto_number' => false, 'digit_auto_number' => null,
+                'default_nama_satker' => 'Tata Usaha', 'pola' => '[PARENT]01', 'is_applied' => true,
+            ],
+            [
+                'nama_rumus' => 'Setup Seksi Pend. Madrasah (Paten 02)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('pendidikan_madrasah') ?? $this->getJabatanId('Madrasah'),
+                'kode_awalan' => '02', 'is_auto_number' => false, 'digit_auto_number' => null,
+                'default_nama_satker' => 'Seksi Pendidikan Madrasah', 'pola' => '[PARENT]02', 'is_applied' => true,
+            ],
+            [
+                'nama_rumus' => 'Setup Seksi Bimas Islam (Paten 03)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('bimas_islam') ?? $this->getJabatanId('Bimbingan Masyarakat'),
+                'kode_awalan' => '03', 'is_auto_number' => false, 'digit_auto_number' => null,
+                'default_nama_satker' => 'Seksi Bimbingan Masyarakat Islam', 'pola' => '[PARENT]03', 'is_applied' => true,
             ],
 
-            // 2. DEKAN (Kode Dasar: 0)
+            // ==========================================
+            // B. JABATAN TUGAS TAMBAHAN PTKN (KODE SAKTI '9')
+            // ==========================================
+            [
+                'nama_rumus' => 'Setup Wakil Rektor',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('wakil_rektor') ?? $this->getJabatanId('Wakil Rektor'),
+                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 1,
+                'default_nama_satker' => 'Wakil Rektor', 'pola' => '[PARENT]9[INC:1]', 'is_applied' => true,
+            ],
             [
                 'nama_rumus' => 'Setup Dekan',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Dekan'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Fakultas', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
+                'ref_jabatan_satker_id' => $this->getJabatanId('dekan') ?? $this->getJabatanId('Dekan'), 
+                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 2, 
+                'default_nama_satker' => 'Fakultas', 'pola' => '[PARENT]9[INC:2]', 'is_applied' => true,
             ],
-
-            // 3. WAKIL DEKAN (Kode Dasar: 9)
-            [
-                'nama_rumus' => 'Setup Wakil Dekan',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Wakil Dekan'),
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Wakil Dekan Bidang', 'pola' => '[PARENT]9[INC:1]', 'is_applied' => true,
-            ],
-
-            // 4. KEPALA BIRO (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala Biro',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Biro'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Biro', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 5. KETUA LEMBAGA (Kode Dasar: 0)
             [
                 'nama_rumus' => 'Setup Ketua Lembaga',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Lembaga'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Lembaga', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
+                'ref_jabatan_satker_id' => $this->getJabatanId('lembaga') ?? $this->getJabatanId('Lembaga'),
+                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 2, 
+                'default_nama_satker' => 'Lembaga', 'pola' => '[PARENT]9[INC:2]', 'is_applied' => true,
+            ],
+            [
+                'nama_rumus' => 'Setup Wakil Dekan',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('wakil_dekan') ?? $this->getJabatanId('Wakil Dekan'),
+                'kode_awalan' => '', 'is_auto_number' => true, 'digit_auto_number' => 1, 
+                'default_nama_satker' => 'Wakil Dekan', 'pola' => '[PARENT][INC:1]', 'is_applied' => true,
+            ],
+            [
+                'nama_rumus' => 'Setup Ketua Jurusan',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('jurusan') ?? $this->getJabatanId('Jurusan'),
+                'kode_awalan' => '', 'is_auto_number' => true, 'digit_auto_number' => 2, 
+                'default_nama_satker' => 'Jurusan', 'pola' => '[PARENT][INC:2]', 'is_applied' => true,
+            ],
+            [
+                'nama_rumus' => 'Setup Ketua Prodi',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
+                'ref_jabatan_satker_id' => $this->getJabatanId('program_studi') ?? $this->getJabatanId('Program Studi'),
+                'kode_awalan' => '00', 'is_auto_number' => true, 'digit_auto_number' => 2, 
+                'default_nama_satker' => 'Program Studi', 'pola' => '[PARENT]00[INC:2]', 'is_applied' => true,
             ],
 
-            // 6. KEPALA UPT (Kode Dasar: 0)
+            // ==========================================
+            // C. LAIN-LAIN (TIM KERJA & NON-JABATAN)
+            // ==========================================
             [
-                'nama_rumus' => 'Setup Kepala UPT',
+                'nama_rumus' => 'Setup Tim Kerja (Paten 98)',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('UPT'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'UPT', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
+                'ref_jabatan_satker_id' => $this->getJabatanId('tim_kerja') ?? $this->getJabatanId('Tim Kerja'),
+                'kode_awalan' => '98', 'is_auto_number' => false, 'digit_auto_number' => null,
+                'default_nama_satker' => 'Tim Kerja', 'pola' => '[PARENT]98', 'is_applied' => true,
             ],
-
-            // 7. DIREKTUR PASCASARJANA (Kode Dasar: 0)
             [
-                'nama_rumus' => 'Setup Direktur Pascasarjana',
+                'nama_rumus' => 'Setup Tidak Ada Jabatan (Paten 99)',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Pascasarjana'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Pascasarjana', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 8. KEPALA BAGIAN TATA USAHA (Kode Dasar: 00 - FIX CODE)
-            [
-                'nama_rumus' => 'Setup Kabag Tata Usaha',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Tata Usaha'),
-                'kode_awalan' => '00', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Bagian Tata Usaha', 'pola' => '[PARENT]00', 'is_applied' => true,
-            ],
-
-            // 9. KEPALA BAGIAN SELAIN TU (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala Bagian (Non-TU)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Bagian'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Bagian', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 10. KEPALA SUBBAGIAN TATA USAHA (Kode Dasar: 00 - FIX CODE)
-            [
-                'nama_rumus' => 'Setup Kasubbag Tata Usaha',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Subbagian Tata Usaha'),
-                'kode_awalan' => '00', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Subbagian Tata Usaha', 'pola' => '[PARENT]00', 'is_applied' => true,
-            ],
-
-            // 11. KEPALA SUBBAGIAN SELAIN TU (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kasubbag (Non-TU)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Subbagian'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Subbagian', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 12. KETUA JURUSAN / KETUA PROGRAM STUDI (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Ketua Jurusan/Prodi',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Jurusan'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Jurusan', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 13. SEKRETARIS JURUSAN / SEKRETARIS PRODI (Kode Dasar: 9)
-            [
-                'nama_rumus' => 'Setup Sekretaris Jurusan/Prodi',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Sekretaris Jurusan'),
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Sekretaris', 'pola' => '[PARENT]9[INC:1]', 'is_applied' => true,
-            ],
-
-            // 14. TIDAK ADA JABATAN (Kode Dasar: 00 - FIX CODE)
-            [
-                'nama_rumus' => 'Setup Tidak Ada Jabatan',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Tidak ada Jabatan'),
-                'kode_awalan' => '00', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Unit Pelaksana', 'pola' => '[PARENT]00', 'is_applied' => true,
-            ],
-
-            // 15. SUB TIM KERJA / SUB KELOMPOK KERJA (Kode Dasar: 00 - FIX CODE)
-            [
-                'nama_rumus' => 'Setup Sub Tim Kerja',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Sub Tim'),
-                'kode_awalan' => '00', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Sub Tim Kerja', 'pola' => '[PARENT]00', 'is_applied' => true,
-            ],
-
-            // 16. TIM KERJA / KELOMPOK KERJA (Kode Dasar: 00 - FIX CODE)
-            [
-                'nama_rumus' => 'Setup Tim Kerja',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Tim Kerja'),
-                'kode_awalan' => '00', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Tim Kerja', 'pola' => '[PARENT]00', 'is_applied' => true,
-            ],
-
-            // 17. SEKRETARIS LEMBAGA (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Sekretaris Lembaga',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Sekretaris Lembaga'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Sekretariat Lembaga', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 18. KEPALA PUSAT (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala Pusat',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Pusat'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Pusat', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 19. SEKRETARIS PUSAT (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Sekretaris Pusat',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Sekretaris Pusat'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Sekretariat Pusat', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 20. WAKIL DIREKTUR PASCASARJANA (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Wakil Direktur Pascasarjana',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Wakil Direktur'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Wakil Direktur', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 21. KOORDINATOR PUSAT (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Koordinator Pusat',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Koordinator'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Koordinator Pusat', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 22. KEPALA SATUAN PENGAWAS INTERNAL (SPI) (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala SPI',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Pengawas'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Satuan Pengawas Internal', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 23. SEKRETARIS SATUAN PENGAWAS INTERNAL (SPI) (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Sekretaris SPI',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Sekretaris SPI'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Sekretariat SPI', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 24. KEPALA UNIT PENDUKUNG AKADEMI (UPA) (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala UPA',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('UPA'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Unit Pendukung Akademi', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
-            ],
-
-            // 25. KEPALA KLINIK (Kode Dasar: 0)
-            [
-                'nama_rumus' => 'Setup Kepala Klinik',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('Klinik'),
-                'kode_awalan' => '0', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Klinik', 'pola' => '[PARENT]0[INC:1]', 'is_applied' => true,
+                'ref_jabatan_satker_id' => $this->getJabatanId('tidak_ada') ?? $this->getJabatanId('Tidak'), // <-- KUNCI UTAMANYA DI SINI
+                'kode_awalan' => '99', 'is_auto_number' => false, 'digit_auto_number' => null,
+                'default_nama_satker' => 'Unit Pelaksana', 'pola' => '[PARENT]99', 'is_applied' => true,
             ],
         ];
 
         DB::table('rumus_kodes')->truncate();
 
+        $berhasil = 0;
+        $gagal = 0;
+
         foreach ($rumusList as $rumus) {
+
+            if ($rumus['nama_rumus'] !== 'Default Sistem (Urut 2 Digit)' && is_null($rumus['ref_jabatan_satker_id'])) {
+                $this->command->warn("⚠️  DILEWATI: {$rumus['nama_rumus']} (Jabatan tidak ditemukan di DB)");
+                $gagal++;
+                continue; 
+            }
+
             $rumus['created_at'] = $now;
             $rumus['updated_at'] = $now;
             DB::table('rumus_kodes')->insert($rumus);
+            $berhasil++;
         }
+
+        $this->command->info("✅ Selesai! Berhasil membuat {$berhasil} Rumus. Gagal: {$gagal}");
     }
 }
