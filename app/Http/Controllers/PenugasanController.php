@@ -423,7 +423,16 @@ class PenugasanController extends Controller
                     'file' => $e->getFile(),
                     'line' => $e->getLine()
                 ]);
-                return redirect()->back()->with('error', 'Gagal memproses data: ' . $e->getMessage());
+
+                $pesanAman = 'Gagal memproses data penugasan. Terjadi kendala sistem, silakan coba lagi nanti.';
+
+                if (str_contains($e->getMessage(), 'user_roles_user_id_unique')) {
+                    $pesanAman = 'Gagal menyimpan: Pegawai ini sudah didaftarkan dan memiliki hak akses (role) yang aktif di sistem.';
+                } elseif (str_contains($e->getMessage(), 'Connection')) {
+                    $pesanAman = 'Gagal menyimpan: Terjadi masalah koneksi atau jaringan ke server Kemenag.';
+                }
+
+                return redirect()->back()->with('error', $pesanAman);
             }
         });
     }
