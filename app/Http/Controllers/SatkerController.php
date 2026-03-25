@@ -81,7 +81,10 @@ class SatkerController extends Controller
     {
         // Validasi Input
         $request->validate([
-            'kode_satker_full' => 'required|unique:satker,kode_satker', // Cek unik ke kolom kode_satker
+            'kode_satker_full' => [
+                'required',
+                \Illuminate\Validation\Rule::unique('satker', 'kode_satker')->where('periode_id', $request->periode_id)
+            ],
             'nama_satker'      => 'required|string|max:255',
             'jenis_satker_id'  => 'required|integer',  
             'periode_id'       => 'required|exists:periodes,id',
@@ -119,8 +122,12 @@ class SatkerController extends Controller
         $satker = Satker::findOrFail($id);
         
         $request->validate([
-            // Kode satker unik kecuali untuk ID satker ini sendiri
-            'kode_satker'      => 'required|unique:satker,kode_satker,' . $id,
+            'kode_satker'      => [
+                'required',
+                \Illuminate\Validation\Rule::unique('satker', 'kode_satker')
+                    ->where('periode_id', $request->periode_id)
+                    ->ignore($id)
+            ],
             'nama_satker'      => 'required|string|max:255',
             'jenis_satker_id'  => 'required|integer',  
             'periode_id'       => 'required|exists:periodes,id',
