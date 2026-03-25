@@ -318,18 +318,20 @@ class PenugasanController extends Controller
 
         return DB::transaction(function () use ($request) {
             try {
-                // Ambil atau buat user baru
+                $nipFinal = $request->nip_baru ?? $request->user_nip;
+                $namaFinal = $request->nama_lengkap ?? $request->name ?? 'Tanpa Nama';
+                $emailFinal = $request->email_dinas ?? $request->email ?? ($nipFinal . '@kemenag.go.id');
+
                 $user = User::firstOrCreate(
-                    ['nip' => $request->nip_baru],
+                    ['nip' => $nipFinal],
                     [
-                        'name' => $request->nama_lengkap,
-                        'email' => $request->email_dinas,
+                        'name' => $namaFinal,
+                        'email' => $emailFinal,
                         'password' => bcrypt('12345678'),
                         'satker_id' => $request->satker_id,
                     ]
                 );
 
-                // Cek penugasan aktif
                 $existingPenugasan = Penugasan::where('user_id', $user->id)
                     ->where('status_aktif', 1)
                     ->first();
@@ -376,14 +378,14 @@ class PenugasanController extends Controller
                     }
                 }
 
-                $detailData['nama'] = $request->name ?? $detailData['nama'] ?? $request->nama_lengkap;
-                $detailData['nip'] = $request->user_nip ?? $request->nip_baru;
+                $detailData['nama'] = $namaFinal;
+                $detailData['nip'] = $nipFinal;
                 $detailData['id'] = (string) \Illuminate\Support\Str::uuid();
                 $detailData['created_at'] = now();
                 $detailData['updated_at'] = now();
 
                 DB::table('user_details')->updateOrInsert(
-                    ['nip_baru' => $request->nip_baru],
+                    ['nip' => $nipFinal], 
                     $detailData
                 );
 

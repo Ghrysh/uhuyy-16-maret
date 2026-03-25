@@ -884,24 +884,23 @@
         @if (session('success'))
             Toast.fire({
                 icon: 'success',
-                title: "{{ session('success') }}"
+                title: {!! json_encode(session('success')) !!}
             });
         @endif
 
         @if (session('error'))
             Toast.fire({
                 icon: 'error',
-                title: "{{ session('error') }}"
+                title: {!! json_encode(session('error')) !!}
             });
         @endif
-
 
         // Notifikasi Error (Validasi atau Custom Error)
         @if ($errors->any())
             Toast.fire({
                 icon: 'error',
                 title: "Terjadi kesalahan!",
-                text: "{{ $errors->first() }}"
+                text: {!! json_encode($errors->first()) !!}
             });
         @endif
 
