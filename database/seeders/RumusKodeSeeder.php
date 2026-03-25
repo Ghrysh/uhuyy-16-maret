@@ -127,11 +127,14 @@ class RumusKodeSeeder extends Seeder
         $gagal = 0;
 
         foreach ($rumusList as $rumus) {
-
             if ($rumus['nama_rumus'] !== 'Default Sistem (Urut 2 Digit)' && is_null($rumus['ref_jabatan_satker_id'])) {
                 $this->command->warn("⚠️  DILEWATI: {$rumus['nama_rumus']} (Jabatan tidak ditemukan di DB)");
                 $gagal++;
                 continue; 
+            }
+
+            if ($rumus['nama_rumus'] !== 'Default Sistem (Urut 2 Digit)') {
+                $rumus['is_applied'] = false;
             }
 
             $rumus['created_at'] = $now;
