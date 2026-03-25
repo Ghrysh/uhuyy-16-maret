@@ -1058,7 +1058,7 @@
             nipInput.classList.add('bg-slate-50');
 
             try {
-                const response = await fetch(`/admin/pegawai/search?nip=${nip}`);
+                const response = await fetch(`/satker/admin/pegawai/search?nip=${nip}`);
                 if (!response.ok) throw new Error('Gagal menghubungi server');
 
                 const result = await response.json();
@@ -1680,7 +1680,7 @@
                     _t: Date.now()
                 });
 
-                const response = await fetch(`/admin/satker/generate-code?${queryParams}`, {
+                const response = await fetch(`/satker/admin/satker/generate-code?${queryParams}`, {
                     method: 'GET',
                     headers: {
                         'Pragma': 'no-cache',
@@ -1851,7 +1851,7 @@
     <script>
         function openEditSatkerModal(id, kode, nama, periode_id, jenis_id, parent_id, wilayah_id, keterangan, status) {
             const form = document.getElementById('formEditSatker');
-            form.action = `/admin/satker/${id}`;
+            form.action = `/satker/admin/satker/${id}`;
 
             document.getElementById('edit_kode_satker').value = kode;
             document.getElementById('edit_nama_satker').value = nama;
@@ -1966,7 +1966,7 @@
 
             // 4. Fetch berdasarkan SATKER ID
             try {
-                const response = await fetch(`/admin/satker/users/${id}`);
+                const response = await fetch(`/satker/admin/satker/users/${id}`);
                 const users = await response.json();
 
                 tableBody.innerHTML = '';
@@ -2043,7 +2043,7 @@
             if (!isConfirmed) return;
 
             try {
-                const response = await fetch(`/admin/penugasan/unassign/${penugasanId}`, {
+                const response = await fetch(`/satker/admin/penugasan/unassign/${penugasanId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
