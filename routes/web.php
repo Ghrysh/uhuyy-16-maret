@@ -74,6 +74,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::put('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateRumus'])->name('setting-kode.updateRumus');
     Route::delete('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'destroyRumus'])->name('setting-kode.destroyRumus');
     Route::post('/setting-kode/rumus/{id}/apply', [\App\Http\Controllers\SettingKodeController::class, 'applyRumus'])->name('setting-kode.applyRumus');
+
+    Route::get('/admin/pegawai/search-local', [App\Http\Controllers\PegawaiController::class, 'searchLocal'])->name('admin.pegawai.search-local');
 });
 
 Route::middleware('auth')->group(function () {

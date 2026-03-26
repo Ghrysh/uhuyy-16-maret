@@ -77,7 +77,6 @@
 @endpush
 @section('title', 'Master Satuan Kerja')
 
-@section('content')
     {{-- Ganti baris ini --}}
 @section('content')
     <div x-data="{
@@ -750,20 +749,10 @@
                             <input type="hidden" name="satker_kode" id="form_penugasan_satker_kode">
                         </div>
                         <div class="space-y-3">
-                            <label class="block text-xs font-bold text-slate-700 uppercase">User / Pegawai</label>
-
-                            <div class="flex gap-2">
-                                <div class="relative flex-1">
-                                    <i
-                                        class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                                    <input type="text" id="search_nip" placeholder="Masukkan NIP Pegawai..."
-                                        class="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all">
-                                </div>
-                                <button type="button" onclick="searchPegawaiByNip()" id="btn_search_nip"
-                                    class="px-4 py-2 bg-[#112D4E] text-white rounded-lg hover:bg-blue-900 transition shadow-sm flex items-center justify-center min-w-[45px]">
-                                    <i class="fas fa-sync-alt" id="icon_search"></i>
-                                </button>
-                            </div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">User / Pegawai</label>
+                        <div class="w-full">
+                            <select id="select_pegawai_local" placeholder="Ketik Nama atau NIP Pegawai..."></select>
+                        </div>
 
                             <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                                 <label class="block text-[10px] font-bold text-blue-600 uppercase tracking-wider">Hasil
@@ -957,30 +946,101 @@
 
 
         document.addEventListener("DOMContentLoaded", function() {
-
-            // Inisialisasi TomSelect untuk Jabatan (Tambahkan ini)
-            const jabatanSelect = document.getElementById('jabatan_id');
-            if (jabatanSelect) {
-                new TomSelect(jabatanSelect, {
-                    create: false,
-                    sortField: {
-                        field: "text",
-                        direction: "asc"
+            // Pastikan elemennya ada sebelum inisialisasi
+            const selectPegawai = document.getElementById('select_pegawai_local');
+            
+            if (selectPegawai) {
+                new TomSelect("#select_pegawai_local", {
+                    valueField: 'id',
+                    labelField: 'text',
+                    searchField: ['id', 'nama'],
+                    load: function(query, callback) {
+                        if (!query.length) return callback();
+                        
+                        // 1. CARI LOKAL DULU (Cepat & Bisa pakai Nama)
+                        fetch(`/admin/pegawai/search-local?q=${encodeURIComponent(query)}`)
+                            .then(response => response.json())
+                            .then(json => callback(json))
+                            .catch(() => callback());
                     },
-                    placeholder: "Cari atau pilih jabatan...",
-                    allowEmptyOption: true,
-                    onInitialize: function() {
-                        this.setValue("");
-                    },
-                    onChange: function(value) {
-                        const namaSatkerInput = document.querySelector('input[name="nama_satker"]');
+                    onChange: async function(value) {
+                        // 2. SAAT DIKLIK, TARIK DATA KOMPLIT DARI API
+                        if(!value) return;
 
-                        if (value && namaSatkerInput) {
+                        const resNama = document.getElementById('res_nama');
+                        const resInfo = document.getElementById('res_info_tambahan');
+                        
+                        Toast.fire({
+                            icon: 'info',
+                            title: 'Memverifikasi data ke server Kemenag...'
+                        });
 
-                            let fullText = this.getItem(value).innerText;
-                            let cleanName = fullText.includes('-') ? fullText.split('-')[1] : fullText;
-                            cleanName = cleanName.split('(')[0].trim();
-                            namaSatkerInput.value = cleanName;
+                        try {
+                            // Pakai endpoint backend-mu sendiri agar terhindar dari error CORS
+                            const response = await fetch(`/satker/admin/pegawai/search?nip=${value}`);
+                            if (!response.ok) throw new Error('Gagal menghubungi server');
+
+                            const result = await response.json();
+
+                            if (result.success && result.data && result.data.data) {
+                                const d = result.data.data;
+                                const namaValid = d.NAMA_LENGKAP || d.NAMA;
+
+                                // Tampilkan di UI
+                                resNama.value = namaValid;
+                                resInfo.innerText = `${d.GOL_RUANG || '-'} • ${d.TAMPIL_JABATAN || d.LEVEL_JABATAN || '-'}`;
+
+                                // Buat Hidden Input untuk disimpan ke DB
+                                const form = document.querySelector('#modalTambahPenugasan form');
+                                const fields = [
+                                    'NIP', 'NIP_BARU', 'NAMA', 'NAMA_LENGKAP', 'AGAMA', 'TEMPAT_LAHIR', 'TANGGAL_LAHIR',
+                                    'JENIS_KELAMIN', 'PENDIDIKAN', 'JENJANG_PENDIDIKAN', 'KODE_LEVEL_JABATAN', 'LEVEL_JABATAN',
+                                    'PANGKAT', 'GOL_RUANG', 'TMT_CPNS', 'TMT_PANGKAT', 'MK_TAHUN', 'MK_BULAN', 'Gaji_Pokok',
+                                    'TIPE_JABATAN', 'KODE_JABATAN', 'TAMPIL_JABATAN', 'TMT_JABATAN', 'KODE_SATUAN_KERJA',
+                                    'SATKER_1', 'SATKER_2', 'KODE_SATKER_2', 'SATKER_3', 'KODE_SATKER_3', 'SATKER_4',
+                                    'KODE_SATKER_4', 'SATKER_5', 'KODE_SATKER_5', 'KODE_GRUP_SATUAN_KERJA', 'GRUP_SATUAN_KERJA',
+                                    'KETERANGAN_SATUAN_KERJA', 'STATUS_KAWIN', 'ALAMAT_1', 'ALAMAT_2', 'TELEPON', 'NO_HP',
+                                    'EMAIL', 'KAB_KOTA', 'PROVINSI', 'KODE_POS', 'KODE_LOKASI', 'ISO', 'KODE_PANGKAT',
+                                    'KETERANGAN', 'tmt_pangkat_yad', 'tmt_kgb_yad', 'USIA_PENSIUN', 'TMT_PENSIUN',
+                                    'MK_TAHUN_1', 'MK_BULAN_1', 'NSM', 'NPSN', 'KODE_KUA', 'KODE_BIDANG_STUDI', 'BIDANG_STUDI',
+                                    'STATUS_PEGAWAI', 'LAT', 'LON', 'SATKER_KELOLA', 'HARI_KERJA', 'EMAIL_DINAS'
+                                ];
+
+                                fields.forEach(field => {
+                                    let hiddenInput = document.getElementById(`hidden_${field.toLowerCase()}`);
+                                    if (!hiddenInput) {
+                                        hiddenInput = document.createElement('input');
+                                        hiddenInput.type = 'hidden';
+                                        hiddenInput.id = `hidden_${field.toLowerCase()}`;
+                                        hiddenInput.name = field.toLowerCase();
+                                        form.appendChild(hiddenInput);
+                                    }
+                                    hiddenInput.value = d[field] ?? '';
+                                });
+
+                                Toast.fire({
+                                    icon: 'success',
+                                    title: 'Pegawai terverifikasi!',
+                                    text: namaValid
+                                });
+                            } else {
+                                throw new Error(result.message || 'Data API Kemenag tidak valid.');
+                            }
+                        } catch (error) {
+                            console.error("Search Error:", error);
+                            resNama.value = "";
+                            resInfo.innerText = "";
+                            
+                            // Bersihkan hidden input jika gagal
+                            document.querySelectorAll('#modalTambahPenugasan form input[type="hidden"]').forEach(i => {
+                                if(i.id.startsWith('hidden_')) i.value = '';
+                            });
+
+                            Toast.fire({
+                                icon: 'error',
+                                title: 'Pencarian Gagal',
+                                text: error.message
+                            });
                         }
                     }
                 });

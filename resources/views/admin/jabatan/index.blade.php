@@ -117,7 +117,7 @@
             </table>
         </div>
         <div class="mt-4 px-6 py-4 border-t border-gray-100">
-            {{ $jabatans->links() }}
+            {{ $jabatans->withPath(route('admin.jabatan.index'))->appends(request()->query())->links() }}
         </div>
     </div>
 
@@ -465,10 +465,11 @@
             }
         }
 
-        // Fungsi saat tombol Pen-To-Square diklik
         function openEditModal(id, kodeFull, nama, jenis, fungsional_id) {
             const form = document.getElementById('formEditJabatan');
-            form.action = `/admin/jabatan/${id}`;
+            
+            const baseUrl = "{{ route('admin.jabatan.index') }}";
+            form.action = `${baseUrl}/${id}`;
 
             document.getElementById('edit_nama').value = nama;
             document.getElementById('edit_jenis_jabatan_id').value = jenis;

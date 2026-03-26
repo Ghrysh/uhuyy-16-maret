@@ -132,4 +132,32 @@ class PegawaiController extends Controller
 
         return view('admin.pegawai.partials.bulking-table', compact('bulkings'));
     }
+
+    public function searchLocal(Request $request)
+    {
+        $search = $request->q;
+        
+        if (empty($search)) {
+            return response()->json([]);
+        }
+
+        $pegawai = UserDetail::where('nip_baru', 'ILIKE', "%{$search}%")
+            ->orWhere('nip', 'ILIKE', "%{$search}%")
+            ->orWhere('nama_lengkap', 'ILIKE', "%{$search}%")
+            ->orWhere('nama', 'ILIKE', "%{$search}%")
+            ->limit(20)
+            ->get();
+
+        $formatted = $pegawai->map(function ($item) {
+            $nipFinal = $item->nip_baru ?? $item->nip;
+            $namaFinal = $item->nama_lengkap ?? $item->nama;
+            return [
+                'id' => $nipFinal, 
+                'text' => $nipFinal . ' - ' . $namaFinal, 
+                'nama' => $namaFinal
+            ];
+        });
+
+        return response()->json($formatted);
+    }
 }
