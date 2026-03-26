@@ -6,6 +6,8 @@ use App\Models\MJenisJabatan;
 use App\Models\MJenisSatker;
 use App\Models\LogSistem;
 use App\Models\JabatanFungsional;
+use App\Models\Satker;
+use App\Models\DistribusiKuota;
 use Illuminate\Http\Request;
 
 class JabatanController extends Controller
@@ -13,8 +15,8 @@ class JabatanController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $sortField = $request->input('sort', 'kode_jabatan'); // Default sort
-        $sortDirection = $request->input('direction', 'asc'); // Default direction
+        $sortField = $request->input('sort', 'kode_jabatan');
+        $sortDirection = $request->input('direction', 'asc');
 
         $jabatans = Jabatan::with(['jenis', 'jenisSatker', 'fungsional'])
             ->when($search, function ($query, $search) {
@@ -23,12 +25,11 @@ class JabatanController extends Controller
             })
             ->orderBy($sortField, $sortDirection)
             ->paginate(10)
-            ->withQueryString(); // Penting agar filter tidak hilang saat ganti halaman
+            ->withQueryString();
 
-        // 2. Data Tambahan (Tetap seperti aslinya)
         $jenis_jabatans = MJenisJabatan::all();
         $eselons = MJenisSatker::all();
-        $fungsionals = JabatanFungsional::orderBy('kode', 'asc')->get();
+        $fungsionals = \App\Models\JabatanFungsional::orderBy('name', 'asc')->get();
         $idFungsional = $jenis_jabatans->where('nama', 'Fungsional')->first()->id ?? '';
 
         $lastJabatan = Jabatan::selectRaw('MAX(SUBSTRING(kode_jabatan, 1, 3)) as base_last')
@@ -36,12 +37,13 @@ class JabatanController extends Controller
         
         $nextBaseCode = $lastJabatan->base_last ? (int)$lastJabatan->base_last + 1 : 801;
 
-        // 3. Response AJAX atau Biasa
+        $dropdownJabatans = Jabatan::with('fungsional')->orderBy('kode_jabatan', 'asc')->get();
+
         if ($request->ajax()) {
-            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode'))->render();
+            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans'))->render();
         }
 
-        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode'));
+        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans'));
     }
 
     public function store(Request $request)
@@ -120,5 +122,61 @@ class JabatanController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal menghapus data');
         }
+    }
+    
+    public function getMatriks(Request $request)
+    {
+
+        $jabatan_id = $request->query('jabatan_id'); 
+        
+        $satkers = Satker::orderBy('kode_satker', 'asc')->get();
+
+        $kuotas = DistribusiKuota::where('jabatan_id', $jabatan_id)
+                    ->get()
+                    ->keyBy('satker_id');
+        
+        $data = $satkers->map(function($satker) use ($kuotas) {
+            $kuota = $kuotas->get($satker->id);
+            $level = $satker->parent_satker_id ? 1 : 0; 
+            
+            return [
+                'id'            => $satker->id,
+                'nama_satker'   => $satker->nama_satker,
+                'level'         => $level,
+                'kuota_pertama' => $kuota ? $kuota->kuota_pertama : 0,
+                'kuota_muda'    => $kuota ? $kuota->kuota_muda : 0,
+                'kuota_madya'   => $kuota ? $kuota->kuota_madya : 0,
+                'kuota_utama'   => $kuota ? $kuota->kuota_utama : 0,
+            ];
+        });
+
+        return response()->json($data);
+    }
+
+    public function saveMatriks(Request $request)
+    {
+        $request->validate([
+            'satker_id'     => 'required|exists:satker,id',
+            'jabatan_id'    => 'required|exists:jabatan,id',
+            'kuota_pertama' => 'numeric',
+            'kuota_muda'    => 'numeric',
+            'kuota_madya'   => 'numeric',
+            'kuota_utama'   => 'numeric',
+        ]);
+
+        DistribusiKuota::updateOrCreate(
+            [
+                'satker_id'  => $request->satker_id,
+                'jabatan_id' => $request->jabatan_id
+            ],
+            [
+                'kuota_pertama' => $request->kuota_pertama ?? 0,
+                'kuota_muda'    => $request->kuota_muda ?? 0,
+                'kuota_madya'   => $request->kuota_madya ?? 0,
+                'kuota_utama'   => $request->kuota_utama ?? 0,
+            ]
+        );
+
+        return response()->json(['status' => 'success', 'message' => 'Kuota berhasil disimpan']);
     }
 }

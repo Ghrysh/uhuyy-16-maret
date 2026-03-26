@@ -43,6 +43,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/jabatan/store', [JabatanController::class, 'store'])->name('jabatan.store');
     Route::put('/jabatan/{id}', [JabatanController::class, 'update'])->name('jabatan.update');
     Route::delete('/jabatan/{id}', [JabatanController::class, 'destroy'])->name('jabatan.destroy');
+    Route::get('/jabatan/matriks', [App\Http\Controllers\JabatanController::class, 'getMatriks'])->name('admin.jabatan.matriks');
+    Route::post('/jabatan/matriks/save', [App\Http\Controllers\JabatanController::class, 'saveMatriks'])->name('admin.jabatan.matriks.save');
 
     Route::get('/pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
 
