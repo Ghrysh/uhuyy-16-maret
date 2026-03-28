@@ -29,42 +29,11 @@
 <div x-data="{
     open: false,
     selfText: '{{ $selfText }}',
-    hasScrolled: false,
 
     get isVisible() {
         if (search === '') return true;
-
         if (this.selfText.includes(search.toLowerCase())) return true;
-
         return $el.querySelectorAll('.satker-row:not([style*=\'display: none\'])').length > 0;
-    },
-
-    init() {
-        this.$watch('search', value => {
-
-            if (!value) {
-                this.hasScrolled = false;
-                return;
-            }
-
-            this.$nextTick(() => {
-
-                let isMatch = this.selfText.includes(value.toLowerCase());
-
-                if (isMatch && !this.hasScrolled) {
-
-                    this.hasScrolled = true;
-
-                    this.$el.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                    });
-
-                }
-
-            });
-
-        });
     }
 }" x-show="isVisible" class="satker-item w-full">
 

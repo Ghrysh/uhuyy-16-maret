@@ -103,6 +103,21 @@
             }
     
             return false;
+        },
+
+        init() {
+            this.$watch('search', (val) => {
+                if (val) {
+                    this.$nextTick(() => {
+                        // querySelector secara natural akan selalu mengambil elemen PERTAMA dari atas
+                        let firstMatch = document.querySelector('.satker-search-item:not([style*=\'display: none\'])');
+                        if (firstMatch) {
+                            // Scroll ke elemen tersebut dengan posisi start (atas)
+                            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    });
+                }
+            });
         }
     }">
 
@@ -958,7 +973,7 @@
                         if (!query.length) return callback();
                         
                         // 1. CARI LOKAL DULU (Cepat & Bisa pakai Nama)
-                        fetch(`/admin/pegawai/search-local?q=${encodeURIComponent(query)}`)
+                        fetch(`{{ route('admin.pegawai.search-local') }}?q=${encodeURIComponent(query)}`)
                             .then(response => response.json())
                             .then(json => callback(json))
                             .catch(() => callback());
