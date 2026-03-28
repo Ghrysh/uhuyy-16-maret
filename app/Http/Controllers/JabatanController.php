@@ -8,6 +8,7 @@ use App\Models\LogSistem;
 use App\Models\JabatanFungsional;
 use App\Models\Satker;
 use App\Models\DistribusiKuota;
+use App\Models\Periode;
 use Illuminate\Http\Request;
 
 class JabatanController extends Controller
@@ -18,10 +19,18 @@ class JabatanController extends Controller
         $sortField = $request->input('sort', 'kode_jabatan');
         $sortDirection = $request->input('direction', 'asc');
 
+        $periodes = Periode::orderBy('created_at', 'asc')->get();
+        
+        $activePeriodeId = $request->input('periode_id', $periodes->where('is_active', true)->first()->id ?? ($periodes->last()->id ?? null));
+
         $jabatans = Jabatan::with(['jenis', 'jenisSatker', 'fungsional'])
+            ->where('periode_id', $activePeriodeId)
             ->when($search, function ($query, $search) {
-                return $query->where('nama_jabatan', 'like', "%{$search}%")
-                            ->orWhere('kode_jabatan', 'like', "%{$search}%");
+
+                return $query->where(function($q) use ($search) {
+                    $q->where('nama_jabatan', 'like', "%{$search}%")
+                      ->orWhere('kode_jabatan', 'like', "%{$search}%");
+                });
             })
             ->orderBy($sortField, $sortDirection)
             ->paginate(10)
@@ -32,40 +41,46 @@ class JabatanController extends Controller
         $fungsionals = \App\Models\JabatanFungsional::orderBy('name', 'asc')->get();
         $idFungsional = $jenis_jabatans->where('nama', 'Fungsional')->first()->id ?? '';
 
-        $lastJabatan = Jabatan::selectRaw('MAX(SUBSTRING(kode_jabatan, 1, 3)) as base_last')
+        // Pastikan generate kode selanjutnya mengacu pada periode yang sama
+        $lastJabatan = Jabatan::where('periode_id', $activePeriodeId)
+                            ->selectRaw('MAX(SUBSTRING(kode_jabatan, 1, 3)) as base_last')
                             ->first();
         
-        $nextBaseCode = $lastJabatan->base_last ? (int)$lastJabatan->base_last + 1 : 801;
+        $nextBaseCode = $lastJabatan && $lastJabatan->base_last ? (int)$lastJabatan->base_last + 1 : 801;
 
-        $dropdownJabatans = Jabatan::with('fungsional')->orderBy('kode_jabatan', 'asc')->get();
+        // 3. DROPDOWN JUGA DIFILTER BERDASARKAN PERIODE
+        $dropdownJabatans = Jabatan::with('fungsional')
+            ->where('periode_id', $activePeriodeId)
+            ->orderBy('kode_jabatan', 'asc')
+            ->get();
 
         if ($request->ajax()) {
-            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans'))->render();
+            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId'))->render();
         }
 
-        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans'));
+        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'kode_jabatan'          => 'required|unique:jabatan,kode_jabatan',
+            'periode_id'            => 'required|exists:periodes,id', // Tambahan validasi periode
+            'kode_jabatan'          => 'required', 
             'nama_jabatan'          => 'required',
+            'baseline'              => 'required|numeric|min:0', // Tambahan validasi baseline
             'jenis_jabatan_id'      => 'required|exists:m_jenis_jabatan,id',
             'jenis_satker_id'       => 'nullable|exists:m_jenis_satker,id',
-            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id', // Tambahkan ini
+            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id',
         ]);
 
         try {
-            // Menggunakan $request->all() sudah aman karena jabatan_fungsional_id 
-            // sudah masuk ke $fillable di Model Jabatan
             $jabatan = Jabatan::create($request->all());
 
             LogSistem::create([
                 'aksi'       => 'CREATE',
                 'nama_tabel' => 'jabatan',
                 'data_id'    => $jabatan->id, 
-                'perubahan'  => 'Menambahkan jabatan baru: ' . $jabatan->nama_jabatan . ' (Kode: ' . $jabatan->kode_jabatan . ')',
+                'perubahan'  => 'Menambahkan jabatan: ' . $jabatan->nama_jabatan . ' (Kode: ' . $jabatan->kode_jabatan . ') dengan Baseline: ' . $jabatan->baseline,
                 'user_id'    => auth()->id(),
             ]);
 
@@ -79,22 +94,22 @@ class JabatanController extends Controller
     {
         $request->validate([
             'nama_jabatan'          => 'required',
+            'baseline'              => 'required|numeric|min:0', // Tambahan validasi baseline
             'jenis_jabatan_id'      => 'required|exists:m_jenis_jabatan,id',
             'jenis_satker_id'       => 'nullable|exists:m_jenis_satker,id',
-            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id', // Tambahkan ini
+            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id',
         ]);
 
         try {
             $jabatan = Jabatan::findOrFail($id);
             
-            // Update semua field termasuk jabatan_fungsional_id
             $jabatan->update($request->all());
 
             LogSistem::create([
                 'aksi'       => 'UPDATE',
                 'nama_tabel' => 'jabatan',
                 'data_id'    => $jabatan->id,
-                'perubahan'  => 'Memperbarui jabatan: ' . $jabatan->nama_jabatan,
+                'perubahan'  => 'Memperbarui jabatan: ' . $jabatan->nama_jabatan . ' (Baseline: ' . $jabatan->baseline . ')',
                 'user_id'    => auth()->id(),
             ]);
 
@@ -126,14 +141,30 @@ class JabatanController extends Controller
     
     public function getMatriks(Request $request)
     {
-
         $jabatan_id = $request->query('jabatan_id'); 
+        $jabatan = Jabatan::findOrFail($jabatan_id);
         
-        $satkers = Satker::orderBy('kode_satker', 'asc')->get();
+        $eselon1 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                    ->whereNull('parent_satker_id')
+                    ->orderBy('kode_satker', 'asc')
+                    ->get();
+                    
+        $eselon2 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                    ->whereIn('parent_satker_id', $eselon1->pluck('id'))
+                    ->orderBy('kode_satker', 'asc')
+                    ->get();
+                    
+        $satkers = collect();
+        foreach ($eselon1 as $induk) {
+            $satkers->push($induk);
 
-        $kuotas = DistribusiKuota::where('jabatan_id', $jabatan_id)
-                    ->get()
-                    ->keyBy('satker_id');
+            $anak_anak = $eselon2->where('parent_satker_id', $induk->id);
+            foreach ($anak_anak as $anak) {
+                $satkers->push($anak);
+            }
+        }
+
+        $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
         
         $data = $satkers->map(function($satker) use ($kuotas) {
             $kuota = $kuotas->get($satker->id);
@@ -141,6 +172,7 @@ class JabatanController extends Controller
             
             return [
                 'id'            => $satker->id,
+                'parent_id'     => $satker->parent_satker_id,
                 'nama_satker'   => $satker->nama_satker,
                 'level'         => $level,
                 'kuota_pertama' => $kuota ? $kuota->kuota_pertama : 0,
@@ -150,7 +182,41 @@ class JabatanController extends Controller
             ];
         });
 
-        return response()->json($data);
+        return response()->json([
+            'baseline'  => $jabatan->baseline,
+            'b_pertama' => $jabatan->b_pertama,
+            'b_muda'    => $jabatan->b_muda,
+            'b_madya'   => $jabatan->b_madya,
+            'b_utama'   => $jabatan->b_utama,
+            'satkers'   => $data
+        ]);
+    }
+
+    public function saveBaselineJenjang(Request $request)
+    {
+        $request->validate([
+            'jabatan_id' => 'required|exists:jabatan,id',
+            'b_pertama'  => 'numeric',
+            'b_muda'     => 'numeric',
+            'b_madya'    => 'numeric',
+            'b_utama'    => 'numeric',
+        ]);
+
+        $jabatan = Jabatan::findOrFail($request->jabatan_id);
+        $totalInput = $request->b_pertama + $request->b_muda + $request->b_madya + $request->b_utama;
+
+        if($totalInput > $jabatan->baseline) {
+            return response()->json(['status' => 'error', 'message' => 'Total rincian melebihi Grand Total Kuota!']);
+        }
+
+        $jabatan->update([
+            'b_pertama' => $request->b_pertama,
+            'b_muda'    => $request->b_muda,
+            'b_madya'   => $request->b_madya,
+            'b_utama'   => $request->b_utama,
+        ]);
+
+        return response()->json(['status' => 'success', 'message' => 'Baseline per jenjang berhasil disimpan']);
     }
 
     public function saveMatriks(Request $request)
