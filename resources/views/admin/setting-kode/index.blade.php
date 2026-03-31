@@ -18,6 +18,8 @@
         editModalOpen: false,
         rumusData: window.rumusDatabase,
         refData: window.refJabatanDatabase, // <-- TAMBAHAN: Masukkan ke Alpine
+
+        activePeriode: '{{ $periodes->first()->id ?? '' }}',
         
         // Form Auto Number
         auto_wilayah: '', auto_jenis: '', auto_ref: '',
@@ -73,6 +75,61 @@
             }
         },
 
+        async updateManualBulk(event) {
+            const form = event.target;
+            const inputs = form.querySelectorAll('.kode-input');
+            const changedData = {};
+            let hasChanges = false;
+            
+            inputs.forEach(input => {
+                if (input.value !== input.getAttribute('data-original')) {
+                    const match = input.name.match(/\[(.*?)\]/);
+                    if (match && match[1]) {
+                        changedData[match[1]] = input.value;
+                        hasChanges = true;
+                    }
+                }
+            });
+
+            if (!hasChanges) {
+                Swal.fire('Info', 'Tidak ada perubahan kode yang Anda lakukan.', 'info');
+                return;
+            }
+
+            const btn = form.querySelector('button[type=\'submit\']');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class=\'fas fa-spinner fa-spin\'></i> Menyimpan...';
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': form.querySelector('input[name=\'_token\']').value,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ kode_satker_baru: changedData })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil!', text: result.message, timer: 1500, showConfirmButton: false }).then(() => {
+                        window.location.reload(); // Muat ulang layar agar data original ter-update
+                    });
+                } else {
+                    Swal.fire('Validasi Gagal', result.message || 'Terjadi kesalahan sistem.', 'error');
+                }
+            } catch (error) {
+                Swal.fire('Error', 'Terjadi kesalahan jaringan/sistem saat memproses bulk update.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        },
+
         init() {
             let sessionTab = '{{ session('tab') }}';
             let navType = window.performance.getEntriesByType('navigation')[0]?.type;
@@ -99,9 +156,7 @@
             this.$watch('fix_jenis', () => this.checkSetup('fix'));
             this.$watch('fix_ref', () => this.checkSetup('fix'));
         }
-    }" 
-    @open-edit-modal.window="editModalOpen = true" 
-    class="space-y-6 relative">
+    }" class="w-full">
 
     <div class="flex flex-wrap gap-2 border-b border-gray-300 pb-2">
         <button @click="tab = 'auto_number'" :class="tab === 'auto_number' ? 'bg-[#112D4E] text-white rounded-t-lg' : 'text-gray-500 hover:text-[#112D4E]'" class="px-4 py-2 text-sm font-bold transition outline-none">
@@ -145,19 +200,103 @@
     <div x-show="tab === 'manual'" x-cloak class="bg-white shadow rounded-lg p-6 border-t-4 border-gray-800">
         <h3 class="text-lg font-bold text-[#112D4E] mb-4"><i class="fas fa-sitemap mr-2 text-gray-800"></i>Hirarki Satker & Edit Manual</h3>
         
-        <div x-data="{ search: '' }" class="space-y-4">
-            <div class="relative w-full mb-6">
+        <div x-data="{ 
+            search: '',
+            scrollTimeout: null,
+            init() {
+                this.$watch('search', (val) => {
+                    // Hanya jalan jika ketikan lebih dari 1 huruf
+                    if (val && val.length > 1) {
+                        
+                        // Hentikan perintah scroll lama jika user mengetik terlalu cepat
+                        clearTimeout(this.scrollTimeout);
+                        
+                        // Beri jeda 300ms agar animasi buka-tutup hierarki Alpine selesai
+                        this.scrollTimeout = setTimeout(() => {
+                            const container = document.getElementById('satkerManualContainer');
+                            if (!container) return;
+
+                            const term = val.toLowerCase();
+                            
+                            // Ambil SEMUA baris satker yang ada di dalam container
+                            const rows = container.querySelectorAll('.satker-row');
+                            let firstMatch = null;
+
+                            // Loop dari atas ke bawah
+                            for (let i = 0; i < rows.length; i++) {
+                                const row = rows[i];
+                                
+                                // 1. Pastikan satkernya TERLIHAT di layar (tidak disembunyikan oleh tab periode)
+                                if (row.offsetHeight > 0) {
+                                    
+                                    // 2. BACA TEKS MURNI NYA SECARA LANGSUNG (Bypass delay class Alpine)
+                                    const text = row.innerText || row.textContent;
+                                    
+                                    if (text.toLowerCase().includes(term)) {
+                                        firstMatch = row;
+                                        break; // LANGSUNG BERHENTI di data paling atas!
+                                    }
+                                }
+                            }
+
+                            // Jika ketemu, eksekusi perintah Auto-Scroll
+                            if (firstMatch) {
+                                const cRect = container.getBoundingClientRect();
+                                const mRect = firstMatch.getBoundingClientRect();
+                                
+                                // Rumus absolut untuk menaik-turunkan scroll di dalam container
+                                container.scrollTo({
+                                    top: container.scrollTop + (mRect.top - cRect.top) - 20,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }, 300);
+                    }
+                });
+            }
+        }" class="space-y-4">
+            
+            <div class="relative w-full mb-4">
                 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                     <i class="fas fa-search text-gray-400"></i>
                 </div>
                 <input type="text" x-model="search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#112D4E] block w-full pl-10 p-3" placeholder="Ketik Nama Satker atau Kode...">
             </div>
 
-            <div class="space-y-2 bg-slate-50/50 rounded-xl p-4 border min-h-[400px] max-h-[600px] overflow-y-auto shadow-inner">
-                @foreach($satkerRoots as $root)
-                    @include('admin.setting-kode._item_edit_manual', ['item' => $root])
-                @endforeach
-            </div>
+            <form @submit.prevent="updateManualBulk($event)" action="{{ route('admin.setting-kode.updateManualBulk') }}" method="POST">
+                @csrf
+                
+                @if(isset($periodes) && $periodes->count() > 0)
+                <div class="flex overflow-x-auto space-x-2 mb-4 pb-2 border-b border-gray-200 hide-scrollbar">
+                    @foreach($periodes as $periode)
+                        <button type="button" @click="activePeriode = '{{ $periode->id }}'"
+                                :class="activePeriode === '{{ $periode->id }}' ? 'bg-[#112D4E] text-white border-[#112D4E] shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                                class="px-5 py-2.5 text-sm font-semibold rounded-lg border whitespace-nowrap transition-all duration-200">
+                            {{ $periode->nama_periode }}
+                        </button>
+                    @endforeach
+                </div>
+                @endif
+
+                <div class="space-y-2 bg-slate-50/50 rounded-xl p-4 border min-h-[400px] max-h-[600px] overflow-y-auto shadow-inner scroll-smooth" id="satkerManualContainer">
+                    @forelse($satkerRoots as $root)
+                        <div x-show="activePeriode == '{{ $root->periode_id }}'">
+                            @include('admin.setting-kode._item_edit_manual', ['item' => $root])
+                        </div>
+                    @empty
+                        <div class="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                            <i class="fas fa-folder-open text-3xl text-gray-300 mb-3 block"></i>
+                            <p class="text-gray-500 font-medium">Belum ada data Satuan Kerja.</p>
+                        </div>
+                    @endforelse
+                </div>
+
+                <div class="mt-6 flex justify-end border-t border-gray-200 pt-4">
+                    <button type="submit" class="bg-[#112D4E] hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all flex items-center gap-2 transform active:scale-95">
+                        <i class="fas fa-save"></i> Simpan Semua Perubahan
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

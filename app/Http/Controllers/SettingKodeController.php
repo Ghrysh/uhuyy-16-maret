@@ -17,13 +17,15 @@ class SettingKodeController extends Controller
         $jenisSatkers = MJenisSatker::all();
         $refJabatans = RefJabatanSatker::all();
         $tingkatWilayahs = MTingkatWilayah::all();
+        
+        $periodes = \App\Models\Periode::orderBy('created_at', 'asc')->get(); 
 
         $satkerRoots = Satker::with(['children', 'eselon'])
             ->whereNull('parent_satker_id')
             ->orderBy('kode_satker', 'asc')
             ->get();
 
-        return view('admin.setting-kode.index', compact('rumusList', 'jenisSatkers', 'refJabatans', 'tingkatWilayahs', 'satkerRoots'));
+        return view('admin.setting-kode.index', compact('rumusList', 'jenisSatkers', 'refJabatans', 'tingkatWilayahs', 'satkerRoots', 'periodes'));
     }
 
     public function storeRumus(Request $request)
@@ -125,10 +127,95 @@ class SettingKodeController extends Controller
 
     public function updateManual(Request $request, $id)
     {
-        $request->validate(['kode_satker_baru' => 'required|string|unique:satker,kode_satker,'.$id]);
-        $satker = Satker::findOrFail($id);
-        $satker->kode_satker = $request->kode_satker_baru;
-        $satker->save();
-        return back()->with(['success' => 'Kode Satker berhasil diubah secara manual!', 'tab' => 'manual']);
+        // 1. Ambil data satker dulu untuk mengetahui dia ada di periode mana
+        $satker = DB::table('satker')->where('id', $id)->first();
+        if (!$satker) {
+            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan!'], 404);
+        }
+
+        // 2. Validasi Unique yang Dibatasi per Periode
+        $request->validate([
+            'kode_satker_baru' => [
+                'required',
+                'string',
+                // Cek unik di tabel satker, kolom kode_satker, abaikan ID ini, DAN harus di periode_id yang sama
+                \Illuminate\Validation\Rule::unique('satker', 'kode_satker')
+                    ->ignore($id)
+                    ->where('periode_id', $satker->periode_id)
+            ]
+        ], [
+            // Pesan kustom agar lebih ramah
+            'kode_satker_baru.unique' => 'Kode Satker ini sudah digunakan oleh Satker lain di Periode yang sama.'
+        ]);
+
+        $kodeLama = $satker->kode_satker;
+        $kodeBaru = $request->kode_satker_baru;
+
+        // 3. Proses Update
+        if ($kodeLama !== $kodeBaru) {
+            DB::table('satker')->where('id', $id)->update(['kode_satker' => $kodeBaru]);
+            $this->cascadeUpdateKode($id, $kodeLama, $kodeBaru);
+        }
+
+        // 4. Balasan untuk AJAX
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Kode Satker berhasil diubah secara manual!'
+            ]);
+        }
+
+        return back()->with('success', "Kode Satker berhasil diubah secara manual!");
+    }
+
+    public function updateManualBulk(Request $request)
+    {
+        // Tangkap array data yang dikirim dari JS
+        $kodes = $request->input('kode_satker_baru', []);
+        
+        if (empty($kodes)) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada data yang diubah.'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($kodes as $id => $kodeBaru) {
+                $satker = DB::table('satker')->where('id', $id)->first();
+                if (!$satker) continue;
+
+                $kodeLama = $satker->kode_satker;
+                
+                if ($kodeLama !== $kodeBaru) {
+                    // Validasi unik di periode yang sama
+                    $exists = DB::table('satker')
+                        ->where('periode_id', $satker->periode_id)
+                        ->where('kode_satker', $kodeBaru)
+                        ->where('id', '!=', $id)
+                        ->exists();
+
+                    if ($exists) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Gagal: Kode '$kodeBaru' sudah digunakan oleh Satker lain pada periode yang sama!"
+                        ], 422);
+                    }
+
+                    // Eksekusi Update & Cascade
+                    DB::table('satker')->where('id', $id)->update(['kode_satker' => $kodeBaru]);
+                    $this->cascadeUpdateKode($id, $kodeLama, $kodeBaru);
+                }
+            }
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Semua perubahan kode berhasil disimpan massal!'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

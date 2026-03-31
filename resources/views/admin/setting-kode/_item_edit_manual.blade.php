@@ -67,15 +67,14 @@
         </div>
 
         <div class="flex flex-col sm:flex-row sm:items-center border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4 mt-2 sm:mt-0">
-            <form action="{{ route('admin.setting-kode.updateManual', $item->id) }}" method="POST" class="flex items-end gap-2">
-                @csrf @method('PUT')
-                <div>
-                    <input type="text" name="kode_satker_baru" value="{{ $item->kode_satker }}" class="border-gray-300 rounded-md shadow-sm px-2 py-1.5 border w-48 font-mono text-sm focus:ring-[#112D4E] focus:border-[#112D4E] bg-white text-[#112D4E] font-bold">
-                </div>
-                <button type="submit" class="bg-gray-100 hover:bg-[#112D4E] hover:text-white border border-gray-300 hover:border-[#112D4E] text-gray-700 px-3 py-1.5 rounded-md text-xs font-bold transition shadow-sm h-[34px] flex items-center justify-center">
-                    <i class="fas fa-save sm:mr-1"></i> <span class="hidden sm:inline">Update</span>
-                </button>
-            </form>
+            <div>
+                <input type="text" 
+                       name="kode_satker_baru[{{ $item->id }}]" 
+                       value="{{ $item->kode_satker }}" 
+                       data-original="{{ $item->kode_satker }}"
+                       oninput="this.classList.toggle('bg-amber-50', this.value !== this.getAttribute('data-original')); this.classList.toggle('border-amber-400', this.value !== this.getAttribute('data-original'))"
+                       class="kode-input border-gray-300 rounded-md shadow-sm px-2 py-1.5 border w-48 font-mono text-sm focus:ring-[#112D4E] focus:border-[#112D4E] bg-white text-[#112D4E] font-bold transition-colors duration-200">
+            </div>
         </div>
     </div>
 

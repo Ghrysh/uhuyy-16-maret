@@ -72,6 +72,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/setting-kode', [\App\Http\Controllers\SettingKodeController::class, 'index'])->name('setting-kode.index');
     Route::post('/setting-kode/rumus', [\App\Http\Controllers\SettingKodeController::class, 'storeRumus'])->name('setting-kode.storeRumus');
     Route::put('/setting-kode/manual/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateManual'])->name('setting-kode.updateManual');
+    Route::post('/setting-kode/update-manual-bulk', [\App\Http\Controllers\SettingKodeController::class, 'updateManualBulk'])->name('setting-kode.updateManualBulk');
     Route::post('/setting-kode/sync', [\App\Http\Controllers\SettingKodeController::class, 'syncAllCodes'])->name('setting-kode.sync');
 
     Route::put('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateRumus'])->name('setting-kode.updateRumus');

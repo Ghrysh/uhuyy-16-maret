@@ -82,6 +82,7 @@
     <div x-data="{
         search: '',
         activePeriode: '{{ $periodes->first()->id ?? '' }}',
+        scrollTimeout: null, 
     
         isMatch(nama, kode) {
             if (!this.search) return false;
@@ -107,15 +108,39 @@
 
         init() {
             this.$watch('search', (val) => {
-                if (val) {
-                    this.$nextTick(() => {
-                        // querySelector secara natural akan selalu mengambil elemen PERTAMA dari atas
-                        let firstMatch = document.querySelector('.satker-search-item:not([style*=\'display: none\'])');
+                // Berjalan mulai dari huruf pertama
+                if (val && val.length > 0) {
+                    
+                    // Bersihkan perintah scroll sebelumnya agar tidak bertabrakan saat mengetik cepat
+                    clearTimeout(this.scrollTimeout);
+                    
+                    this.scrollTimeout = setTimeout(() => {
+                        const container = document.getElementById('searchResultContainer');
+                        if (!container) return;
+
+                        const items = Array.from(container.querySelectorAll('.satker-search-item'));
+                        const term = val.toLowerCase();
+                        
+                        // LOGIKA BARU: Cari elemen yang TERLIHAT dan TEKS-nya BENAR-BENAR COCOK
+                        const firstMatch = items.find(item => {
+                            // 1. Lewati jika sedang disembunyikan
+                            if (item.offsetHeight === 0) return false; 
+                            
+                            // 2. Pastikan teks di dalam baris itu memuat kata pencarian saat ini
+                            const text = item.innerText || item.textContent;
+                            return text.toLowerCase().includes(term);
+                        });
+
                         if (firstMatch) {
-                            // Scroll ke elemen tersebut dengan posisi start (atas)
-                            firstMatch.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            const containerTop = container.getBoundingClientRect().top;
+                            const itemTop = firstMatch.getBoundingClientRect().top;
+                            
+                            container.scrollTo({
+                                top: itemTop - containerTop + container.scrollTop - 20,
+                                behavior: 'smooth'
+                            });
                         }
-                    });
+                    }, 300); // Tunggu 300ms agar Alpine selesai membuka folder
                 }
             });
         }
@@ -193,8 +218,7 @@
 
             </div>
 
-            <div x-show="search" x-cloak class="px-4 sm:px-6 py-4 
-            max-h-[65vh] overflow-y-auto">
+            <div id="searchResultContainer" x-show="search" x-cloak class="px-4 sm:px-6 py-4 max-h-[65vh] overflow-y-auto scroll-smooth">
 
                 {{-- <div class="mb-4 text-xs font-semibold text-slate-400 uppercase tracking-widest sticky top-0 bg-white z-10 pb-2">
                     
@@ -2047,13 +2071,18 @@
         `;
             tableBody.innerHTML = skeletonRow.repeat(3);
 
-            // Tampilkan modal
             toggleModal('modalDetailSatker');
 
             // 4. Fetch berdasarkan SATKER ID
             try {
-                // Pastikan menggunakan url() Laravel agar tidak error di local
-                const response = await fetch(`{{ url('admin/satker/users') }}/${id}`);
+                const timestamp = new Date().getTime();
+                const response = await fetch(`{{ url('admin/satker/users') }}/${id}?_t=${timestamp}`, {
+                    method: 'GET',
+                    headers: {
+                        'Pragma': 'no-cache',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
                 const users = await response.json();
 
                 tableBody.innerHTML = '';
