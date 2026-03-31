@@ -184,47 +184,56 @@ class SatkerController extends Controller
 
     public function getUsersBySatker($id)
     {
-        $users = User::whereHas('penugasan', function ($q) use ($id) {
-                $q->where('satker_id', $id);
-            })
-            ->with([
-                'userDetail:id,nip_baru,tampil_jabatan',
-                'roles:id,nama',
-                'penugasan' => function ($q) use ($id) {
-                    $q->where('satker_id', $id)
-                    ->with('jenisPenugasan:id,nama');
-                }
-            ])
-            ->get()
-            ->map(function ($user) {
+        \App\Models\Penugasan::where('satker_id', $id)
+            ->where('status_aktif', 0)
+            ->whereNotNull('tanggal_selesai_cuti')
+            ->whereNull('tanggal_selesai') // Pastikan bukan yang benar-benar selesai tugas
+            ->whereDate('tanggal_selesai_cuti', '<', now()->toDateString())
+            ->update([
+                'status_aktif'         => 1, // Aktifkan lagi
+                'tanggal_mulai_cuti'   => null,
+                'tanggal_selesai_cuti' => null
+            ]);
 
-                $activePenugasan = $user->penugasan->first();
-                $roles = $user->roles->pluck('nama')->values();
+        $penugasans = \App\Models\Penugasan::with([
+                'user.userDetail', 
+                'user.roles',
+                'jenisPenugasan'
+            ])
+            ->where('satker_id', $id)
+            ->orderBy('status_aktif', 'desc') 
+            ->orderBy('tanggal_mulai', 'desc') 
+            ->get()
+            ->map(function ($penugasan) {
+                $user = $penugasan->user;
+                $roles = ($user && $user->roles) ? $user->roles->pluck('nama')->values() : collect();
+
+                // Cek apakah dia sedang cuti (Status 0 + Ada tgl cuti)
+                $isCuti = false;
+                if ($penugasan->status_aktif == 0 && $penugasan->tanggal_mulai_cuti) {
+                    $isCuti = true;
+                }
 
                 return [
-                    'penugasan_id'      => $activePenugasan?->id,
-                    'name'              => $user->name,
-                    'nip'               => $user->nip,
-                    'email'             => $user->email,
-                    'jabatan'           => optional($user->userDetail)->tampil_jabatan ?? '-',
-
+                    'penugasan_id'      => $penugasan->id,
+                    'name'              => $user ? $user->name : 'Tanpa Nama',
+                    'nip'               => $user ? $user->nip : '-',
+                    'email'             => $user ? $user->email : '-',
+                    'jabatan'           => ($user && $user->userDetail) ? $user->userDetail->tampil_jabatan : '-',
                     'roles'             => $roles->isNotEmpty() ? $roles : '-',
-
-                    'jenis_penugasan'   => optional($activePenugasan?->jenisPenugasan)->nama ?? '-',
-
-                    'status_aktif'      => $activePenugasan?->status_aktif ?? 0,
-
-                    'tanggal_mulai'     => $activePenugasan?->tanggal_mulai
-                                            ? \Carbon\Carbon::parse($activePenugasan->tanggal_mulai)->format('d-m-Y')
-                                            : '-',
-
-                    'tanggal_selesai'   => $activePenugasan?->tanggal_selesai
-                                            ? \Carbon\Carbon::parse($activePenugasan->tanggal_selesai)->format('d-m-Y')
-                                            : '-',
+                    'jenis_penugasan'   => $penugasan->jenisPenugasan ? $penugasan->jenisPenugasan->nama : '-',
+                    'status_aktif'      => $penugasan->status_aktif ?? 0,
+                    
+                    'is_cuti'           => $isCuti,
+                    'tanggal_mulai_cuti_raw'   => $penugasan->tanggal_mulai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_mulai_cuti)->format('d F Y') : null,
+                    'tanggal_selesai_cuti_raw' => $penugasan->tanggal_selesai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_selesai_cuti)->format('d F Y') : null,
+                    
+                    'tanggal_mulai'     => $penugasan->tanggal_mulai ? \Carbon\Carbon::parse($penugasan->tanggal_mulai)->format('d-m-Y') : '-',
+                    'tanggal_selesai'   => $penugasan->tanggal_selesai ? \Carbon\Carbon::parse($penugasan->tanggal_selesai)->format('d-m-Y') : '-',
                 ];
             });
 
-        return response()->json($users);
+        return response()->json($penugasans);
     }
 
     public function generateCode(Request $request)

@@ -10,6 +10,8 @@ services:
     volumes:
       - ./:/var/www/html
       - ./php-custom.ini:/usr/local/etc/php/conf.d/uploads.ini
+    extra_hosts:                                   
+      - "host.docker.internal:host-gateway"        
     networks:
       - satkerKemenag_net
 
@@ -49,6 +51,8 @@ services:
     command: php artisan queue:work --sleep=3 --tries=3 --timeout=120
     volumes:
       - ./:/var/www/html
+    extra_hosts:                                 
+      - "host.docker.internal:host-gateway"        
     depends_on:
       - app
       - db

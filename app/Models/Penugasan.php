@@ -20,7 +20,9 @@ class Penugasan extends Model
         'jenis_penugasan_id',
         'tanggal_mulai',
         'tanggal_selesai',
-        'status_aktif'
+        'status_aktif',
+        'tanggal_mulai_cuti',
+        'tanggal_selesai_cuti'
     ];
 
     public function user(): BelongsTo

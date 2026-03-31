@@ -231,7 +231,7 @@ class PenugasanController extends Controller
     //     });
     // }
 
-    public function store(Request $request)
+public function store(Request $request)
     {
         // Validasi semua field termasuk detailData
         $request->validate([
@@ -313,9 +313,6 @@ class PenugasanController extends Controller
             'email_dinas' => 'nullable|string',
         ]);
 
-        // dd($request->all());
-
-
         return DB::transaction(function () use ($request) {
             try {
                 $nipFinal = $request->nip_baru ?? $request->user_nip;
@@ -332,12 +329,62 @@ class PenugasanController extends Controller
                     ]
                 );
 
-                $existingPenugasan = Penugasan::where('user_id', $user->id)
-                    ->where('status_aktif', 1)
-                    ->first();
+                $isAssigningDefinitif = ($request->jenis_penugasan_id == 1);
 
-                if ($existingPenugasan) {
-                    return redirect()->back()->with('error', 'Pegawai sudah memiliki penugasan aktif.');
+                $userActivePenugasans = Penugasan::where('user_id', $user->id)
+                                        ->where('status_aktif', 1)
+                                        ->get();
+
+                if ($userActivePenugasans->isNotEmpty()) {
+                    $isCurrentlyDefinitif = $userActivePenugasans->contains('jenis_penugasan_id', 1);
+
+                    // Aturan 1: Sudah Definitif -> Ditolak
+                    if ($isCurrentlyDefinitif) {
+                        $msg = 'Gagal: Pegawai ini sedang menjabat sebagai Definitif aktif. Pejabat Definitif tidak bisa merangkap jabatan lain.';
+                        return $request->wantsJson() 
+                            ? response()->json(['success' => false, 'message' => $msg], 400) 
+                            : redirect()->back()->with('error', $msg);
+                    }
+
+                    // Aturan 2: Masih Plt/Plh tapi mau diangkat Definitif -> Ditolak
+                    if ($isAssigningDefinitif) {
+                        $msg = 'Gagal: Pegawai masih memiliki tugas Plt/Plh aktif. Selesaikan tugas tersebut terlebih dahulu sebelum diangkat sebagai Definitif.';
+                        return $request->wantsJson() 
+                            ? response()->json(['success' => false, 'message' => $msg], 400) 
+                            : redirect()->back()->with('error', $msg);
+                    }
+                }
+
+                // Aturan 3: Kursi Satker sudah terisi Definitif (Baik yang Aktif maupun yang sedang Cuti) -> Ditolak
+                if ($isAssigningDefinitif) {
+                    $existingDefinitifSatker = Penugasan::where('satker_id', $request->satker_id)
+                        ->where('jenis_penugasan_id', 1)
+                        ->where(function ($query) {
+                            // Cek jika dia Aktif bekerja
+                            $query->where('status_aktif', 1)
+                                  // ATAU Cek jika dia sedang Cuti (Status 0, tapi punya tgl cuti dan belum selesai tugas permanen)
+                                  ->orWhere(function ($subQuery) {
+                                      $subQuery->where('status_aktif', 0)
+                                               ->whereNotNull('tanggal_selesai_cuti')
+                                               ->whereNull('tanggal_selesai');
+                                  });
+                        })
+                        ->first();
+
+                    if ($existingDefinitifSatker) {
+                        // Tentukan pesan error yang spesifik agar Admin paham
+                        $isSedangCuti = ($existingDefinitifSatker->status_aktif == 0 && $existingDefinitifSatker->tanggal_selesai_cuti != null);
+                        
+                        if ($isSedangCuti) {
+                            $msg = 'Gagal: Pejabat Definitif di Satker ini sedang dalam masa Cuti. Anda hanya dapat menugaskan Plt atau Plh untuk menggantikan sementara.';
+                        } else {
+                            $msg = 'Gagal: Satker ini sudah memiliki Pejabat Definitif yang aktif. Silakan akhiri tugas pejabat sebelumnya secara permanen (Selesai Tugas) terlebih dahulu.';
+                        }
+
+                        return $request->wantsJson() 
+                            ? response()->json(['success' => false, 'message' => $msg], 400) 
+                            : redirect()->back()->with('error', $msg);
+                    }
                 }
 
                 // Simpan semua detail pegawai ke tabel user_details
@@ -378,23 +425,34 @@ class PenugasanController extends Controller
                     }
                 }
 
+                // ==========================================
+                // PERBAIKAN LOGIKA INSERT/UPDATE USER DETAIL
+                // ==========================================
                 $detailData['nama'] = $namaFinal;
-                $detailData['nip'] = $nipFinal;
-                $detailData['id'] = (string) \Illuminate\Support\Str::uuid();
-                $detailData['created_at'] = now();
+                $detailData['nip'] = $request->nip ?? $request->user_nip; // Biarkan NIP bawaan apa adanya
+                $detailData['nip_baru'] = $nipFinal; // Pasti 18 digit
                 $detailData['updated_at'] = now();
 
-                DB::table('user_details')->updateOrInsert(
-                    ['nip' => $nipFinal], 
-                    $detailData
-                );
+                // Cari berdasarkan nip_baru (Sangat akurat untuk Kemenag)
+                $existingDetail = DB::table('user_details')->where('nip_baru', $nipFinal)->first();
+
+                if ($existingDetail) {
+                    // Jika sudah ada, cukup UPDATE (Jangan buat ID/UUID baru)
+                    DB::table('user_details')->where('nip_baru', $nipFinal)->update($detailData);
+                } else {
+                    // Jika belum ada, buat baru (INSERT) dan generate UUID
+                    $detailData['id'] = (string) \Illuminate\Support\Str::uuid();
+                    $detailData['created_at'] = now();
+                    DB::table('user_details')->insert($detailData);
+                }
 
                 $user->roles()->syncWithoutDetaching([$request->role_id]);
 
                 Log::info('Isi tabel user_roles setelah insert:', [
                     'data' => DB::table('user_roles')->get()
                 ]);
-                // Simpan Penugasan
+                
+                // Simpan Penugasan 
                 $penugasan = Penugasan::create([
                     'user_id' => $user->id,
                     'satker_id' => $request->satker_id,
@@ -414,7 +472,11 @@ class PenugasanController extends Controller
                     'user_id' => auth()->id(),
                 ]);
 
-                return redirect()->back()->with('success', 'Data penugasan berhasil ditambah!');
+                // JIKA SUKSES
+                $msgSuccess = 'Data penugasan berhasil ditambah!';
+                return $request->wantsJson() 
+                    ? response()->json(['success' => true, 'message' => $msgSuccess]) 
+                    : redirect()->back()->with('success', $msgSuccess);
 
             } catch (\Exception $e) {
                 Log::error("CRITICAL ERROR di PenugasanStore:", [
@@ -426,13 +488,24 @@ class PenugasanController extends Controller
 
                 $pesanAman = 'Gagal memproses data penugasan. Terjadi kendala sistem, silakan coba lagi nanti.';
 
+                // ==========================================
+                // PERBAIKAN FILTER PESAN ERROR
+                // ==========================================
                 if (str_contains($e->getMessage(), 'user_roles_user_id_unique')) {
                     $pesanAman = 'Gagal menyimpan: Pegawai ini sudah didaftarkan dan memiliki hak akses (role) yang aktif di sistem.';
-                } elseif (str_contains($e->getMessage(), 'Connection')) {
+                } elseif (str_contains($e->getMessage(), 'Connection refused') || str_contains($e->getMessage(), 'cURL error')) {
                     $pesanAman = 'Gagal menyimpan: Terjadi masalah koneksi atau jaringan ke server Kemenag.';
+                } elseif (str_contains($e->getMessage(), 'duplicate key value violates unique constraint')) {
+                    $pesanAman = 'Gagal menyimpan: Terdapat data ganda (duplikat) di sistem. Harap periksa kembali NIP Pegawai.';
+                } else {
+                    // Munculkan pesan asli secara aman jika di luar tebakan kita
+                    $pesanAman = 'Gagal menyimpan: ' . explode(' (Connection', $e->getMessage())[0];
                 }
 
-                return redirect()->back()->with('error', $pesanAman);
+                // JIKA ERROR
+                return $request->wantsJson() 
+                    ? response()->json(['success' => false, 'message' => $pesanAman], 400) 
+                    : redirect()->back()->with('error', $pesanAman);
             }
         });
     }
@@ -468,27 +541,39 @@ class PenugasanController extends Controller
         return redirect()->back()->with('success', 'Data penugasan berhasil diubah!');
     }
 
-    public function unassign($id)
+    public function unassign(Request $request, $id)
     {
         try {
-
             $penugasan = Penugasan::findOrFail($id);
 
-            $penugasan->update([
-                'status_aktif'     => 0,
-                'tanggal_selesai'  => now()
-            ]);
+            if ($request->jenis_aksi === 'cuti') {
+                $penugasan->update([
+                    'status_aktif'         => 0,
+                    'tanggal_mulai_cuti'   => $request->tanggal_mulai_cuti,
+                    'tanggal_selesai_cuti' => $request->tanggal_selesai_cuti,
+                ]);
+                $pesan = 'Pejabat berhasil dicutikan.';
+            } 
+
+            else {
+                $penugasan->update([
+                    'status_aktif'         => 0,
+                    'tanggal_selesai'      => $request->tanggal_selesai ? \Carbon\Carbon::parse($request->tanggal_selesai)->format('Y-m-d') : now(),
+                    'tanggal_mulai_cuti'   => null,
+                    'tanggal_selesai_cuti' => null,
+                ]);
+                $pesan = 'Tugas berhasil diakhiri.';
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Penugasan berhasil dinonaktifkan'
+                'message' => $pesan
             ]);
 
         } catch (\Exception $e) {
-
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal unassign'
+                'message' => 'Gagal memperbarui status.'
             ], 500);
         }
     }

@@ -607,7 +607,7 @@
 
             {{-- Container Modal --}}
             <div
-                class="relative inline-block w-full max-w-4xl overflow-hidden text-left align-middle transition-all transform bg-white rounded-2xl shadow-xl">
+                class="relative inline-block w-full max-w-[1300px] overflow-hidden text-left align-middle transition-all transform bg-white rounded-2xl shadow-xl">
 
                 {{-- Header --}}
                 <div
@@ -691,7 +691,7 @@
                     {{-- Table Pejabat --}}
                     <div class="border border-gray-100 rounded-xl">
                         <div class="overflow-x-auto">
-                            <table class="min-w-[1000px] w-full text-left text-xs">
+                            <table class="min-w-4xl w-full text-left text-xs">
                                 <thead class="bg-slate-50 text-slate-500 uppercase font-bold border-b border-gray-100">
                                     <tr>
                                         <th class="px-4 py-3">No</th>
@@ -748,7 +748,7 @@
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <form action="{{ route('admin.penugasan.store') }}" method="POST">
+                <form id="formTambahPenugasan" action="{{ route('admin.penugasan.store') }}" method="POST">
                     @csrf
                     <div class="px-6 py-6 space-y-4">
                         <div>
@@ -766,7 +766,7 @@
                         <div class="space-y-3">
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">User / Pegawai</label>
                         <div class="w-full">
-                            <select id="select_pegawai_local" placeholder="Ketik Nama atau NIP Pegawai..."></select>
+                            <select name="user_id" id="select_pegawai_local" placeholder="Ketik Nama atau NIP Pegawai..." required></select>
                         </div>
 
                             <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
@@ -979,11 +979,20 @@
                             .catch(() => callback());
                     },
                     onChange: async function(value) {
-                        // 2. SAAT DIKLIK, TARIK DATA KOMPLIT DARI API
                         if(!value) return;
 
                         const resNama = document.getElementById('res_nama');
                         const resInfo = document.getElementById('res_info_tambahan');
+                        
+                        // 1. Ambil elemen tombol submit
+                        const submitBtn = document.querySelector('#modalTambahPenugasan button[type="submit"]');
+                        
+                        // 2. Kunci tombol simpan agar tidak di-klik terlalu cepat
+                        if(submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Memverifikasi...';
+                        }
                         
                         Toast.fire({
                             icon: 'info',
@@ -991,8 +1000,7 @@
                         });
 
                         try {
-                            // Pakai endpoint backend-mu sendiri agar terhindar dari error CORS
-                            const response = await fetch(`/satker/admin/pegawai/search?nip=${value}`);
+                            const response = await fetch(`{{ url('admin/pegawai/search') }}?nip=${value}`);
                             if (!response.ok) throw new Error('Gagal menghubungi server');
 
                             const result = await response.json();
@@ -1001,11 +1009,9 @@
                                 const d = result.data.data;
                                 const namaValid = d.NAMA_LENGKAP || d.NAMA;
 
-                                // Tampilkan di UI
                                 resNama.value = namaValid;
                                 resInfo.innerText = `${d.GOL_RUANG || '-'} • ${d.TAMPIL_JABATAN || d.LEVEL_JABATAN || '-'}`;
 
-                                // Buat Hidden Input untuk disimpan ke DB
                                 const form = document.querySelector('#modalTambahPenugasan form');
                                 const fields = [
                                     'NIP', 'NIP_BARU', 'NAMA', 'NAMA_LENGKAP', 'AGAMA', 'TEMPAT_LAHIR', 'TANGGAL_LAHIR',
@@ -1046,7 +1052,6 @@
                             resNama.value = "";
                             resInfo.innerText = "";
                             
-                            // Bersihkan hidden input jika gagal
                             document.querySelectorAll('#modalTambahPenugasan form input[type="hidden"]').forEach(i => {
                                 if(i.id.startsWith('hidden_')) i.value = '';
                             });
@@ -1056,6 +1061,13 @@
                                 title: 'Pencarian Gagal',
                                 text: error.message
                             });
+                        } finally {
+                            // 3. Kembalikan tombol simpan ke kondisi semula (Bisa diklik lagi)
+                            if(submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                                submitBtn.innerHTML = 'Simpan';
+                            }
                         }
                     }
                 });
@@ -1132,7 +1144,7 @@
             nipInput.classList.add('bg-slate-50');
 
             try {
-                const response = await fetch(`/satker/admin/pegawai/search?nip=${nip}`);
+                const response = await fetch(`{{ url('admin/pegawai/search') }}?nip=${nip}`);
                 if (!response.ok) throw new Error('Gagal menghubungi server');
 
                 const result = await response.json();
@@ -1754,7 +1766,7 @@
                     _t: Date.now()
                 });
 
-                const response = await fetch(`/satker/admin/satker/generate-code?${queryParams}`, {
+                const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`, {
                     method: 'GET',
                     headers: {
                         'Pragma': 'no-cache',
@@ -1925,7 +1937,7 @@
     <script>
         function openEditSatkerModal(id, kode, nama, periode_id, jenis_id, parent_id, wilayah_id, keterangan, status) {
             const form = document.getElementById('formEditSatker');
-            form.action = `/satker/admin/satker/${id}`;
+            form.action = `{{ url('admin/satker') }}/${id}`;
 
             document.getElementById('edit_kode_satker').value = kode;
             document.getElementById('edit_nama_satker').value = nama;
@@ -2030,7 +2042,7 @@
                 <td class="px-4 py-4"><div class="h-3 w-12 bg-slate-200 rounded"></div></td>
                 <td class="px-4 py-4"><div class="h-3 w-40 bg-slate-200 rounded"></div></td>
                 <td class="px-4 py-4"><div class="h-3 w-12 bg-slate-200 rounded"></div></td>
-                <td class="px-4 py-4"><div class="h-3 w-40 bg-slate-200 rounded"></div></td>
+                <td class="px-4 py-4"><div class="h-8 w-20 bg-slate-200 rounded"></div></td>
             </tr>
         `;
             tableBody.innerHTML = skeletonRow.repeat(3);
@@ -2040,23 +2052,48 @@
 
             // 4. Fetch berdasarkan SATKER ID
             try {
-                const response = await fetch(`/satker/admin/satker/users/${id}`);
+                // Pastikan menggunakan url() Laravel agar tidak error di local
+                const response = await fetch(`{{ url('admin/satker/users') }}/${id}`);
                 const users = await response.json();
 
                 tableBody.innerHTML = '';
 
                 if (users.length > 0) {
                     users.forEach((user, index) => {
-                        const statusBadge = user.status_aktif == 1 ?
-                            `<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">AKTIF</span>` :
-                            `<span class="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">NON-AKTIF</span>`;
+                        // LOGIKA BARU UNTUK STATUS BADGE (Ada tambahan status Cuti)
+                        let statusBadge = '';
+                        if (user.is_cuti) {
+                            statusBadge = `<span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">SEDANG CUTI</span>`;
+                        } else if (user.status_aktif == 1) {
+                            statusBadge = `<span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">AKTIF</span>`;
+                        } else {
+                            statusBadge = `<span class="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">NON-AKTIF</span>`;
+                        }
 
-                        const actionButton = user.status_aktif == 1 ?
-                            `<button onclick="unassignUser('${user.penugasan_id}')" class="text-red-600 hover:text-red-800 transition" title="Unassign">
-                            <i class="fas fa-trash text-sm"></i>
-                        </button>` : '-';
+                        // LOGIKA BARU UNTUK TOMBOL (Berubah otomatis saat sedang cuti)
+                        let actionButton = '-';
+                        if (user.status_aktif == 1 && !user.is_cuti) {
+                            actionButton = `
+                                <div class="flex flex-col gap-1.5 min-w-[85px]">
+                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen">
+                                        <i class="fas fa-check-circle mr-1.5"></i> Selesai
+                                    </button>
+                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'cuti')" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti">
+                                        <i class="fas fa-calendar-minus mr-1.5"></i> Cuti
+                                    </button>
+                                </div>`;
+                        } else if (user.is_cuti) {
+                            actionButton = `
+                                <div class="flex flex-col gap-1.5 min-w-[85px]">
+                                    <button onclick="showDetailCuti('${user.name}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti">
+                                        <i class="fas fa-info-circle mr-1.5"></i> Detail Cuti
+                                    </button>
+                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen">
+                                        <i class="fas fa-check-circle mr-1.5"></i> Selesai
+                                    </button>
+                                </div>`;
+                        }
 
-                        // PENTING: data-name dan data-nip harus ada, dan class="row-number" harus ada pada kolom No
                         tableBody.innerHTML += `
                         <tr class="hover:bg-blue-50/50 transition duration-200" 
                             data-name="${(user.name || '').toLowerCase()}" 
@@ -2067,11 +2104,11 @@
                             <td class="px-4 py-3 text-slate-500">${user.email ?? '-'}</td>
                             <td class="px-4 py-3 text-slate-500">${user.jabatan ?? '-'}</td>
                             <td class="px-4 py-3 text-slate-500">${user.roles ?? '-'}</td>
-                            <td class="px-4 py-3 text-slate-500">${user.jenis_penugasan ?? '-'}</td>
+                            <td class="px-4 py-3 font-bold text-blue-600">${user.jenis_penugasan ?? '-'}</td>
                             <td class="px-4 py-3 text-slate-500">${user.tanggal_mulai ?? '-'}</td>
-                            <td class="px-4 py-3 text-slate-500">${user.tanggal_selesai ?? '-'}</td>
+                            <td class="px-4 py-3 font-bold ${user.tanggal_selesai ? 'text-amber-600' : 'text-slate-400'}">${user.tanggal_selesai ?? 'Belum Berakhir'}</td>
                             <td class="px-4 py-3">${statusBadge}</td>
-                            <td class="px-4 py-3">${actionButton}</td>
+                            <td class="px-4 py-3 text-center align-middle">${actionButton}</td>
                         </tr>
                     `;
                     });
@@ -2100,29 +2137,101 @@
             }
         }
 
-        async function unassignUser(penugasanId) {
-            const {
-                isConfirmed
-            } = await Swal.fire({
-                title: 'Yakin ingin meng-unassign?',
-                text: "Tindakan ini tidak bisa dibatalkan!",
+        function showDetailCuti(nama, start, end) {
+            Swal.fire({
+                title: 'Informasi Cuti Pegawai',
+                html: `
+                    <div class="text-left text-sm text-slate-700">
+                        <p class="mb-3">Pejabat: <b class="text-slate-900">${nama}</b></p>
+                        <div class="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                            <p class="mb-1">Mulai Cuti: <b class="text-amber-700">${start}</b></p>
+                            <p>Selesai Cuti: <b class="text-amber-700">${end}</b></p>
+                        </div>
+                        <p class="mt-4 text-xs text-slate-500 italic">*Pegawai akan otomatis kembali berstatus AKTIF satu hari setelah masa cuti berakhir.</p>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'Tutup',
+                confirmButtonColor: '#3b82f6'
+            });
+        }
+
+        // ==========================================
+        // PERUBAHAN FUNGSI UNASSIGN DENGAN PARAMETER 'TYPE'
+        // ==========================================
+        async function unassignUser(penugasanId, namaPegawai, type = 'selesai') {
+            const today = new Date().toISOString().split('T')[0];
+            
+            let titleTxt = type === 'cuti' ? 'Mulai Cuti' : 'Akhiri Tugas';
+            let descTxt = type === 'cuti' ? `Tentukan rentang tanggal <b>cuti</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.` : `Silakan tentukan tanggal <b>selesai tugas</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.`;
+            
+            // Siapkan desain kalender berdasarkan tombol yang diklik
+            let htmlContent = '';
+            if(type === 'cuti') {
+                htmlContent = `
+                    <div class="text-sm text-slate-500 mb-4 text-left">${descTxt}</div>
+                    <div class="text-left mb-3">
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tgl Mulai Cuti</label>
+                        <input type="date" id="tgl_mulai_cuti" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 outline-none" value="${today}">
+                    </div>
+                    <div class="text-left">
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tgl Selesai Cuti</label>
+                        <input type="date" id="tgl_selesai_cuti" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 outline-none" value="${today}">
+                    </div>
+                `;
+            } else {
+                htmlContent = `
+                    <div class="text-sm text-slate-500 mb-4 text-left">${descTxt}</div>
+                    <div class="text-left">
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tanggal Selesai Tugas</label>
+                        <input type="date" id="tgl_selesai_input" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 outline-none" value="${today}">
+                    </div>
+                `;
+            }
+
+            const { value: formValues, isConfirmed } = await Swal.fire({
+                title: titleTxt,
+                html: htmlContent,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Ya, Unassign!',
-                cancelButtonText: 'Batal'
+                confirmButtonColor: type === 'cuti' ? '#f59e0b' : '#ef4444', 
+                cancelButtonColor: '#cbd5e1', 
+                confirmButtonText: type === 'cuti' ? 'Simpan Cuti' : 'Selesaikan Tugas',
+                cancelButtonText: 'Batal',
+                preConfirm: () => {
+                    if (type === 'cuti') {
+                        const start = document.getElementById('tgl_mulai_cuti').value;
+                        const end = document.getElementById('tgl_selesai_cuti').value;
+                        if (!start || !end) {
+                            Swal.showValidationMessage('Tgl Mulai dan Selesai Cuti wajib diisi!');
+                            return false;
+                        }
+                        if (start > end) {
+                            Swal.showValidationMessage('Tgl Selesai tidak boleh lebih awal dari Tgl Mulai!');
+                            return false;
+                        }
+                        return { jenis_aksi: 'cuti', tanggal_mulai_cuti: start, tanggal_selesai_cuti: end };
+                    } else {
+                        const tgl = document.getElementById('tgl_selesai_input').value;
+                        if (!tgl) {
+                            Swal.showValidationMessage('Tanggal Selesai harus diisi!');
+                            return false;
+                        }
+                        return { jenis_aksi: 'selesai', tanggal_selesai: tgl };
+                    }
+                }
             });
 
             if (!isConfirmed) return;
 
             try {
-                const response = await fetch(`/satker/admin/penugasan/unassign/${penugasanId}`, {
+                const response = await fetch(`{{ url('admin/penugasan/unassign') }}/${penugasanId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    }
+                    },
+                    body: JSON.stringify(formValues) 
                 });
 
                 if (response.ok) {
@@ -2130,12 +2239,13 @@
                     if (result.success) {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Berhasil',
-                            timer: 1000,
+                            title: 'Status Diperbarui',
+                            text: result.message,
+                            timer: 1500,
                             showConfirmButton: false
                         });
 
-                        // Reload data tanpa tutup modal
+                        // Refresh data tabel modal
                         const satkerId = document.getElementById('detail_satker_id').value;
                         openDetailModal(
                             document.getElementById('detail_kode').innerText,
@@ -2148,11 +2258,10 @@
                     }
                 }
             } catch (error) {
-                Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
+                Swal.fire('Error', 'Terjadi kesalahan sistem saat memperbarui status.', 'error');
             }
         }
 
-        // LISTENER PENCARIAN (Sudah dioptimalkan)
         document.getElementById('searchUserDetail').addEventListener('keyup', function() {
             let keyword = this.value.toLowerCase().trim();
             let rows = document.querySelectorAll('#detail_user_table_body tr');
@@ -2331,5 +2440,90 @@
                 updateFullCode();
             }
         }
+
+        // ==========================================
+        // FITUR TAMBAH PENUGASAN TANPA RELOAD (AJAX)
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const formPenugasan = document.getElementById('formTambahPenugasan');
+            
+            if (formPenugasan) {
+                formPenugasan.addEventListener('submit', async function(e) {
+                    e.preventDefault(); // Mencegah halaman me-reload
+                    
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    const originalText = submitBtn.innerHTML;
+                    
+                    // 1. Tampilkan Efek Loading
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
+                    
+                    try {
+                        const formData = new FormData(this);
+                        
+                        // 2. Kirim data ke server secara rahasia (AJAX)
+                        const response = await fetch(this.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest', // Penanda bahwa ini AJAX
+                                'Accept': 'application/json'          // Meminta balasan berupa JSON
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                            // 3a. Jika Sukses
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil',
+                                text: result.message,
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                            
+                            // Tutup modal form tambah
+                            toggleModal('modalTambahPenugasan');
+                            
+                            // Reset isi form
+                            this.reset();
+                            const tomSelectEl = document.getElementById('select_pegawai_local');
+                            if (tomSelectEl && tomSelectEl.tomselect) tomSelectEl.tomselect.clear();
+                            document.getElementById('res_nama').value = '';
+                            document.getElementById('res_info_tambahan').innerText = '';
+                            
+                            // 4. Refresh Tabel di Modal Detail tanpa menutupnya
+                            const satkerId = document.getElementById('detail_satker_id').value;
+                            const satkerKode = document.getElementById('detail_kode').innerText;
+                            const satkerNama = document.getElementById('detail_nama').innerText;
+                            const satkerEselon = document.getElementById('detail_eselon').innerText;
+                            const satkerWilayah = document.getElementById('detail_wilayah').innerText;
+                            
+                            openDetailModal(satkerKode, satkerNama, satkerEselon, satkerWilayah, 1, satkerId);
+                            
+                        } else if (response.status === 422) {
+                            // 3b. Jika Gagal Validasi Bawaan Laravel
+                            let errorText = 'Silakan periksa kembali input Anda:\n';
+                            for (let key in result.errors) {
+                                errorText += `- ${result.errors[key][0]}\n`;
+                            }
+                            Swal.fire('Validasi Gagal', errorText, 'error');
+                        } else {
+                            // 3c. Jika Gagal karena Aturan Bisnis PM (ex: Double Definitif)
+                            Swal.fire('Gagal', result.message || 'Terjadi kesalahan sistem.', 'error');
+                        }
+                        
+                    } catch (error) {
+                        console.error(error);
+                        Swal.fire('Error', 'Terjadi kesalahan jaringan atau server.', 'error');
+                    } finally {
+                        // 5. Kembalikan tombol seperti semula
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    }
+                });
+            }
+        });
     </script>
 @endpush
