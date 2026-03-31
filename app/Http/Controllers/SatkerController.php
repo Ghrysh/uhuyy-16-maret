@@ -239,18 +239,23 @@ class SatkerController extends Controller
     public function generateCode(Request $request)
     {
         $jenisId = $request->jenis_id;
-        $parentId = $request->parent_id;
+        // Penanganan aman untuk parent_id (mencegah string "null" terbaca sebagai ID)
+        $parentId = $request->filled('parent_id') && $request->parent_id !== 'null' ? $request->parent_id : null;
         $refJabatanId = $request->ref_jabatan_satker_id;
         
         // 1. Ambil Tingkat Wilayah (Pusat/PTKN/Prov) berdasarkan wilayah yang dipilih user
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
+        $kodeWilayah = '';
         if ($wilayahId) {
             $wilayah = \App\Models\Wilayah::find($wilayahId);
-            if ($wilayah) $tingkatWilayahId = $wilayah->tingkat_wilayah_id;
+            if ($wilayah) {
+                $tingkatWilayahId = $wilayah->tingkat_wilayah_id;
+                $kodeWilayah = $wilayah->kode_wilayah; // Disiapkan untuk replace
+            }
         }
 
-        // 2. BACA DARI SETUP RUMUS (Bukan lagi dari ref_jabatan_satker)
+        // 2. BACA DARI SETUP RUMUS (Menggunakan query andalanmu yang terbukti jalan)
         $setup = DB::table('rumus_kodes')
             ->where('is_applied', 1)
             ->where(function ($q) use ($tingkatWilayahId) {
@@ -277,7 +282,10 @@ class SatkerController extends Controller
         }
 
         $kodeBaru = $setup->pola;
+        $parentCode = '';
+        $kodeJf = '';
 
+        // 3. Replace Placeholders (Persis seperti aslinya)
         if (str_contains($kodeBaru, '[PARENT]')) {
             $parent = Satker::find($parentId);
             $parentCode = $parent ? $parent->kode_satker : '';
@@ -285,8 +293,6 @@ class SatkerController extends Controller
         }
 
         if (str_contains($kodeBaru, '[KODE_WILAYAH]')) {
-            $wilayah = \App\Models\Wilayah::find($wilayahId);
-            $kodeWilayah = $wilayah ? $wilayah->kode_wilayah : ''; 
             $kodeBaru = str_replace('[KODE_WILAYAH]', $kodeWilayah, $kodeBaru);
         }
 
@@ -297,6 +303,9 @@ class SatkerController extends Controller
             $kodeBaru = str_replace('[KODE_JF]', $kodeJf, $kodeBaru);
         }
 
+        // 4. Logic INC & Pencarian Bolong (Gaps) - Ini bagian yang di-upgrade!
+        $gaps = []; // Inisiasi default
+        
         if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
             $digit = (int)$matches[1];
             $prefixPattern = explode('[INC', $setup->pola)[0];
@@ -311,25 +320,67 @@ class SatkerController extends Controller
                  $prefixPattern = str_replace('[KODE_JF]', $kodeJf ?? '', $prefixPattern);
             }
 
-            $lastSibling = Satker::where('parent_satker_id', $parentId)
-                ->where('kode_satker', 'like', $prefixPattern . '%')
-                ->orderBy('kode_satker', 'desc')
-                ->first();
+            // Ambil semua data dengan prefix yang sama untuk dianalisa
+            $query = Satker::where('kode_satker', 'like', $prefixPattern . '%');
+            if ($parentId) {
+                $query->where('parent_satker_id', $parentId);
+            } else {
+                $query->whereNull('parent_satker_id');
+            }
 
-            $nextNum = 1;
-            if ($lastSibling) {
-                $lastNumStr = substr($lastSibling->kode_satker, -$digit);
-                if (is_numeric($lastNumStr)) {
-                    $nextNum = intval($lastNumStr) + 1;
-                }
+            $periodeId = $request->periode_id;
+            if ($periodeId) {
+                $query->where('periode_id', $periodeId);
             }
             
+            $existingCodes = $query->pluck('kode_satker')->toArray();
+
+            $periodeId = $request->periode_id;
+            if ($periodeId) {
+                $query->where('periode_id', $periodeId);
+            }
+            
+            $existingCodes = $query->pluck('kode_satker')->toArray();
+
+            // Ekstrak angkanya saja
+            $existingNums = [];
+            
+            // KUNCI PERBAIKAN: Hitung panjang karakter yang seharusnya (Panjang Prefix + Jumlah Digit)
+            $expectedLength = strlen($prefixPattern) + $digit;
+
+            foreach ($existingCodes as $c) {
+                $c = trim($c);
+                
+                // Pastikan yang diproses HANYA kode yang panjangnya sesuai pola
+                // Supaya kode '111' tidak memblokir angka '11'
+                if (strlen($c) === $expectedLength) {
+                    $numPart = substr($c, -$digit);
+                    if (is_numeric($numPart)) {
+                        $existingNums[] = intval($numPart);
+                    }
+                }
+            }
+            sort($existingNums);
+
+            $maxNum = !empty($existingNums) ? max($existingNums) : 0;
+            
+            // Cari angka yang lompat (Gaps)
+            for ($i = 1; $i < $maxNum; $i++) {
+                if (!in_array($i, $existingNums)) {
+                    // Masukkan ke array gaps beserta prefix-nya agar utuh
+                    $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);
+                }
+            }
+
+            // Generate angka normal selanjutnya (sequence tertinggi)
+            $nextNum = $maxNum + 1;
             $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
             $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
         }
 
         return response()->json([
             'code' => $kodeBaru,
+            'gaps' => $gaps, // Ini data baru yang berisi array kode yang bolong
             'default_nama' => $setup->default_nama_satker ?? ''
         ]);
     }

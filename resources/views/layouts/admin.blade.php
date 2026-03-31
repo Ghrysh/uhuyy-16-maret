@@ -137,11 +137,12 @@
                         class="{{ request()->routeIs('admin.audit.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-clock-rotate-left w-5 text-xs"></i> <span>Audit Log</span>
                     </a>
-                
+                    @if(auth()->user()->roles()->where('key', 'super_admin')->exists())
                     <a href="{{ route('admin.setting-kode.index') }}"
                         class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-code w-5 text-xs"></i> <span>Rumus Kode</span>
                     </a>
+                    @endif
                 </div>
             </div>
         </nav>

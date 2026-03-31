@@ -9,8 +9,26 @@ use App\Models\RefJabatanSatker;
 use App\Models\MTingkatWilayah;
 use Illuminate\Support\Facades\DB;
 
-class SettingKodeController extends Controller
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class SettingKodeController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(function ($request, $next) {
+                $isSuperAdmin = auth()->user()->roles()->where('key', 'super_admin')->exists();
+
+                if (!$isSuperAdmin) {
+                    abort(403, 'Akses Ditolak. Halaman ini hanya untuk Super Admin.');
+                }
+
+                return $next($request);
+            }),
+        ];
+    }
+
     public function index(Request $request)
     {
         $rumusList = DB::table('rumus_kodes')->get();

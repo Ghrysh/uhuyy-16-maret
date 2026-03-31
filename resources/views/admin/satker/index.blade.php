@@ -415,6 +415,12 @@
                                 <i class="fas fa-magic"></i>
                             </button>
                         </div>
+                        
+                        <div id="gap_selection_container" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2"><i class="fas fa-info-circle mr-1"></i> Terdeteksi Nomor Kosong di Tengah:</p>
+                            <div id="gap_list" class="flex flex-wrap gap-2">
+                                </div>
+                        </div>
                     </div>
 
                     <div class="mt-4 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
@@ -1776,13 +1782,29 @@
             const icon = btn.querySelector('i');
             const jenisId = document.getElementById('jenis_satker_id').value;
             const parentId = document.getElementById('parent_satker_id').value;
+            
+            // Ambil nilai periode dari form
+            const periodeId = document.getElementById('periode_id')?.value || '';
 
+            // 1. Validasi Jenis & Parent
             if (!jenisId || (jenisId !== "1" && !parentId)) {
                 Toast.fire({
                     icon: 'warning',
-                    title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' :
-                        'Pilih Satker Induk Terlebih Dahulu!'
+                    title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' : 'Pilih Satker Induk Terlebih Dahulu!'
                 });
+                return;
+            }
+
+            // 2. TAMBAHAN: Validasi Wajib Pilih Periode
+            if (!periodeId) {
+                Toast.fire({
+                    icon: 'warning',
+                    title: 'Pilih Periode Terlebih Dahulu!',
+                    text: 'Sistem butuh data periode untuk mengecek nomor urut yang kosong.'
+                });
+                
+                // Fokuskan layar ke form periode agar user sadar
+                document.getElementById('periode_id').focus();
                 return;
             }
 
@@ -1790,70 +1812,100 @@
             icon.className = 'fas fa-spinner fa-spin';
             btn.disabled = true;
 
+            // Persiapan Wadah Gap (Jika ada nomor kosong)
+            const gapContainer = document.getElementById('gap_selection_container');
+            const gapList = document.getElementById('gap_list');
+            if(gapContainer) gapContainer.classList.add('hidden');
+            if(gapList) gapList.innerHTML = '';
+
             try {
                 const wilayahId = document.getElementById('wilayah_id')?.value || '';
                 const refJabatanId = document.getElementById("ref_jabatan_satker_id")?.value || document.getElementById('jabatan_id')?.value || '';
+                
+                // 1. TAMBAHKAN BARIS INI: Ambil nilai periode dari form dropdown
+                const periodeId = document.getElementById('periode_id')?.value || ''; 
 
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId,
                     parent_id: parentId,
                     ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId,
+                    // 2. TAMBAHKAN BARIS INI: Kirim parameter periode_id ke Controller
+                    periode_id: periodeId, 
                     _t: Date.now()
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`, {
                     method: 'GET',
-                    headers: {
-                        'Pragma': 'no-cache',
-                        'Cache-Control': 'no-cache'
-                    },
+                    headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' },
                     cache: 'no-store'
                 });
 
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
+                if (!response.ok && !data.success) throw new Error(data.message || data.error || 'Gagal generate kode');
 
-                const container = document.getElementById('kode_container');
+                // Tangkap kembalian dari Controller (antisipasi 'kode' atau 'code')
+                const generatedCode = data.kode || data.code || "";
 
-                container.querySelectorAll('input').forEach(el => el.remove());
+                // WADAH FUNGSI RENDER (Agar bisa dipakai ulang saat tombol gap di-klik)
+                const renderUiCode = (fullCode) => {
+                    const container = document.getElementById('kode_container');
+                    container.querySelectorAll('input').forEach(el => el.remove());
 
-                if (jenisId === "1") {
-                    const fullCode = data.code || "";
-                    let htmlInputs = `
-                <input type="text" value="${fullCode}" readonly
-                class="w-full px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center generated-kode">
-            `;
-                    container.insertAdjacentHTML('afterbegin', htmlInputs);
-                } else {
-                    const parentSelect = document.getElementById('parent_satker_id');
-                    const parentText = parentSelect?.options[parentSelect.selectedIndex]?.text || '';
-                    const displayParentKode = parentText.split(' - ')[0].trim();
-                    const prefixLength = displayParentKode.length;
+                    if (jenisId === "1") {
+                        let htmlInputs = `<input type="text" value="${fullCode}" readonly class="w-full px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center generated-kode">`;
+                        container.insertAdjacentHTML('afterbegin', htmlInputs);
+                    } else {
+                        const parentSelect = document.getElementById('parent_satker_id');
+                        const parentText = parentSelect?.options[parentSelect.selectedIndex]?.text || '';
+                        const displayParentKode = parentText.split(' - ')[0].trim();
+                        const prefixLength = displayParentKode.length;
+                        const middle = fullCode.substring(prefixLength);
 
-                    const middle = (data.code || "").substring(prefixLength);
-
-                    let htmlInputs = `
-                <input type="text" value="${displayParentKode}" readonly
-                class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
-                <input type="text" value="${middle}" readonly
-                class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
-            `;
-                    container.insertAdjacentHTML('afterbegin', htmlInputs);
-                }
-
-                const finalInput = document.getElementById('kode_satker_full');
-                if (finalInput) finalInput.value = data.code;
-
-                if (data.default_nama) {
-                    const namaInput = document.querySelector('input[name="nama_satker"]');
-                    if (namaInput && namaInput.value.trim() === '') {
-                        namaInput.value = data.default_nama;
+                        let htmlInputs = `
+                            <input type="text" value="${displayParentKode}" readonly class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
+                            <input type="text" value="${middle}" readonly class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
+                        `;
+                        container.insertAdjacentHTML('afterbegin', htmlInputs);
                     }
-                }
 
-                if (typeof updateFullCode === "function") {
-                    updateFullCode();
+                    const finalInput = document.getElementById('kode_satker_full');
+                    if (finalInput) finalInput.value = fullCode;
+
+                    if (data.default_nama) {
+                        const namaInput = document.querySelector('input[name="nama_satker"]');
+                        if (namaInput && namaInput.value.trim() === '') {
+                            namaInput.value = data.default_nama;
+                        }
+                    }
+
+                    if (typeof updateFullCode === "function") updateFullCode();
+                };
+
+                // Render default pertama kali
+                renderUiCode(generatedCode);
+
+                // LOGIKA GAP: Jika ada nomor urut yang bolong di tengah
+                if (data.gaps && data.gaps.length > 0 && gapContainer && gapList) {
+                    gapContainer.classList.remove('hidden');
+
+                    // 1. Tombol Lanjut Biasa (Misal: 99)
+                    const btnNext = document.createElement('button');
+                    btnNext.type = 'button';
+                    btnNext.innerHTML = `Lanjut ( <span class="font-mono">${generatedCode.slice(-2)}</span> )`;
+                    btnNext.className = "px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-bold transition shadow-sm";
+                    btnNext.onclick = () => renderUiCode(generatedCode);
+                    gapList.appendChild(btnNext);
+
+                    // 2. Tombol Pengisi Nomor Kosong (Misal: 11)
+                    data.gaps.forEach(gCode => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.innerHTML = `Gunakan ( <span class="font-mono text-amber-800">${gCode.slice(-2)}</span> )`;
+                        btn.className = "px-3 py-1.5 text-xs bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-100 font-bold transition shadow-sm";
+                        btn.onclick = () => renderUiCode(gCode);
+                        gapList.appendChild(btn);
+                    });
                 }
 
             } catch (error) {
