@@ -118,29 +118,41 @@
                         const container = document.getElementById('searchResultContainer');
                         if (!container) return;
 
-                        const items = Array.from(container.querySelectorAll('.satker-search-item'));
                         const term = val.toLowerCase();
                         
-                        // LOGIKA BARU: Cari elemen yang TERLIHAT dan TEKS-nya BENAR-BENAR COCOK
-                        const firstMatch = items.find(item => {
-                            // 1. Lewati jika sedang disembunyikan
-                            if (item.offsetHeight === 0) return false; 
-                            
-                            // 2. Pastikan teks di dalam baris itu memuat kata pencarian saat ini
-                            const text = item.innerText || item.textContent;
-                            return text.toLowerCase().includes(term);
-                        });
+                        // LOGIKA BARU: Gunakan .satker-row agar JS TIDAK membaca teks milik anaknya!
+                        const rows = container.querySelectorAll('.satker-row');
+                        let firstMatch = null;
 
+                        // Loop dari atas ke bawah
+                        for (let i = 0; i < rows.length; i++) {
+                            const row = rows[i];
+                            
+                            // 1. Pastikan baris ini benar-benar dirender/terlihat di layar
+                            if (row.offsetHeight > 0) {
+                                
+                                // 2. Baca teks MURNI di baris tersebut saja
+                                const text = row.innerText || row.textContent;
+                                
+                                // 3. Jika cocok, tangkap dan BERHENTI mencari
+                                if (text.toLowerCase().includes(term)) {
+                                    firstMatch = row;
+                                    break; 
+                                }
+                            }
+                        }
+
+                        // Jika ketemu, gulir perlahan ke elemen tersebut
                         if (firstMatch) {
-                            const containerTop = container.getBoundingClientRect().top;
-                            const itemTop = firstMatch.getBoundingClientRect().top;
+                            const cRect = container.getBoundingClientRect();
+                            const mRect = firstMatch.getBoundingClientRect();
                             
                             container.scrollTo({
-                                top: itemTop - containerTop + container.scrollTop - 20,
+                                top: container.scrollTop + (mRect.top - cRect.top) - 20,
                                 behavior: 'smooth'
                             });
                         }
-                    }, 300); // Tunggu 300ms agar Alpine selesai membuka folder
+                    }, 300); // Tunggu 300ms agar Alpine selesai membuka/menutup folder
                 }
             });
         }
