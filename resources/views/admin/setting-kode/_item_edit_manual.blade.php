@@ -1,5 +1,13 @@
 @php
     $selfText = strtolower($item->nama_satker . ' ' . $item->kode_satker);
+
+    $eselonName = $item->eselon ? $item->eselon->nama : '-';
+    if ($item->jenis_satker_id == 1 && !empty($item->kode_satker)) {
+        $prefix = substr($item->kode_satker, 0, 2);
+        if (is_numeric($prefix) && (int)$prefix >= 21) {
+            $eselonName = 'Tugas Tambahan';
+        }
+    }
 @endphp
 
 <div x-data="{
@@ -56,7 +64,7 @@
                     @if ($item->eselon)
                         <span class="px-2 py-0.5 text-[10px] text-white font-semibold rounded uppercase"
                             style="background-color: {{ $item->jenis_satker_id == 1 ? '#112D4E' : ($item->jenis_satker_id == 2 ? '#3F72AF' : '#607d8b') }}">
-                            {{ $item->eselon->nama }}
+                            {{ $eselonName }}
                         </span>
                     @endif
                 </div>

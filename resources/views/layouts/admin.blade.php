@@ -98,11 +98,6 @@
                         class="{{ request()->routeIs('admin.satker.index') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-building w-5 text-xs"></i> <span>Satuan Kerja</span>
                     </a>
-
-                    <a href="{{ route('admin.setting-kode.index') }}"
-                        class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
-                        <i class="fas fa-code w-5 text-xs"></i> <span>Rumus Kode</span>
-                    </a>
                     <a href="{{ route('admin.jabatan.index') }}"
                         class="{{ request()->routeIs('admin.jabatan.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-id-card w-5 text-xs"></i> <span>Jabatan Fungsional</span>
@@ -141,6 +136,11 @@
                     <a href="{{ route('admin.audit.index') }}"
                         class="{{ request()->routeIs('admin.audit.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-clock-rotate-left w-5 text-xs"></i> <span>Audit Log</span>
+                    </a>
+                
+                    <a href="{{ route('admin.setting-kode.index') }}"
+                        class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-code w-5 text-xs"></i> <span>Rumus Kode</span>
                     </a>
                 </div>
             </div>

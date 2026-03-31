@@ -3,6 +3,15 @@
     $selfText = strtolower($item->nama_satker . ' ' . $item->kode_satker);
     $itemMatch = "('{$item->nama_satker}'.toLowerCase().includes(search.toLowerCase()) || '{$item->kode_satker}'.includes(search))";
 
+    // LOGIKA BARU: Eselon 1 -> Tugas Tambahan (Jika Kode >= 21)
+    $eselonName = $item->eselon ? $item->eselon->nama : '-';
+    if ($item->jenis_satker_id == 1 && !empty($item->kode_satker)) {
+        $prefix = substr($item->kode_satker, 0, 2);
+        if (is_numeric($prefix) && (int)$prefix >= 21) {
+            $eselonName = 'Tugas Tambahan';
+        }
+    }
+
     // Logika Role/Permission (Tetap sama)
     $user = auth()->user();
     $isRestrictedRole = $user
@@ -78,7 +87,7 @@
                     @if ($item->eselon)
                         <span class="px-2 py-0.5 text-[10px] text-white font-semibold rounded uppercase"
                             style="background-color: {{ $item->jenis_satker_id == 1 ? '#112D4E' : ($item->jenis_satker_id == 2 ? '#3F72AF' : '#607d8b') }}">
-                            {{ $item->eselon->nama }}
+                            {{ $eselonName }}
                         </span>
                     @endif
                 </div>
@@ -116,7 +125,7 @@
                     </button>
 
                     <button type="button"
-                        onclick="openDetailModal('{{ $item->kode_satker }}', '{{ $item->nama_satker }}', '{{ $item->eselon ? $item->eselon->nama : '-' }}', '{{ $item->wilayah ? $item->wilayah->nama_wilayah : '-' }}', '{{ $item->status_aktif }}', '{{ $item->id }}')"
+                        onclick="openDetailModal('{{ $item->kode_satker }}', '{{ $item->nama_satker }}', '{{ $eselonName }}', '{{ $item->wilayah ? $item->wilayah->nama_wilayah : '-' }}', '{{ $item->status_aktif }}', '{{ $item->id }}')"
                         class="p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition"
                         title="Detail">
                         <i class="fas fa-eye text-sm"></i>
