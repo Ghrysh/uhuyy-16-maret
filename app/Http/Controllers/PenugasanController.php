@@ -446,7 +446,8 @@ public function store(Request $request)
                     DB::table('user_details')->insert($detailData);
                 }
 
-                $user->roles()->syncWithoutDetaching([$request->role_id]);
+                // $user->roles()->syncWithoutDetaching([$request->role_id]);
+                $user->roles()->sync([$request->role_id]);
 
                 Log::info('Isi tabel user_roles setelah insert:', [
                     'data' => DB::table('user_roles')->get()
