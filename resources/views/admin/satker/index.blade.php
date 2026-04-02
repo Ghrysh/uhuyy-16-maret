@@ -1557,7 +1557,7 @@
                 if (fungsionalSelect.value && opt.value !== "") {
                     const text = opt.text.includes(' - ') ? opt.text.split(' - ')[1] : opt.text;
                     namaSatkerInput.value = text;
-                    namaSatkerInput.dataset.staticText = text + " ";
+                    namaSatkerInput.dataset.staticText = ''; // <-- Ubah jadi kosong agar bebas diedit
                 }
             } else if (status === 'jabatan_kotakab') {
                 updateNamaSatkerDariKabupaten();
@@ -1567,14 +1567,15 @@
                 if (kategoriUnitSelect && kategoriUnitSelect.value !== "") {
                     const text = kategoriUnitSelect.options[kategoriUnitSelect.selectedIndex].text;
                     namaSatkerInput.value = text;
-                    namaSatkerInput.dataset.staticText = text + " ";
+                    namaSatkerInput.dataset.staticText = text + " "; // Ini tetap dikunci jika butuh prefix
                 } else {
                     namaSatkerInput.value = selectedOption.text;
-                    namaSatkerInput.dataset.staticText = selectedOption.text + " ";
+                    namaSatkerInput.dataset.staticText = ''; // <-- Ubah jadi kosong agar bebas diedit
                 }
             } else {
+                // UNTUK MANAJERIAL, PELAKSANA, DLL
                 namaSatkerInput.value = selectedOption.text;
-                namaSatkerInput.dataset.staticText = selectedOption.text + " ";
+                namaSatkerInput.dataset.staticText = ''; // <-- UBAH JADI KOSONG DI SINI
             }
 
             updateRefJabatanId();

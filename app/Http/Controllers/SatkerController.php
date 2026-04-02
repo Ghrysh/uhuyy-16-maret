@@ -203,16 +203,46 @@ class SatkerController extends Controller
 
     public function getUsersBySatker($id)
     {
-        \App\Models\Penugasan::where('satker_id', $id)
+        // 1. Dapatkan penugasan cuti yang SUDAH BERAKHIR
+        $expiredCuti = \App\Models\Penugasan::with('jenisPenugasan')
+            ->where('satker_id', $id)
             ->where('status_aktif', 0)
             ->whereNotNull('tanggal_selesai_cuti')
-            ->whereNull('tanggal_selesai') // Pastikan bukan yang benar-benar selesai tugas
+            ->whereNull('tanggal_selesai') // Belum diakhiri permanen
             ->whereDate('tanggal_selesai_cuti', '<', now()->toDateString())
-            ->update([
-                'status_aktif'         => 1, // Aktifkan lagi
-                'tanggal_mulai_cuti'   => null,
-                'tanggal_selesai_cuti' => null
-            ]);
+            ->get();
+
+        // 2. Jika ada yang cutinya sudah berakhir, aktifkan kembali
+        if ($expiredCuti->isNotEmpty()) {
+            $hasDefinitifReturning = false;
+
+            foreach ($expiredCuti as $cuti) {
+                $cuti->update([
+                    'status_aktif'         => 1, // Aktif kembali
+                    'tanggal_mulai_cuti'   => null,
+                    'tanggal_selesai_cuti' => null
+                ]);
+
+                // Deteksi apakah yang kembali kerja ini adalah seorang Definitif
+                $namaJenis = $cuti->jenisPenugasan ? strtolower(trim($cuti->jenisPenugasan->nama)) : '';
+                if (str_contains($namaJenis, 'definitif')) {
+                    $hasDefinitifReturning = true;
+                }
+            }
+
+            // 3. Jika yang kembali dari cuti adalah Definitif, OTOMATIS BERHENTIKAN PLT & PLH di satker ini
+            if ($hasDefinitifReturning) {
+                \App\Models\Penugasan::where('satker_id', $id)
+                    ->where('status_aktif', 1)
+                    ->whereHas('jenisPenugasan', function($q) {
+                        $q->where('nama', 'like', '%plt%')->orWhere('nama', 'like', '%plh%');
+                    })
+                    ->update([
+                        'status_aktif' => 0,
+                        'tanggal_selesai' => now() // End Date-kan sekarang
+                    ]);
+            }
+        }
 
         $penugasans = \App\Models\Penugasan::with([
                 'user.userDetail', 
