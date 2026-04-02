@@ -83,6 +83,8 @@
         search: '',
         activePeriode: '{{ $periodes->first()->id ?? '' }}',
         scrollTimeout: null, 
+        matches: [],             // BARU: Menyimpan semua baris hasil yang cocok
+        currentMatchIndex: 0,    // BARU: Melacak urutan hasil yang sedang dilihat
     
         isMatch(nama, kode) {
             if (!this.search) return false;
@@ -92,26 +94,16 @@
     
         hasMatchingChild(children) {
             if (!children || children.length === 0) return false;
-    
             for (let child of children) {
-                if (this.isMatch(child.nama_satker.toLowerCase(), child.kode_satker.toLowerCase())) {
-                    return true;
-                }
-    
-                if (this.hasMatchingChild(child.children_recursive)) {
-                    return true;
-                }
+                if (this.isMatch(child.nama_satker.toLowerCase(), child.kode_satker.toLowerCase())) return true;
+                if (this.hasMatchingChild(child.children_recursive)) return true;
             }
-    
             return false;
         },
 
         init() {
             this.$watch('search', (val) => {
-                // Berjalan mulai dari huruf pertama
                 if (val && val.length > 0) {
-                    
-                    // Bersihkan perintah scroll sebelumnya agar tidak bertabrakan saat mengetik cepat
                     clearTimeout(this.scrollTimeout);
                     
                     this.scrollTimeout = setTimeout(() => {
@@ -119,42 +111,74 @@
                         if (!container) return;
 
                         const term = val.toLowerCase();
-                        
-                        // LOGIKA BARU: Gunakan .satker-row agar JS TIDAK membaca teks milik anaknya!
                         const rows = container.querySelectorAll('.satker-row');
-                        let firstMatch = null;
+                        
+                        // Bersihkan sisa highlight sebelumnya
+                        this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all'));
+                        
+                        this.matches = [];
+                        this.currentMatchIndex = 0;
 
-                        // Loop dari atas ke bawah
+                        // Kumpulkan SEMUA baris yang cocok
                         for (let i = 0; i < rows.length; i++) {
                             const row = rows[i];
-                            
-                            // 1. Pastikan baris ini benar-benar dirender/terlihat di layar
-                            if (row.offsetHeight > 0) {
-                                
-                                // 2. Baca teks MURNI di baris tersebut saja
+                            if (row.offsetHeight > 0) { 
                                 const text = row.innerText || row.textContent;
-                                
-                                // 3. Jika cocok, tangkap dan BERHENTI mencari
                                 if (text.toLowerCase().includes(term)) {
-                                    firstMatch = row;
-                                    break; 
+                                    this.matches.push(row);
                                 }
                             }
                         }
 
-                        // Jika ketemu, gulir perlahan ke elemen tersebut
-                        if (firstMatch) {
-                            const cRect = container.getBoundingClientRect();
-                            const mRect = firstMatch.getBoundingClientRect();
-                            
-                            container.scrollTo({
-                                top: container.scrollTop + (mRect.top - cRect.top) - 20,
-                                behavior: 'smooth'
-                            });
+                        // Scroll otomatis ke hasil pertama jika ada
+                        if (this.matches.length > 0) {
+                            this.scrollToMatch(0);
                         }
-                    }, 300); // Tunggu 300ms agar Alpine selesai membuka/menutup folder
+                    }, 300);
+                } else {
+                    // Bersihkan state & highlight jika input pencarian dikosongkan
+                    this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all'));
+                    this.matches = [];
                 }
             });
+        },
+
+        // --- FUNGSI BARU UNTUK SCROLL & HIGHLIGHT (VSCode Style) ---
+        scrollToMatch(index) {
+            if (this.matches.length === 0) return;
+            
+            // Hapus highlight dari hasil yang sebelumnya aktif
+            if (this.matches[this.currentMatchIndex]) {
+                this.matches[this.currentMatchIndex].classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+            }
+            
+            // Looping index (Jika next di hasil terakhir, kembali ke 1. Dan sebaliknya)
+            if (index < 0) index = this.matches.length - 1;
+            if (index >= this.matches.length) index = 0;
+            
+            this.currentMatchIndex = index;
+            const target = this.matches[this.currentMatchIndex];
+            
+            // Tambahkan highlight ke target yang sedang dilihat
+            target.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+
+            // Gulir ke elemen tersebut
+            const container = document.getElementById('searchResultContainer');
+            const cRect = container.getBoundingClientRect();
+            const mRect = target.getBoundingClientRect();
+            
+            container.scrollTo({
+                top: container.scrollTop + (mRect.top - cRect.top) - 40,
+                behavior: 'smooth'
+            });
+        },
+        
+        nextMatch() {
+            this.scrollToMatch(this.currentMatchIndex + 1);
+        },
+        
+        prevMatch() {
+            this.scrollToMatch(this.currentMatchIndex - 1);
         }
     }">
 
@@ -191,12 +215,14 @@
 
                 <div class="flex items-center justify-between gap-3">
 
-                    {{-- SEARCH --}}
+                {{-- SEARCH --}}
                     <div class="relative flex-1 max-w-xs sm:max-w-sm">
                         <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                             <i class="fas fa-search text-slate-400 text-xs"></i>
                         </span>
-                        <input type="text" x-model.debounce.300ms="search" placeholder="Cari nama / kode..."
+                        <input type="text" x-model.debounce.300ms="search" 
+                            @keydown.enter.prevent="if($event.shiftKey) prevMatch(); else nextMatch();"
+                            placeholder="Cari nama / kode..."
                             class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition">
                     </div>
 
@@ -259,6 +285,30 @@
 
             </div>
 
+        </div>
+
+        {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}
+        <div x-show="search && matches.length > 0" x-transition.opacity x-cloak
+             class="fixed bottom-8 right-8 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-40">
+            
+            {{-- Indikator Angka (contoh: 1 dari 5) --}}
+            <div class="text-xs font-bold text-slate-600 tracking-wide">
+                <span x-text="currentMatchIndex + 1" class="text-blue-600"></span> 
+                <span class="text-slate-400 mx-1">dari</span> 
+                <span x-text="matches.length"></span>
+            </div>
+            
+            <div class="w-[1px] h-4 bg-slate-200"></div>
+            
+            {{-- Tombol Arah --}}
+            <div class="flex items-center gap-2">
+                <button @click="prevMatch()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Sebelumnya (Shift + Enter)">
+                    <i class="fas fa-chevron-up text-xs"></i>
+                </button>
+                <button @click="nextMatch()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Selanjutnya (Enter)">
+                    <i class="fas fa-chevron-down text-xs"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -404,6 +454,25 @@
                     </div>
 
                     <div>
+                        {{-- TAMBAHAN: Opsi Khusus Penomoran Balai --}}
+                        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl mb-4">
+                            <label id="wrapper_opsi_balai" class="relative inline-flex items-center cursor-pointer mb-3">
+                                <input type="checkbox" id="is_balai_checkbox" class="sr-only peer" onchange="toggleBalaiOptions()">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <span class="ml-3 text-xs font-bold text-indigo-900 uppercase">Format Penomoran Khusus Balai</span>
+                            </label>
+
+                            <div id="container_opsi_balai" class="hidden">
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Pilih Kategori Balai</label>
+                                <select id="start_num_balai" onchange="updateNamaBalai()" class="w-full px-4 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
+                                    <option value="">-- Pilih Jenis Balai --</option>
+                                    <option value="11">Balai Pendidikan dan Pelatihan (Mulai dari 11)</option>
+                                    <option value="31">Balai Penelitian dan Pengembangan (Mulai dari 31)</option>
+                                </select>
+                                <p class="text-[10px] text-indigo-600 mt-1 italic">*Jika dicentang, auto-generate kode akan menyesuaikan angka awalan ini.</p>
+                            </div>
+                        </div>
+
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kode Satker (Generate)</label>
                         <div class="flex gap-2 items-center" id="kode_container">
                             <input type="text" name="kode_satker" id="kode_satker" placeholder="Contoh: 0102"
@@ -973,6 +1042,16 @@
             const satkerKode = document.getElementById('detail_kode')?.innerText;
             const satkerNama = document.getElementById('detail_nama')?.innerText;
 
+            if (satkerNama && satkerNama.trim().toLowerCase() === 'tidak ada jabatan') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Tidak Diizinkan',
+                    text: 'Gagal: Satuan Kerja ini dikonfigurasi sebagai "Tidak Ada Jabatan" (00). Anda tidak dapat menugaskan pegawai ke dalam Satker ini.',
+                    confirmButtonColor: '#3b82f6'
+                });
+                return;
+            }
+
             const displayElement = document.getElementById('display_satker_nama');
             const hiddenIdInput = document.getElementById('form_penugasan_satker_id');
             const hiddenKodeInput = document.getElementById('form_penugasan_satker_kode');
@@ -1301,9 +1380,27 @@
         });
 
         function filterParent() {
-            const jenisId = document.getElementById('jenis_satker_id').value;
+            const jenisSelect = document.getElementById('jenis_satker_id');
+            const jenisId = jenisSelect.value;
             const parentContainer = document.getElementById('parent_container');
-            const jabatanContainer = document.getElementById('container_status_jabatan'); // Ambil container baru
+            const jabatanContainer = document.getElementById('container_status_jabatan'); 
+
+            // --- 🟢 LOGIKA BARU: TAMPILKAN OPSI BALAI HANYA UNTUK ESELON 3 ---
+            const wrapperBalai = document.getElementById('wrapper_opsi_balai');
+            const selectedText = jenisSelect.options[jenisSelect.selectedIndex]?.text.toLowerCase() || '';
+            
+            // Asumsi: ID untuk Eselon 3 adalah '4' (sesuaikan jika berbeda di DB kamu)
+            // Atau sistem akan mendeteksi jika nama levelnya mengandung kata 'eselon 3' / 'eselon iii'
+            if (jenisId === '4' || selectedText.includes('eselon 3') || selectedText.includes('eselon iii')) {
+                if (wrapperBalai) wrapperBalai.classList.remove('hidden');
+            } else {
+                if (wrapperBalai) {
+                    wrapperBalai.classList.add('hidden');
+                    // Reset agar centangnya hilang kalau user ganti ke eselon lain
+                    document.getElementById('is_balai_checkbox').checked = false;
+                    toggleBalaiOptions(); 
+                }
+            }
 
             // --- LOGIKA TAMPIL/SEMBUNYI JABATAN ---
             // Jika jenisId ada dan nilainya >= 2 (Eselon 2, 3, 4, dst)
@@ -1314,6 +1411,18 @@
                 // Reset nilai jika disembunyikan
                 document.getElementById('tanpa_jabatan').value = "";
                 document.getElementById('container_jabatan_fungsional').classList.add('hidden');
+                
+                // --- 🟢 TAMBAHKAN KODE INI DI SINI 🟢 ---
+                // Pastikan nama satker bersih
+                const namaSatkerInput = document.getElementById('nama_satker');
+                if (namaSatkerInput) {
+                    namaSatkerInput.value = '';
+                    namaSatkerInput.dataset.staticText = '';
+                }
+                
+                // Reset hidden ID juga karena Eselon 1 tidak punya jabatan
+                updateRefJabatanId();
+                // ----------------------------------------
             }
 
             // --- LOGIKA PARENT (Sudah ada di kode Anda) ---
@@ -1388,12 +1497,27 @@
                 if (el) el.classList.add('hidden');
             });
 
-            if (!status) return;
+            // --- 🟢 TAMBAHKAN KODE INI DI SINI 🟢 ---
+            // Reset value select anak agar ID lamanya tidak bocor ke hidden input
+            if(document.getElementById('kategori_unit')) document.getElementById('kategori_unit').value = "";
+            if(document.getElementById('kategori_kotakab')) document.getElementById('kategori_kotakab').value = "";
+            if(document.getElementById('jenis_madrasah')) document.getElementById('jenis_madrasah').value = "";
+            if(document.getElementById('jabatan_id')) document.getElementById('jabatan_id').value = "";
+
+            // Jika "-- Pilih Status Jabatan --" yang terpilih (kosong)
+            if (!status) {
+                namaSatkerInput.value = '';
+                namaSatkerInput.dataset.staticText = '';
+                updateRefJabatanId(); // eksekusi ini supaya hidden ID kembali kosong
+                resetKodeSatker(); // hapus input nomor otomatis jika ada
+                return;
+            }
+            // ----------------------------------------
 
             // 1. JABATAN FUNGSIONAL
             if (status === 'jabatan_fungsional') {
                 document.getElementById('container_jabatan_fungsional').classList.remove('hidden');
-            }
+            } // <--- Tambahkan tutup kurawal ini
 
             // 2. LOGIC JABATAN BERTINGKAT (KAB/KOTA & KANWIL)
             const children = refJabatan.filter(item => item.parent_id === parentUuid);
@@ -1822,16 +1946,19 @@
                 const wilayahId = document.getElementById('wilayah_id')?.value || '';
                 const refJabatanId = document.getElementById("ref_jabatan_satker_id")?.value || document.getElementById('jabatan_id')?.value || '';
                 
-                // 1. TAMBAHKAN BARIS INI: Ambil nilai periode dari form dropdown
+                // (BAGIAN INI YANG DIUBAH DI DALAM generateSatkerCode)
                 const periodeId = document.getElementById('periode_id')?.value || ''; 
+                
+                // AMBIL NILAI START NUM BALAI
+                const startNumBalai = document.getElementById('start_num_balai')?.value || '';
 
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId,
                     parent_id: parentId,
                     ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId,
-                    // 2. TAMBAHKAN BARIS INI: Kirim parameter periode_id ke Controller
                     periode_id: periodeId, 
+                    start_num: startNumBalai, // <--- KIRIM PARAMETER INI KE BACKEND
                     _t: Date.now()
                 });
 
@@ -2618,5 +2745,30 @@
                 });
             }
         });
+
+        function toggleBalaiOptions() {
+            const isChecked = document.getElementById('is_balai_checkbox').checked;
+            const container = document.getElementById('container_opsi_balai');
+            const select = document.getElementById('start_num_balai');
+            
+            if (isChecked) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+                select.value = '';
+            }
+        }
+
+        // Opsional tapi keren: otomatis ngisi input nama satker!
+        function updateNamaBalai() {
+            const select = document.getElementById('start_num_balai');
+            const namaInput = document.getElementById('nama_satker');
+            
+            if(select.value === "11") {
+                namaInput.value = "Balai Pendidikan dan Pelatihan ";
+            } else if (select.value === "31") {
+                namaInput.value = "Balai Penelitian dan Pengembangan ";
+            }
+        }
     </script>
 @endpush

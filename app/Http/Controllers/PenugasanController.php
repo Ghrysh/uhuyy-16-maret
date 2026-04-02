@@ -231,7 +231,7 @@ class PenugasanController extends Controller
     //     });
     // }
 
-public function store(Request $request)
+    public function store(Request $request)
     {
         // Validasi semua field termasuk detailData
         $request->validate([
@@ -329,58 +329,110 @@ public function store(Request $request)
                     ]
                 );
 
-                $isAssigningDefinitif = ($request->jenis_penugasan_id == 1);
+                // 1. Identifikasi Jenis Penugasan Baru
+                $jenisPenugasanBaru = MJenisPenugasan::find($request->jenis_penugasan_id);
+                $namaJenisBaru = strtolower(trim($jenisPenugasanBaru->nama));
+                $isNewDefinitif = str_contains($namaJenisBaru, 'definitif');
 
-                $userActivePenugasans = Penugasan::where('user_id', $user->id)
-                                        ->where('status_aktif', 1)
-                                        ->get();
+                // ==============================================================================
+                // VALIDASI 0: CEK APAKAH SATKER INI "TIDAK ADA JABATAN" (00)
+                // ==============================================================================
+                // Kita ambil data Satker target beserta relasi jabatan referensinya
+                $satkerTarget = \App\Models\Satker::with('refJabatanSatker')->find($request->satker_id);
+                $isTidakAdaJabatan = false;
 
-                if ($userActivePenugasans->isNotEmpty()) {
-                    $isCurrentlyDefinitif = $userActivePenugasans->contains('jenis_penugasan_id', 1);
-
-                    // Aturan 1: Sudah Definitif -> Ditolak
-                    if ($isCurrentlyDefinitif) {
-                        $msg = 'Gagal: Pegawai ini sedang menjabat sebagai Definitif aktif. Pejabat Definitif tidak bisa merangkap jabatan lain.';
-                        return $request->wantsJson() 
-                            ? response()->json(['success' => false, 'message' => $msg], 400) 
-                            : redirect()->back()->with('error', $msg);
+                if ($satkerTarget) {
+                    // Cek dari Namanya (Karena di frontend JS diset otomatis menjadi 'Tidak Ada Jabatan')
+                    if (strtolower(trim($satkerTarget->nama_satker)) === 'tidak ada jabatan') {
+                        $isTidakAdaJabatan = true;
                     }
+                    
+                    // Cek dari Referensi Jabatannya (Takutnya namanya diubah manual oleh user)
+                    if ($satkerTarget->refJabatanSatker) {
+                        $key = $satkerTarget->refJabatanSatker->key_jabatan ?? '';
+                        $kode = $satkerTarget->refJabatanSatker->kode_dasar ?? '';
+                        
+                        // Cek jika secara eksplisit dipilih "Tidak Ada Jabatan" atau kodenya "00"
+                        if ($key === 'tidak_ada' || $kode === '00') {
+                            $isTidakAdaJabatan = true;
+                        }
+                    }
+                }
 
-                    // Aturan 2: Masih Plt/Plh tapi mau diangkat Definitif -> Ditolak
-                    if ($isAssigningDefinitif) {
-                        $msg = 'Gagal: Pegawai masih memiliki tugas Plt/Plh aktif. Selesaikan tugas tersebut terlebih dahulu sebelum diangkat sebagai Definitif.';
+                if ($isTidakAdaJabatan) {
+                    $msg = 'Gagal: Satuan Kerja ini dikonfigurasi sebagai "Tidak Ada Jabatan" (00). Anda tidak dapat menugaskan pegawai ke dalam Satker ini.';
+                    return $request->wantsJson() 
+                        ? response()->json(['success' => false, 'message' => $msg], 400) 
+                        : redirect()->back()->with('error', $msg);
+                }
+
+                // ==============================================================================
+                // VALIDASI 1: KONDISI KURSI DI SATKER (Cek ketersediaan kursi Definitif)
+                // ==============================================================================
+                if ($isNewDefinitif) {
+                    $existingDefinitifDiSatker = Penugasan::where('satker_id', $request->satker_id)
+                        ->whereHas('jenisPenugasan', function($q) {
+                            $q->where('nama', 'like', '%definitif%');
+                        })
+                        ->where(function($q) {
+                            // Cek yang benar-benar aktif ATAU yang sedang cuti
+                            $q->where('status_aktif', 1)
+                              ->orWhere(function($subQ) {
+                                  $subQ->where('status_aktif', 0)
+                                       ->whereNotNull('tanggal_selesai_cuti')
+                                       ->whereDate('tanggal_selesai_cuti', '>=', now());
+                              });
+                        })
+                        ->first();
+
+                    if ($existingDefinitifDiSatker) {
+                        // Cek apakah Definitif tersebut sedang cuti
+                        $sedangCuti = $existingDefinitifDiSatker->status_aktif == 0 && 
+                                      $existingDefinitifDiSatker->tanggal_selesai_cuti >= now();
+                        
+                        if ($sedangCuti) {
+                            $msg = 'Gagal: Pejabat Definitif di Satker ini sedang dalam masa Cuti. Anda hanya dapat menugaskan Plt atau Plh untuk menggantikan sementara.';
+                        } else {
+                            $msg = 'Gagal: Satker ini sudah memiliki Pejabat Definitif yang aktif. Silakan akhiri tugas pejabat sebelumnya secara permanen (Selesai Tugas) terlebih dahulu.';
+                        }
+
                         return $request->wantsJson() 
                             ? response()->json(['success' => false, 'message' => $msg], 400) 
                             : redirect()->back()->with('error', $msg);
                     }
                 }
 
-                // Aturan 3: Kursi Satker sudah terisi Definitif (Baik yang Aktif maupun yang sedang Cuti) -> Ditolak
-                if ($isAssigningDefinitif) {
-                    $existingDefinitifSatker = Penugasan::where('satker_id', $request->satker_id)
-                        ->where('jenis_penugasan_id', 1)
-                        ->where(function ($query) {
-                            // Cek jika dia Aktif bekerja
-                            $query->where('status_aktif', 1)
-                                  // ATAU Cek jika dia sedang Cuti (Status 0, tapi punya tgl cuti dan belum selesai tugas permanen)
-                                  ->orWhere(function ($subQuery) {
-                                      $subQuery->where('status_aktif', 0)
-                                               ->whereNotNull('tanggal_selesai_cuti')
-                                               ->whereNull('tanggal_selesai');
-                                  });
-                        })
-                        ->first();
+                // ==============================================================================
+                // VALIDASI 2: KONDISI PEGAWAI (Cek rangkap jabatan)
+                // ==============================================================================
+                // Ambil semua penugasan yang MASIH AKTIF (bekerja atau cuti) untuk pegawai ini
+                $activeUserAssignments = Penugasan::with('jenisPenugasan')
+                    ->where('user_id', $user->id)
+                    ->where(function($q) {
+                        $q->where('status_aktif', 1)
+                          ->orWhere(function($subQ) {
+                              $subQ->where('status_aktif', 0)
+                                   ->whereNotNull('tanggal_selesai_cuti')
+                                   ->whereDate('tanggal_selesai_cuti', '>=', now());
+                          });
+                    })
+                    ->get();
 
-                    if ($existingDefinitifSatker) {
-                        // Tentukan pesan error yang spesifik agar Admin paham
-                        $isSedangCuti = ($existingDefinitifSatker->status_aktif == 0 && $existingDefinitifSatker->tanggal_selesai_cuti != null);
-                        
-                        if ($isSedangCuti) {
-                            $msg = 'Gagal: Pejabat Definitif di Satker ini sedang dalam masa Cuti. Anda hanya dapat menugaskan Plt atau Plh untuk menggantikan sementara.';
-                        } else {
-                            $msg = 'Gagal: Satker ini sudah memiliki Pejabat Definitif yang aktif. Silakan akhiri tugas pejabat sebelumnya secara permanen (Selesai Tugas) terlebih dahulu.';
-                        }
+                foreach ($activeUserAssignments as $assignment) {
+                    $namaJenisEksisting = strtolower(trim($assignment->jenisPenugasan->nama));
+                    $isExistingDefinitif = str_contains($namaJenisEksisting, 'definitif');
 
+                    // ATURAN A: Tidak boleh ada 2 jabatan aktif di SATKER YANG SAMA
+                    if ($assignment->satker_id == $request->satker_id) {
+                        $msg = "Gagal: Pegawai ini masih aktif menjabat sebagai {$assignment->jenisPenugasan->nama} di Satker ini. Selesaikan status tersebut terlebih dahulu.";
+                        return $request->wantsJson() 
+                            ? response()->json(['success' => false, 'message' => $msg], 400) 
+                            : redirect()->back()->with('error', $msg);
+                    }
+
+                    // ATURAN B: Hanya boleh 1 Definitif di manapun
+                    if ($isNewDefinitif && $isExistingDefinitif) {
+                        $msg = 'Gagal: Pegawai ini sudah berstatus Definitif di Satker lain. Tidak bisa menjadi Definitif di dua tempat sekaligus.';
                         return $request->wantsJson() 
                             ? response()->json(['success' => false, 'message' => $msg], 400) 
                             : redirect()->back()->with('error', $msg);

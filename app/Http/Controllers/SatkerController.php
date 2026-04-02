@@ -20,61 +20,80 @@ class SatkerController extends Controller
 {
     public function index(Request $request)
     {
-        // Untuk Pohon Hierarki (Hanya Root)
-        $satkers = Satker::with('children')
-            ->whereNull('parent_satker_id')
-            ->orderBy('kode_satker', 'asc')
-            ->get();
+        $user = Auth::user();
+        $userRoles = $user->roles()->pluck('key')->toArray();
 
-        
-        $allSatkersFlat = Satker::with(['childrenRecursive', 'wilayah', 'eselon'])
-            ->whereNull('parent_satker_id') // 
-            ->orderBy('kode_satker', 'asc')
-            ->get();
+        $isSuperAdmin = in_array('super_admin', $userRoles);
+        $isRestricted = (in_array('admin_satker', $userRoles) || in_array('pejabat', $userRoles)) && !$isSuperAdmin;
+        $userSatkerId = $user->satker_id;
 
+        $satkerQuery = Satker::with('children');
+        $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon']);
+        $tableQuery = Satker::query()->with(['wilayah', 'eselon']);
+        $listQuery = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id');
+        $parentsQuery = Satker::query();
 
-        // Untuk Tabel (Semua Data)
+        if ($isRestricted && $userSatkerId) {
+            $descendantIds = $this->getAllDescendantIds($userSatkerId);
+
+            $satkerQuery->where('id', $userSatkerId);
+            $flatQuery->where('id', $userSatkerId);
+            
+            $tableQuery->whereIn('id', $descendantIds);
+            $listQuery->whereIn('id', $descendantIds);
+            $parentsQuery->whereIn('id', $descendantIds);
+        } else {
+            $satkerQuery->whereNull('parent_satker_id');
+            $flatQuery->whereNull('parent_satker_id');
+        }
+
+        $satkers = $satkerQuery->orderBy('kode_satker', 'asc')->get();
+        $allSatkersFlat = $flatQuery->orderBy('kode_satker', 'asc')->get();
+
         $search = $request->query('search');
-
-        $allSatkers = Satker::query()
-            ->with(['wilayah', 'eselon']) // Eager loading agar ringan
-            ->when($search, function ($query, $search) {
-                return $query->where('nama_satker', 'like', "%{$search}%")
-                            ->orWhere('kode_satker', 'like', "%{$search}%");
+        $allSatkers = $tableQuery->when($search, function ($query, $search) {
+                return $query->where(function($q) use ($search) {
+                    $q->where('nama_satker', 'like', "%{$search}%")
+                      ->orWhere('kode_satker', 'like', "%{$search}%");
+                });
             })
             ->orderBy('kode_satker', 'asc')
             ->paginate(10);
         
-        $listAllSatkers = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id')
-            ->orderBy('kode_satker', 'asc')
-            ->get();
+        $listAllSatkers = $listQuery->orderBy('kode_satker', 'asc')->get();
+        $parents = $parentsQuery->get();
 
-        $user = Auth::user();
-        $userRoles = $user->roles()->pluck('key')->toArray();
-
-        // dd($userRoles);
+        // Master Data lainnya
         $jenisSatkers = DB::table('m_jenis_satker')->get();
         $periodes = Periode::orderBy('created_at', 'asc')->get();
         $jabatan = Jabatan::with('fungsional')->get();
         $pegawais = User::all();
         $jenis_penugasans = MJenisPenugasan::all();
-        $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])
-                    ->orderBy('kode_wilayah', 'asc')
-                    ->get();
-    
-        $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)
-                    ->orderBy('kode_wilayah', 'asc')
-                    ->get();
-
-        // dd($kabupaten);
+        $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])->orderBy('kode_wilayah', 'asc')->get();
+        $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)->orderBy('kode_wilayah', 'asc')->get();
         $refJabatanSatker = RefJabatanSatker::orderBy('label_jabatan', 'asc')->get();
-        // dd($refJabatanSatker);
-        $parents = Satker::all();
         $roles = MRole::whereIn('key', ['admin_satker', 'pejabat'])->get();
 
-        // dd($jabatan);
-
         return view('admin.satker.index', compact('satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 'userRoles', 'allSatkersFlat', 'refJabatanSatker'));
+    }
+    
+    private function getAllDescendantIds($satkerId) {
+        $satker = Satker::with('childrenRecursive')->find($satkerId);
+        if (!$satker) return [];
+        
+        $ids = [$satkerId];
+        $this->extractChildIds($satker->childrenRecursive, $ids);
+        return $ids;
+    }
+
+    private function extractChildIds($children, &$ids) {
+        if (!$children) return;
+        foreach ($children as $child) {
+            $ids[] = $child->id;
+            if ($child->childrenRecursive) {
+                $this->extractChildIds($child->childrenRecursive, $ids);
+            }
+        }
     }
 
     public function store(Request $request)
@@ -239,23 +258,22 @@ class SatkerController extends Controller
     public function generateCode(Request $request)
     {
         $jenisId = $request->jenis_id;
-        // Penanganan aman untuk parent_id (mencegah string "null" terbaca sebagai ID)
         $parentId = $request->filled('parent_id') && $request->parent_id !== 'null' ? $request->parent_id : null;
         $refJabatanId = $request->ref_jabatan_satker_id;
         
-        // 1. Ambil Tingkat Wilayah (Pusat/PTKN/Prov) berdasarkan wilayah yang dipilih user
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
         $kodeWilayah = '';
+        
         if ($wilayahId) {
             $wilayah = \App\Models\Wilayah::find($wilayahId);
             if ($wilayah) {
                 $tingkatWilayahId = $wilayah->tingkat_wilayah_id;
-                $kodeWilayah = $wilayah->kode_wilayah; // Disiapkan untuk replace
+                $kodeWilayah = $wilayah->kode_wilayah; 
             }
         }
 
-        // 2. BACA DARI SETUP RUMUS (Menggunakan query andalanmu yang terbukti jalan)
+        // 2. BACA DARI SETUP RUMUS (Dengan Perbaikan Bobot Prioritas Mutlak)
         $setup = DB::table('rumus_kodes')
             ->where('is_applied', 1)
             ->where(function ($q) use ($tingkatWilayahId) {
@@ -271,12 +289,12 @@ class SatkerController extends Controller
                     $q->whereNull('ref_jabatan_satker_id');
                 }
             })
-            ->orderByRaw('(CASE WHEN tingkat_wilayah_id IS NOT NULL THEN 1 ELSE 0 END) + 
-                          (CASE WHEN jenis_satker_id IS NOT NULL THEN 1 ELSE 0 END) + 
-                          (CASE WHEN ref_jabatan_satker_id IS NOT NULL THEN 1 ELSE 0 END) DESC')
+            // KUNCI PERBAIKAN: Bobot bertingkat agar Jabatan (100) selalu mengalahkan Wilayah (10)
+            ->orderByRaw('(CASE WHEN ref_jabatan_satker_id IS NOT NULL THEN 100 ELSE 0 END) + 
+                          (CASE WHEN tingkat_wilayah_id IS NOT NULL THEN 10 ELSE 0 END) + 
+                          (CASE WHEN jenis_satker_id IS NOT NULL THEN 1 ELSE 0 END) DESC')
             ->first();
 
-        // Jika user belum bikin Setup, beri tahu dengan Error
         if (!$setup) {
             return response()->json(['error' => 'Setup Rumus belum dikonfigurasi untuk kombinasi ini. Silakan buat di menu Setup Kode.'], 404);
         }
@@ -285,7 +303,6 @@ class SatkerController extends Controller
         $parentCode = '';
         $kodeJf = '';
 
-        // 3. Replace Placeholders (Persis seperti aslinya)
         if (str_contains($kodeBaru, '[PARENT]')) {
             $parent = Satker::find($parentId);
             $parentCode = $parent ? $parent->kode_satker : '';
@@ -303,8 +320,25 @@ class SatkerController extends Controller
             $kodeBaru = str_replace('[KODE_JF]', $kodeJf, $kodeBaru);
         }
 
-        // 4. Logic INC & Pencarian Bolong (Gaps) - Ini bagian yang di-upgrade!
-        $gaps = []; // Inisiasi default
+        // --- TAMBAHAN FIX KODE JABATAN FIX (Tidak Increment) ---
+        if ($refJabatanId) {
+            $jabatanSatker = \App\Models\RefJabatanSatker::find($refJabatanId);
+            if ($jabatanSatker) {
+                // 1. Jika di masa depan Anda memakai tag [KODE_JABATAN] di setup rumus
+                if (str_contains($kodeBaru, '[KODE_JABATAN]')) {
+                    $kodeBaru = str_replace('[KODE_JABATAN]', $jabatanSatker->kode_dasar ?? '', $kodeBaru);
+                }
+
+                // 2. Jika jabatan ini bersifat fix (bukan increment) dan punya kode_dasar,
+                // Timpa pola [INC:xx] menjadi kode dasar (contoh: 00).
+                if (!$jabatanSatker->is_increment && !empty($jabatanSatker->kode_dasar)) {
+                    $kodeBaru = preg_replace('/\[INC:\d+\]/', $jabatanSatker->kode_dasar, $kodeBaru);
+                }
+            }
+        }
+
+        // 4. Logic INC & Pencarian Bolong (Hanya jalan jika ada pola [INC:xx])
+        $gaps = []; 
         
         if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
             $digit = (int)$matches[1];
@@ -320,14 +354,15 @@ class SatkerController extends Controller
                  $prefixPattern = str_replace('[KODE_JF]', $kodeJf ?? '', $prefixPattern);
             }
 
-            // Ambil semua data dengan prefix yang sama untuk dianalisa
             $query = Satker::where('kode_satker', 'like', $prefixPattern . '%');
+            
             if ($parentId) {
                 $query->where('parent_satker_id', $parentId);
             } else {
                 $query->whereNull('parent_satker_id');
             }
 
+            // Kode double pengecekan periode dihapus, disisakan 1 yang rapi
             $periodeId = $request->periode_id;
             if ($periodeId) {
                 $query->where('periode_id', $periodeId);
@@ -335,24 +370,11 @@ class SatkerController extends Controller
             
             $existingCodes = $query->pluck('kode_satker')->toArray();
 
-            $periodeId = $request->periode_id;
-            if ($periodeId) {
-                $query->where('periode_id', $periodeId);
-            }
-            
-            $existingCodes = $query->pluck('kode_satker')->toArray();
-
-            // Ekstrak angkanya saja
             $existingNums = [];
-            
-            // KUNCI PERBAIKAN: Hitung panjang karakter yang seharusnya (Panjang Prefix + Jumlah Digit)
             $expectedLength = strlen($prefixPattern) + $digit;
 
             foreach ($existingCodes as $c) {
                 $c = trim($c);
-                
-                // Pastikan yang diproses HANYA kode yang panjangnya sesuai pola
-                // Supaya kode '111' tidak memblokir angka '11'
                 if (strlen($c) === $expectedLength) {
                     $numPart = substr($c, -$digit);
                     if (is_numeric($numPart)) {
@@ -363,16 +385,23 @@ class SatkerController extends Controller
             sort($existingNums);
 
             $maxNum = !empty($existingNums) ? max($existingNums) : 0;
-            
-            // Cari angka yang lompat (Gaps)
-            for ($i = 1; $i < $maxNum; $i++) {
+
+            if ($request->has('start_num') && is_numeric($request->start_num)) {
+                $customStart = (int) $request->start_num - 1;
+                $maxNum = max($maxNum, $customStart);
+            }
+
+            $loopStart = 1;
+            if ($request->has('start_num') && is_numeric($request->start_num)) {
+                $loopStart = (int) $request->start_num;
+            }
+
+            for ($i = $loopStart; $i < $maxNum; $i++) {
                 if (!in_array($i, $existingNums)) {
-                    // Masukkan ke array gaps beserta prefix-nya agar utuh
                     $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);
                 }
             }
 
-            // Generate angka normal selanjutnya (sequence tertinggi)
             $nextNum = $maxNum + 1;
             $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
             $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
@@ -380,7 +409,7 @@ class SatkerController extends Controller
 
         return response()->json([
             'code' => $kodeBaru,
-            'gaps' => $gaps, // Ini data baru yang berisi array kode yang bolong
+            'gaps' => $gaps,
             'default_nama' => $setup->default_nama_satker ?? ''
         ]);
     }
