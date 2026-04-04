@@ -72,7 +72,12 @@ class SatkerController extends Controller
         $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])->orderBy('kode_wilayah', 'asc')->get();
         $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)->orderBy('kode_wilayah', 'asc')->get();
         $refJabatanSatker = RefJabatanSatker::orderBy('label_jabatan', 'asc')->get();
-        $roles = MRole::whereIn('key', ['admin_satker', 'pejabat'])->get();
+        $roles = MRole::whereIn('key', [
+            'admin_satker', 
+            'pejabat', 
+            'admin_jafung_pengguna', 
+            'admin_jafung_pembina'
+        ])->get();
 
         return view('admin.satker.index', compact('satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 'userRoles', 'allSatkersFlat', 'refJabatanSatker'));
     }

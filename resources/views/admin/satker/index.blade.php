@@ -1219,7 +1219,7 @@
             function toggleJenisPenugasan() {
                 let selectedText = roleSelect.options[roleSelect.selectedIndex]?.text?.toLowerCase();
 
-                if (selectedText && selectedText.includes('admin satker')) {
+                if (selectedText && (selectedText.includes('admin satker') || selectedText.includes('admin jafung') || selectedText.includes('admin jabatan fungsional'))) {
                     jenisContainer.style.display = 'none';
                     jenisSelect.removeAttribute('required');
                     jenisSelect.value = '';
@@ -2662,7 +2662,7 @@
             }
         }
 
-        // ==========================================
+// ==========================================
         // FITUR TAMBAH PENUGASAN TANPA RELOAD (AJAX)
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
@@ -2675,74 +2675,105 @@
                     const submitBtn = this.querySelector('button[type="submit"]');
                     const originalText = submitBtn.innerHTML;
                     
-                    // 1. Tampilkan Efek Loading
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
-                    
-                    try {
-                        const formData = new FormData(this);
+                    // Kita bungkus proses pengiriman menjadi function mandiri agar bisa dipanggil ulang
+                    const processSubmit = async (formDataObj) => {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
                         
-                        // 2. Kirim data ke server secara rahasia (AJAX)
-                        const response = await fetch(this.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest', // Penanda bahwa ini AJAX
-                                'Accept': 'application/json'          // Meminta balasan berupa JSON
-                            }
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (response.ok && result.success) {
-                            // 3a. Jika Sukses
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Berhasil',
-                                text: result.message,
-                                timer: 1500,
-                                showConfirmButton: false
+                        try {
+                            const response = await fetch(formPenugasan.action, {
+                                method: 'POST',
+                                body: formDataObj,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': 'application/json'
+                                }
                             });
                             
-                            // Tutup modal form tambah
-                            toggleModal('modalTambahPenugasan');
-                            
-                            // Reset isi form
-                            this.reset();
-                            const tomSelectEl = document.getElementById('select_pegawai_local');
-                            if (tomSelectEl && tomSelectEl.tomselect) tomSelectEl.tomselect.clear();
-                            document.getElementById('res_nama').value = '';
-                            document.getElementById('res_info_tambahan').innerText = '';
-                            
-                            // 4. Refresh Tabel di Modal Detail tanpa menutupnya
-                            const satkerId = document.getElementById('detail_satker_id').value;
-                            const satkerKode = document.getElementById('detail_kode').innerText;
-                            const satkerNama = document.getElementById('detail_nama').innerText;
-                            const satkerEselon = document.getElementById('detail_eselon').innerText;
-                            const satkerWilayah = document.getElementById('detail_wilayah').innerText;
-                            
-                            openDetailModal(satkerKode, satkerNama, satkerEselon, satkerWilayah, 1, satkerId);
-                            
-                        } else if (response.status === 422) {
-                            // 3b. Jika Gagal Validasi Bawaan Laravel
-                            let errorText = 'Silakan periksa kembali input Anda:\n';
-                            for (let key in result.errors) {
-                                errorText += `- ${result.errors[key][0]}\n`;
+                            const result = await response.json();
+
+                            // ========================================================
+                            // TANGKAP RESPON KONFIRMASI (PLT/PLH DITEMUKAN)
+                            // ========================================================
+                            if (result.require_confirmation) {
+                                Swal.fire({
+                                    title: 'Konfirmasi Penggantian',
+                                    text: result.message,
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#3b82f6',
+                                    cancelButtonColor: '#cbd5e1',
+                                    confirmButtonText: 'Ya, Lanjutkan',
+                                    cancelButtonText: 'Batal'
+                                }).then((confirmRes) => {
+                                    if (confirmRes.isConfirmed) {
+                                        // Tambahkan flag 'confirm_override' ke form data
+                                        formDataObj.append('confirm_override', '1');
+                                        processSubmit(formDataObj); // Jalankan ulang pengiriman ke server
+                                    } else {
+                                        submitBtn.disabled = false;
+                                        submitBtn.innerHTML = originalText;
+                                    }
+                                });
+                                return; // Hentikan eksekusi yang ini, tunggu respon user
                             }
-                            Swal.fire('Validasi Gagal', errorText, 'error');
-                        } else {
-                            // 3c. Jika Gagal karena Aturan Bisnis PM (ex: Double Definitif)
-                            Swal.fire('Gagal', result.message || 'Terjadi kesalahan sistem.', 'error');
+                            // ========================================================
+                            
+                            if (response.ok && result.success) {
+                                // Jika Sukses
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil',
+                                    text: result.message,
+                                    timer: 2500,
+                                    showConfirmButton: false
+                                });
+                                
+                                // Tutup modal form tambah
+                                toggleModal('modalTambahPenugasan');
+                                
+                                // Reset isi form
+                                formPenugasan.reset();
+                                const tomSelectEl = document.getElementById('select_pegawai_local');
+                                if (tomSelectEl && tomSelectEl.tomselect) tomSelectEl.tomselect.clear();
+                                document.getElementById('res_nama').value = '';
+                                document.getElementById('res_info_tambahan').innerText = '';
+                                
+                                // Refresh Tabel di Modal Detail tanpa menutupnya
+                                const satkerId = document.getElementById('detail_satker_id').value;
+                                const satkerKode = document.getElementById('detail_kode').innerText;
+                                const satkerNama = document.getElementById('detail_nama').innerText;
+                                const satkerEselon = document.getElementById('detail_eselon').innerText;
+                                const satkerWilayah = document.getElementById('detail_wilayah').innerText;
+                                
+                                openDetailModal(satkerKode, satkerNama, satkerEselon, satkerWilayah, 1, satkerId);
+                                
+                            } else if (response.status === 422) {
+                                // Jika Gagal Validasi Bawaan Laravel
+                                let errorText = 'Silakan periksa kembali input Anda:\n';
+                                for (let key in result.errors) {
+                                    errorText += `- ${result.errors[key][0]}\n`;
+                                }
+                                Swal.fire('Validasi Gagal', errorText, 'error');
+                            } else {
+                                // Jika Gagal karena Aturan Bisnis PM (ex: Double Definitif)
+                                Swal.fire('Gagal', result.message || 'Terjadi kesalahan sistem.', 'error');
+                            }
+                            
+                        } catch (error) {
+                            console.error(error);
+                            Swal.fire('Error', 'Terjadi kesalahan jaringan atau server.', 'error');
+                        } finally {
+                            // Kembalikan tombol seperti semula jika tidak sedang menunggu konfirmasi
+                            if (!result || !result.require_confirmation) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalText;
+                            }
                         }
-                        
-                    } catch (error) {
-                        console.error(error);
-                        Swal.fire('Error', 'Terjadi kesalahan jaringan atau server.', 'error');
-                    } finally {
-                        // 5. Kembalikan tombol seperti semula
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalText;
-                    }
+                    };
+
+                    // Jalankan fungsi submit pertama kali dengan data awal
+                    processSubmit(new FormData(this));
                 });
             }
         });

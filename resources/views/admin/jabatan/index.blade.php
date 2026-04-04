@@ -562,7 +562,7 @@
             Swal.fire({ title: 'Memuat Matriks...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
             try {
-                const response = await fetch(`/admin/jabatan/matriks?jabatan_id=${fungsionalId}`);
+                const response = await fetch(`{{ url('admin/jabatan/matriks') }}?jabatan_id=${fungsionalId}`);
                 const dataJSON = await response.json();
                 const data = dataJSON.satkers;
                 
@@ -791,7 +791,7 @@
             }
 
             try {
-                const response = await fetch('/admin/jabatan/matriks/save-baseline', {
+                const response = await fetch(`{{ url('admin/jabatan/matriks/save-baseline') }}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
                     body: JSON.stringify({ jabatan_id: jabatanId, b_pertama: p, b_muda: mu, b_madya: ma, b_utama: u })
@@ -841,7 +841,7 @@
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                 const requests = groupIds.map(id => {
-                    return fetch('/admin/jabatan/matriks/save', {
+                    return fetch(`{{ url('admin/jabatan/matriks/save') }}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
                         body: JSON.stringify({ 
