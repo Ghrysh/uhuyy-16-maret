@@ -7,142 +7,157 @@ use Illuminate\Support\Facades\DB;
 
 class RumusKodeSeeder extends Seeder
 {
-    private function getJabatanId($keyword) 
-    {
-        return DB::table('ref_jabatan_satker')
-            ->where('key_jabatan', 'ILIKE', "%{$keyword}%")
-            ->orWhere('label_jabatan', 'ILIKE', "%{$keyword}%")
-            ->value('id');
-    }
-
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
-        $now = now();
+        // 1. Kosongkan tabel rumus_kodes (Hapus semua rumus lama)
+        DB::table('rumus_kodes')->truncate();
 
-        $rumusList = [
+        // 2. Helper untuk mencari ID Jabatan secara dinamis agar tidak error (berdasarkan kata kunci)
+        $getIdJabatan = function($keyword) {
+            $jabatan = DB::table('ref_jabatan_satker')
+                ->where('key_jabatan', 'ILIKE', "%{$keyword}%")
+                ->orWhere('label_jabatan', 'ILIKE', "%{$keyword}%")
+                ->first();
+            return $jabatan ? $jabatan->id : null;
+        };
+
+        // Asumsi ID Tingkat Wilayah (Berdasarkan standarisasi database sebelumnya)
+        $Pusat = 1; 
+        $Kanwil = 2; 
+        $KabKota = 3; 
+        $PTKN = 4;
+
+        // Ambil ID Eselon
+        $Es1 = DB::table('m_jenis_satker')->where('nama', 'ILIKE', '%Eselon 1%')->value('id') ?? 1;
+        $Es2 = DB::table('m_jenis_satker')->where('nama', 'ILIKE', '%Eselon 2%')->value('id') ?? 2;
+        $Es3 = DB::table('m_jenis_satker')->where('nama', 'ILIKE', '%Eselon 3%')->value('id') ?? 3;
+        $Es4 = DB::table('m_jenis_satker')->where('nama', 'ILIKE', '%Eselon 4%')->value('id') ?? 4;
+
+        // 3. Array Data Rumus Berdasarkan Dokumen 0. Kode Satuan Kerja_RAPI.docx
+        $daftarRumus = [
             // ==========================================
-            // 0. DEFAULT MUTLAK (JIKA TIDAK PILIH JABATAN)
+            // I. ESELON 1 (KODE DASAR AWAL)
             // ==========================================
             [
-                'nama_rumus' => 'Default Sistem (Urut 2 Digit)',
+                'nama_rumus' => 'Eselon 1 Pusat',
+                'tingkat_wilayah_id' => $Pusat, 'jenis_satker_id' => $Es1, 'ref_jabatan_satker_id' => null,
+                'pola' => '[INC:2, START:01]' // Mulai dari 01, 02, 03...
+            ],
+            [
+                'nama_rumus' => 'Eselon 1 PTKN (Tugas Tambahan Rektor/Ketua)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es1, 'ref_jabatan_satker_id' => null,
+                'pola' => '[INC:2, START:21]' // Mulai dari 21, 22, 23...
+            ],
+
+            // ==========================================
+            // II. ESELON 2 (4 & 5 DIGIT)
+            // ==========================================
+            [
+                'nama_rumus' => 'Eselon 2 Pusat',
+                'tingkat_wilayah_id' => $Pusat, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => null,
+                'pola' => '[PARENT][INC:2, START:01]' // 0101, 0102...
+            ],
+            [
+                'nama_rumus' => 'Eselon 2 Kanwil (Provinsi)',
+                'tingkat_wilayah_id' => $Kanwil, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => null,
+                'pola' => '[PARENT][INC:2, START:21]' // 0121, 0122...
+            ],
+            [
+                'nama_rumus' => 'Wakil Rektor (PTKN)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => $getIdJabatan('wakil_rektor'),
+                'pola' => '[PARENT]9[INC:1, START:1]' // 2191, 2192...
+            ],
+            [
+                'nama_rumus' => 'Dekan (PTKN)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => $getIdJabatan('dekan'),
+                'pola' => '[PARENT]9[INC:2, START:01]' // 21901, 21902...
+            ],
+            [
+                'nama_rumus' => 'Direktur Pascasarjana (PTKN)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => $getIdJabatan('pascasarjana'),
+                'pola' => '[PARENT]9[INC:2, START:51]' // 21951, 21952...
+            ],
+            [
+                'nama_rumus' => 'SPI dan Lembaga (PTKN)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es2, 'ref_jabatan_satker_id' => $getIdJabatan('spi'),
+                'pola' => '[PARENT]9[INC:2, START:61]' // 21961, 21962...
+            ],
+
+            // ==========================================
+            // III. ESELON 3 (6 DIGIT)
+            // ==========================================
+            [
+                'nama_rumus' => 'Eselon 3 Pusat',
+                'tingkat_wilayah_id' => $Pusat, 'jenis_satker_id' => $Es3, 'ref_jabatan_satker_id' => null,
+                'pola' => '[PARENT][INC:2, START:01]' 
+            ],
+            [
+                'nama_rumus' => 'Kemenag Kab/Kota (Eselon 3 Daerah)',
+                'tingkat_wilayah_id' => $KabKota, 'jenis_satker_id' => $Es3, 'ref_jabatan_satker_id' => null,
+                'pola' => '[PARENT][INC:2, START:01]' 
+            ],
+            [
+                'nama_rumus' => 'Unit Pelaksana Teknis (UPT)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => $Es3, 'ref_jabatan_satker_id' => $getIdJabatan('upt'),
+                'pola' => '[PARENT][INC:2, START:11]' // 090111, 090112...
+            ],
+            [
+                'nama_rumus' => 'Wakil Dekan (PTKN)',
+                'tingkat_wilayah_id' => $PTKN, 'jenis_satker_id' => $Es3, 'ref_jabatan_satker_id' => $getIdJabatan('wakil_dekan'),
+                // Karena parent-nya adalah Dekan (5 digit: 21901), maka tinggal ditambah 1 digit sesuai aturan: 219011
+                'pola' => '[PARENT][INC:1, START:1]' 
+            ],
+
+            // ==========================================
+            // IV. TAMBAHAN GLOBAL / LAINNYA
+            // ==========================================
+            [
+                'nama_rumus' => 'Kepala KUA (Kecamatan)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => $getIdJabatan('kua'),
+                'pola' => '[PARENT]9[INC:3, START:001]' // KUA biasanya 3 digit urut
+            ],
+            [
+                'nama_rumus' => 'Kepala Madrasah Tsanawiyah (MTsN)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => $getIdJabatan('mtsn'),
+                'pola' => '[PARENT]9[INC:2, START:31]' 
+            ],
+            [
+                'nama_rumus' => 'Kepala Madrasah Aliyah (MAN)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => $getIdJabatan('man'),
+                'pola' => '[PARENT]9[INC:2, START:61]' 
+            ],
+            [
+                'nama_rumus' => 'Tata Usaha (Umum/Global)',
+                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => $getIdJabatan('tu') ?? $getIdJabatan('tata_usaha'),
+                'pola' => '[PARENT]01' // FIX CODE
+            ],
+            [
+                'nama_rumus' => 'Default / Sapu Jagat (Berlaku Jika Rumus Lain Tidak Ada)',
                 'tingkat_wilayah_id' => null, 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null,
-                'kode_awalan' => '', 'is_auto_number' => true, 'digit_auto_number' => 2,
-                'default_nama_satker' => null, 'pola' => '[PARENT][INC:2]', 
-                'is_applied' => true,
-            ],
-
-            // ==========================================
-            // A. JABATAN STRUKTURAL KHUSUS & PATEN
-            // ==========================================
-            [
-                'nama_rumus' => 'Setup Tata Usaha (Paten 01)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('tata_usaha') ?? $this->getJabatanId('Tata Usaha'),
-                'kode_awalan' => '01', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Tata Usaha', 'pola' => '[PARENT]01', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Seksi Pend. Madrasah (Paten 02)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('pendidikan_madrasah') ?? $this->getJabatanId('Madrasah'),
-                'kode_awalan' => '02', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Seksi Pendidikan Madrasah', 'pola' => '[PARENT]02', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Seksi Bimas Islam (Paten 03)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('bimas_islam') ?? $this->getJabatanId('Bimbingan Masyarakat'),
-                'kode_awalan' => '03', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Seksi Bimbingan Masyarakat Islam', 'pola' => '[PARENT]03', 'is_applied' => true,
-            ],
-
-            // ==========================================
-            // B. JABATAN TUGAS TAMBAHAN PTKN (KODE SAKTI '9')
-            // ==========================================
-            [
-                'nama_rumus' => 'Setup Wakil Rektor',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('wakil_rektor') ?? $this->getJabatanId('Wakil Rektor'),
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 1,
-                'default_nama_satker' => 'Wakil Rektor', 'pola' => '[PARENT]9[INC:1]', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Dekan',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('dekan') ?? $this->getJabatanId('Dekan'), 
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 2, 
-                'default_nama_satker' => 'Fakultas', 'pola' => '[PARENT]9[INC:2]', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Ketua Lembaga',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('lembaga') ?? $this->getJabatanId('Lembaga'),
-                'kode_awalan' => '9', 'is_auto_number' => true, 'digit_auto_number' => 2, 
-                'default_nama_satker' => 'Lembaga', 'pola' => '[PARENT]9[INC:2]', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Wakil Dekan',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('wakil_dekan') ?? $this->getJabatanId('Wakil Dekan'),
-                'kode_awalan' => '', 'is_auto_number' => true, 'digit_auto_number' => 1, 
-                'default_nama_satker' => 'Wakil Dekan', 'pola' => '[PARENT][INC:1]', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Ketua Jurusan',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('jurusan') ?? $this->getJabatanId('Jurusan'),
-                'kode_awalan' => '', 'is_auto_number' => true, 'digit_auto_number' => 2, 
-                'default_nama_satker' => 'Jurusan', 'pola' => '[PARENT][INC:2]', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Ketua Prodi',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('program_studi') ?? $this->getJabatanId('Program Studi'),
-                'kode_awalan' => '00', 'is_auto_number' => true, 'digit_auto_number' => 2, 
-                'default_nama_satker' => 'Program Studi', 'pola' => '[PARENT]00[INC:2]', 'is_applied' => true,
-            ],
-
-            // ==========================================
-            // C. LAIN-LAIN (TIM KERJA & NON-JABATAN)
-            // ==========================================
-            [
-                'nama_rumus' => 'Setup Tim Kerja (Paten 98)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('tim_kerja') ?? $this->getJabatanId('Tim Kerja'),
-                'kode_awalan' => '98', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Tim Kerja', 'pola' => '[PARENT]98', 'is_applied' => true,
-            ],
-            [
-                'nama_rumus' => 'Setup Tidak Ada Jabatan (Paten 99)',
-                'tingkat_wilayah_id' => null, 'jenis_satker_id' => null,
-                'ref_jabatan_satker_id' => $this->getJabatanId('tidak_ada') ?? $this->getJabatanId('Tidak'), // <-- KUNCI UTAMANYA DI SINI
-                'kode_awalan' => '99', 'is_auto_number' => false, 'digit_auto_number' => null,
-                'default_nama_satker' => 'Unit Pelaksana', 'pola' => '[PARENT]99', 'is_applied' => true,
+                'pola' => '[PARENT][INC:2, START:01]' // Default urut 2 digit
             ],
         ];
 
-        DB::table('rumus_kodes')->truncate();
-
-        $berhasil = 0;
-        $gagal = 0;
-
-        foreach ($rumusList as $rumus) {
-            if ($rumus['nama_rumus'] !== 'Default Sistem (Urut 2 Digit)' && is_null($rumus['ref_jabatan_satker_id'])) {
-                $this->command->warn("⚠️  DILEWATI: {$rumus['nama_rumus']} (Jabatan tidak ditemukan di DB)");
-                $gagal++;
-                continue; 
-            }
-
-            if ($rumus['nama_rumus'] !== 'Default Sistem (Urut 2 Digit)') {
-                $rumus['is_applied'] = false;
-            }
-
-            $rumus['created_at'] = $now;
-            $rumus['updated_at'] = $now;
-            DB::table('rumus_kodes')->insert($rumus);
-            $berhasil++;
+        // 4. Eksekusi Insert
+        $insertData = [];
+        foreach ($daftarRumus as $r) {
+            $insertData[] = [
+                'nama_rumus' => $r['nama_rumus'],
+                'tingkat_wilayah_id' => $r['tingkat_wilayah_id'],
+                'jenis_satker_id' => $r['jenis_satker_id'],
+                'ref_jabatan_satker_id' => $r['ref_jabatan_satker_id'],
+                'pola' => $r['pola'],
+                'is_applied' => true, // Semua rumus ini langsung diaktifkan!
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
         }
 
-        $this->command->info("✅ Selesai! Berhasil membuat {$berhasil} Rumus. Gagal: {$gagal}");
+        DB::table('rumus_kodes')->insert($insertData);
+
+        $this->command->info('17 Rumus Kemenag berhasil di-Seed dan Diaktifkan!');
     }
 }

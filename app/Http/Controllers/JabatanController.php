@@ -13,8 +13,53 @@ use Illuminate\Http\Request;
 
 class JabatanController extends Controller
 {
+
+    private function getPermissions()
+    {
+        $user = auth()->user();
+        $userRoles = $user->roles;
+        $isSuperAdmin = $userRoles->contains('key', 'super_admin');
+
+        if ($isSuperAdmin) {
+            return ['is_super' => true, 'can_view' => true, 'all_access' => true, 'actions' => ['create', 'edit', 'delete'], 'matriks' => ['set_baseline', 'edit_kuota']];
+        }
+
+        $permissions = ['is_super' => false, 'can_view' => false, 'all_access' => false, 'view_only' => false, 'actions' => [], 'matriks' => []];
+
+        foreach ($userRoles as $role) {
+            $config = [];
+            if ($role->key === 'pejabat') {
+                $active = \App\Models\Penugasan::where('user_id', $user->id)->where('status_aktif', 1)->with('jenisPenugasan')->first();
+                if ($active && $active->jenisPenugasan) {
+                    $menus = $active->jenisPenugasan->menus;
+                    $config = is_array($menus) ? ($menus['jabatan'] ?? []) : [];
+                }
+            } else {
+                $menus = $role->menus;
+                $config = is_array($menus) ? ($menus['jabatan'] ?? []) : [];
+            }
+            
+            if (!empty($config) && ($config['enabled'] ?? false)) {
+                $permissions['can_view'] = true;
+                if ($config['all_access'] ?? false) $permissions['all_access'] = true;
+                if ($config['view_only'] ?? false) $permissions['view_only'] = true;
+                
+                if (isset($config['actions']) && is_array($config['actions'])) {
+                    $permissions['actions'] = array_unique(array_merge($permissions['actions'], $config['actions']));
+                }
+                if (isset($config['matriks']) && is_array($config['matriks'])) {
+                    $permissions['matriks'] = array_unique(array_merge($permissions['matriks'], $config['matriks']));
+                }
+            }
+        }
+        return $permissions;
+    }
+
     public function index(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['can_view']) abort(403, 'Akses ditolak. Anda tidak memiliki izin melihat Jabatan Fungsional.');
+
         $search = $request->input('search');
         $sortField = $request->input('sort', 'kode_jabatan');
         $sortDirection = $request->input('direction', 'asc');
@@ -55,14 +100,19 @@ class JabatanController extends Controller
             ->get();
 
         if ($request->ajax()) {
-            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId'))->render();
+            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'))->render();
         }
 
-        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId'));
+        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'));
     }
 
     public function store(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('create', $perm['actions'])) {
+            return redirect()->back()->with('error', 'Akses Ditolak: Anda tidak memiliki izin untuk menambah data.');
+        }
+
         $request->validate([
             'periode_id'            => 'required|exists:periodes,id', // Tambahan validasi periode
             'kode_jabatan'          => 'required', 
@@ -92,6 +142,11 @@ class JabatanController extends Controller
 
     public function update(Request $request, $id)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('edit', $perm['actions'])) {
+            return redirect()->back()->with('error', 'Akses Ditolak: Anda tidak memiliki izin untuk mengubah data.');
+        }
+
         $request->validate([
             'nama_jabatan'          => 'required',
             'baseline'              => 'required|numeric|min:0', // Tambahan validasi baseline
@@ -121,6 +176,11 @@ class JabatanController extends Controller
 
     public function destroy($id)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('delete', $perm['actions'])) {
+            return redirect()->back()->with('error', 'Akses Ditolak: Anda tidak memiliki izin untuk menghapus data.');
+        }
+
         try {
             $jabatan = Jabatan::findOrFail($id);
 
@@ -144,30 +204,61 @@ class JabatanController extends Controller
         $jabatan_id = $request->query('jabatan_id'); 
         $jabatan = Jabatan::findOrFail($jabatan_id);
         
-        $eselon1 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                    ->whereNull('parent_satker_id')
-                    ->orderBy('kode_satker', 'asc')
-                    ->get();
-                    
-        $eselon2 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                    ->whereIn('parent_satker_id', $eselon1->pluck('id'))
-                    ->orderBy('kode_satker', 'asc')
-                    ->get();
-                    
-        $satkers = collect();
-        foreach ($eselon1 as $induk) {
-            $satkers->push($induk);
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $userRoles = $user->roles()->pluck('key')->toArray();
+        $isSuperAdmin = in_array('super_admin', $userRoles);
+        
+        // Deteksi apakah user adalah Admin Jafung
+        $isAdminJafung = (in_array('admin_jafung_pengguna', $userRoles) || in_array('admin_jafung_pembina', $userRoles)) && !$isSuperAdmin;
 
-            $anak_anak = $eselon2->where('parent_satker_id', $induk->id);
-            foreach ($anak_anak as $anak) {
-                $satkers->push($anak);
+        $satkers = collect();
+
+        // JIKA ADMIN JAFUNG: Hanya tampilkan Satkernya dan Induk Satkernya
+        if ($isAdminJafung && $user->satker_id) {
+            $userSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                            ->find($user->satker_id);
+                            
+            if ($userSatker) {
+                // Masukkan induknya dulu (agar posisinya di atas saat dirender)
+                if ($userSatker->parent_satker_id) {
+                    $parentSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                                        ->find($userSatker->parent_satker_id);
+                    if ($parentSatker) {
+                        $satkers->push($parentSatker);
+                    }
+                }
+                // Masukkan satkernya sendiri
+                $satkers->push($userSatker);
+            }
+        } 
+        // JIKA SUPER ADMIN: Tampilkan seluruh Satker (Eselon 1 dan 2) seperti biasa
+        else {
+            $eselon1 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                        ->whereNull('parent_satker_id')
+                        ->orderBy('kode_satker', 'asc')
+                        ->get();
+                        
+            $eselon2 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
+                        ->whereIn('parent_satker_id', $eselon1->pluck('id'))
+                        ->orderBy('kode_satker', 'asc')
+                        ->get();
+                        
+            foreach ($eselon1 as $induk) {
+                $satkers->push($induk);
+                $anak_anak = $eselon2->where('parent_satker_id', $induk->id);
+                foreach ($anak_anak as $anak) {
+                    $satkers->push($anak);
+                }
             }
         }
 
+        // Ambil data kuota yang sudah disimpan
         $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
         
-        $data = $satkers->map(function($satker) use ($kuotas) {
+        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $user) {
             $kuota = $kuotas->get($satker->id);
+            
+            // Atur visual indentasi (0 untuk induk, 1 untuk anak)
             $level = $satker->parent_satker_id ? 1 : 0; 
             
             return [

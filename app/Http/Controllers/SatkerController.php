@@ -18,14 +18,105 @@ use Illuminate\Support\Facades\Auth;
 
 class SatkerController extends Controller
 {
-    public function index(Request $request)
+    private function getPermissions()
     {
         $user = Auth::user();
-        $userRoles = $user->roles()->pluck('key')->toArray();
+        $userRoles = $user->roles;
+        $isSuperAdmin = $userRoles->contains('key', 'super_admin');
 
-        $isSuperAdmin = in_array('super_admin', $userRoles);
-        $isRestricted = (in_array('admin_satker', $userRoles) || in_array('pejabat', $userRoles)) && !$isSuperAdmin;
-        $userSatkerId = $user->satker_id;
+        if ($isSuperAdmin) {
+            return [
+                'is_super'   => true, 'can_view' => true, 'all_access' => true,
+                'visibility' => 'all', 'actions' => ['create', 'edit', 'delete', 'assign', 'end_self', 'end_other', 'cuti_self', 'cuti_other'],
+                'allowed_ids' => []
+            ];
+        }
+
+        $permissions = [
+            'is_super' => false, 'can_view' => false, 'all_access' => false, 'view_only' => false,
+            'visibility' => 'none', 'actions' => [], 'allowed_ids' => []
+        ];
+
+        foreach ($userRoles as $role) {
+            $config = [];
+            if ($role->key === 'pejabat') {
+                $activeAssignment = \App\Models\Penugasan::where('user_id', $user->id)
+                    ->where('status_aktif', 1)->with('jenisPenugasan')->first();
+                if ($activeAssignment && $activeAssignment->jenisPenugasan) {
+                    $config = $activeAssignment->jenisPenugasan->menus['satker'] ?? [];
+                }
+            } else {
+                $config = $role->menus['satker'] ?? [];
+            }
+
+            if (!empty($config) && ($config['enabled'] ?? false)) {
+                $permissions['can_view'] = true;
+                if ($config['all_access'] ?? false) $permissions['all_access'] = true;
+                if ($config['view_only'] ?? false) $permissions['view_only'] = true;
+
+                // Ambil level visibilitas tertinggi
+                $v = $config['visibility'] ?? 'none';
+                $order = ['all' => 4, 'self_up_down' => 3, 'self_down' => 2, 'self_only' => 1, 'none' => 0];
+                if ($order[$v] > $order[$permissions['visibility']]) {
+                    $permissions['visibility'] = $v;
+                }
+
+                if (isset($config['actions'])) {
+                    $permissions['actions'] = array_unique(array_merge($permissions['actions'], $config['actions']));
+                }
+            }
+        }
+
+        // =================================================================================
+        // PERBAIKAN: CARI SATKER BERDASARKAN PENUGASAN AKTIF PEGAWAI DI TABEL PENUGASAN
+        // =================================================================================
+        $activeSatkerIds = \App\Models\Penugasan::where('user_id', $user->id)
+            ->where('status_aktif', 1)
+            ->pluck('satker_id')
+            ->unique()
+            ->toArray();
+            
+        // Fallback (jika tidak ada penugasan tapi di tabel user tercatat punya satker)
+        if (empty($activeSatkerIds) && $user->satker_id) {
+            $activeSatkerIds = [$user->satker_id];
+        }
+
+        if ($permissions['visibility'] !== 'all' && !empty($activeSatkerIds)) {
+            $ids = $activeSatkerIds; // Masukkan semua satker di mana dia bekerja
+
+            if ($permissions['visibility'] === 'self_up_down') {
+                foreach ($activeSatkerIds as $sid) {
+                    // Ambil Induk (Atasan)
+                    $curr = Satker::find($sid);
+                    while ($curr && $curr->parent_satker_id) {
+                        $ids[] = $curr->parent_satker_id;
+                        $curr = Satker::find($curr->parent_satker_id);
+                    }
+                    // Ambil Bawahan
+                    $this->extractChildIds(Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+                }
+            } elseif ($permissions['visibility'] === 'self_down') {
+                foreach ($activeSatkerIds as $sid) {
+                    // Ambil Bawahan
+                    $this->extractChildIds(Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+                }
+            }
+
+            // Bersihkan duplikat array ID
+            $permissions['allowed_ids'] = array_values(array_unique($ids));
+        }
+        // =================================================================================
+
+        return $permissions;
+    }
+
+    public function index(Request $request)
+    {
+        $perm = $this->getPermissions();
+        if (!$perm['can_view']) abort(403, 'Akses ditolak. Anda tidak memiliki izin melihat Satuan Kerja.');
+
+        $user = Auth::user();
+        $userRoles = $user->roles()->pluck('key')->toArray();
 
         $satkerQuery = Satker::with('children');
         $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon']);
@@ -33,15 +124,15 @@ class SatkerController extends Controller
         $listQuery = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id');
         $parentsQuery = Satker::query();
 
-        if ($isRestricted && $userSatkerId) {
-            $descendantIds = $this->getAllDescendantIds($userSatkerId);
+        // PENERAPAN VISIBILITAS DARI REGULASI
+        if ($perm['visibility'] !== 'all') {
+            $allowedIds = $perm['allowed_ids'];
 
-            $satkerQuery->where('id', $userSatkerId);
-            $flatQuery->where('id', $userSatkerId);
-            
-            $tableQuery->whereIn('id', $descendantIds);
-            $listQuery->whereIn('id', $descendantIds);
-            $parentsQuery->whereIn('id', $descendantIds);
+            $satkerQuery->whereIn('id', $allowedIds);
+            $flatQuery->whereIn('id', $allowedIds);
+            $tableQuery->whereIn('id', $allowedIds);
+            $listQuery->whereIn('id', $allowedIds);
+            $parentsQuery->whereIn('id', $allowedIds);
         } else {
             $satkerQuery->whereNull('parent_satker_id');
             $flatQuery->whereNull('parent_satker_id');
@@ -78,8 +169,10 @@ class SatkerController extends Controller
             'admin_jafung_pengguna', 
             'admin_jafung_pembina'
         ])->get();
+        
+        $rumusList = DB::table('rumus_kodes')->orderBy('id', 'asc')->get();
 
-        return view('admin.satker.index', compact('satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 'userRoles', 'allSatkersFlat', 'refJabatanSatker'));
+        return view('admin.satker.index', compact('satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList'));
     }
     
     private function getAllDescendantIds($satkerId) {
@@ -208,65 +301,58 @@ class SatkerController extends Controller
 
     public function getUsersBySatker($id)
     {
-        // 1. Dapatkan penugasan cuti yang SUDAH BERAKHIR
+        // 1. Ambil izin (permissions) orang yang sedang login
+        $perm = $this->getPermissions();
+
         $expiredCuti = \App\Models\Penugasan::with('jenisPenugasan')
             ->where('satker_id', $id)
             ->where('status_aktif', 0)
             ->whereNotNull('tanggal_selesai_cuti')
-            ->whereNull('tanggal_selesai') // Belum diakhiri permanen
+            ->whereNull('tanggal_selesai') 
             ->whereDate('tanggal_selesai_cuti', '<', now()->toDateString())
             ->get();
 
-        // 2. Jika ada yang cutinya sudah berakhir, aktifkan kembali
         if ($expiredCuti->isNotEmpty()) {
             $hasDefinitifReturning = false;
-
             foreach ($expiredCuti as $cuti) {
-                $cuti->update([
-                    'status_aktif'         => 1, // Aktif kembali
-                    'tanggal_mulai_cuti'   => null,
-                    'tanggal_selesai_cuti' => null
-                ]);
-
-                // Deteksi apakah yang kembali kerja ini adalah seorang Definitif
+                $cuti->update(['status_aktif' => 1, 'tanggal_mulai_cuti' => null, 'tanggal_selesai_cuti' => null]);
                 $namaJenis = $cuti->jenisPenugasan ? strtolower(trim($cuti->jenisPenugasan->nama)) : '';
-                if (str_contains($namaJenis, 'definitif')) {
-                    $hasDefinitifReturning = true;
-                }
+                if (str_contains($namaJenis, 'definitif')) $hasDefinitifReturning = true;
             }
-
-            // 3. Jika yang kembali dari cuti adalah Definitif, OTOMATIS BERHENTIKAN PLT & PLH di satker ini
             if ($hasDefinitifReturning) {
-                \App\Models\Penugasan::where('satker_id', $id)
-                    ->where('status_aktif', 1)
-                    ->whereHas('jenisPenugasan', function($q) {
-                        $q->where('nama', 'like', '%plt%')->orWhere('nama', 'like', '%plh%');
-                    })
-                    ->update([
-                        'status_aktif' => 0,
-                        'tanggal_selesai' => now() // End Date-kan sekarang
-                    ]);
+                \App\Models\Penugasan::where('satker_id', $id)->where('status_aktif', 1)
+                    ->whereHas('jenisPenugasan', function($q) { $q->where('nama', 'like', '%plt%')->orWhere('nama', 'like', '%plh%'); })
+                    ->update(['status_aktif' => 0, 'tanggal_selesai' => now()]);
             }
         }
 
-        $penugasans = \App\Models\Penugasan::with([
-                'user.userDetail', 
-                'user.roles',
-                'jenisPenugasan'
-            ])
+        $penugasans = \App\Models\Penugasan::with(['user.userDetail', 'user.roles', 'jenisPenugasan'])
             ->where('satker_id', $id)
             ->orderBy('status_aktif', 'desc') 
             ->orderBy('tanggal_mulai', 'desc') 
             ->get()
-            ->map(function ($penugasan) {
+            ->map(function ($penugasan) use ($perm) {
                 $user = $penugasan->user;
-                $roles = ($user && $user->roles) ? $user->roles->pluck('nama')->values() : collect();
-
-                // Cek apakah dia sedang cuti (Status 0 + Ada tgl cuti)
-                $isCuti = false;
-                if ($penugasan->status_aktif == 0 && $penugasan->tanggal_mulai_cuti) {
-                    $isCuti = true;
+                
+                // LOGIKA PEMISAHAN TAMPILAN ROLE
+                $rolesTertampil = '-';
+                if (!empty($penugasan->jenis_penugasan_id)) {
+                    // Jika memiliki ID Jenis Penugasan (Definitif/PLT), maka di baris ini dia adalah Pejabat
+                    $rolesTertampil = 'Pejabat';
+                } else {
+                    // Jika kosong, maka di baris ini dia adalah Admin (Ambil role selain pejabat)
+                    $adminRoles = ($user && $user->roles) ? $user->roles->where('key', '!=', 'pejabat')->pluck('nama')->toArray() : [];
+                    $rolesTertampil = !empty($adminRoles) ? implode(', ', $adminRoles) : 'Admin/Sistem';
                 }
+
+                $isCuti = ($penugasan->status_aktif == 0 && $penugasan->tanggal_mulai_cuti);
+                $isSelf = (Auth::id() == $penugasan->user_id);
+
+                // =========================================================================
+                // CEK HAK AKSI (End Date & Cuti) SECARA DINAMIS
+                // =========================================================================
+                $canEnd = $perm['is_super'] || $perm['all_access'] || ($isSelf ? in_array('end_self', $perm['actions']) : in_array('end_other', $perm['actions']));
+                $canCuti = $perm['is_super'] || $perm['all_access'] || ($isSelf ? in_array('cuti_self', $perm['actions']) : in_array('cuti_other', $perm['actions']));
 
                 return [
                     'penugasan_id'      => $penugasan->id,
@@ -274,14 +360,17 @@ class SatkerController extends Controller
                     'nip'               => $user ? $user->nip : '-',
                     'email'             => $user ? $user->email : '-',
                     'jabatan'           => ($user && $user->userDetail) ? $user->userDetail->tampil_jabatan : '-',
-                    'roles'             => $roles->isNotEmpty() ? $roles : '-',
+                    'roles'             => $rolesTertampil,
                     'jenis_penugasan'   => $penugasan->jenisPenugasan ? $penugasan->jenisPenugasan->nama : '-',
                     'status_aktif'      => $penugasan->status_aktif ?? 0,
                     
                     'is_cuti'           => $isCuti,
+                    'is_self'           => $isSelf,
+                    'can_end'           => $canEnd,   // <-- DIKIRIM KE JAVASCRIPT
+                    'can_cuti'          => $canCuti,  // <-- DIKIRIM KE JAVASCRIPT
+                    
                     'tanggal_mulai_cuti_raw'   => $penugasan->tanggal_mulai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_mulai_cuti)->format('d F Y') : null,
                     'tanggal_selesai_cuti_raw' => $penugasan->tanggal_selesai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_selesai_cuti)->format('d F Y') : null,
-                    
                     'tanggal_mulai'     => $penugasan->tanggal_mulai ? \Carbon\Carbon::parse($penugasan->tanggal_mulai)->format('d-m-Y') : '-',
                     'tanggal_selesai'   => $penugasan->tanggal_selesai ? \Carbon\Carbon::parse($penugasan->tanggal_selesai)->format('d-m-Y') : '-',
                 ];
@@ -295,6 +384,7 @@ class SatkerController extends Controller
         $jenisId = $request->jenis_id;
         $parentId = $request->filled('parent_id') && $request->parent_id !== 'null' ? $request->parent_id : null;
         $refJabatanId = $request->ref_jabatan_satker_id;
+        $rumusId = $request->rumus_id; 
         
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
@@ -308,46 +398,79 @@ class SatkerController extends Controller
             }
         }
 
-        // 2. BACA DARI SETUP RUMUS (Dengan Perbaikan Bobot Prioritas Mutlak)
-        $setup = DB::table('rumus_kodes')
-            ->where('is_applied', 1)
-            ->where(function ($q) use ($tingkatWilayahId) {
-                $q->where('tingkat_wilayah_id', $tingkatWilayahId)->orWhereNull('tingkat_wilayah_id');
-            })
-            ->where(function ($q) use ($jenisId) {
-                $q->where('jenis_satker_id', $jenisId)->orWhereNull('jenis_satker_id');
-            })
-            ->where(function ($q) use ($refJabatanId) {
-                if ($refJabatanId) {
-                    $q->where('ref_jabatan_satker_id', $refJabatanId)->orWhereNull('ref_jabatan_satker_id');
-                } else {
-                    $q->whereNull('ref_jabatan_satker_id');
-                }
-            })
-            // KUNCI PERBAIKAN: Bobot bertingkat agar Jabatan (100) selalu mengalahkan Wilayah (10)
-            ->orderByRaw('(CASE WHEN ref_jabatan_satker_id IS NOT NULL THEN 100 ELSE 0 END) + 
-                          (CASE WHEN tingkat_wilayah_id IS NOT NULL THEN 10 ELSE 0 END) + 
-                          (CASE WHEN jenis_satker_id IS NOT NULL THEN 1 ELSE 0 END) DESC')
-            ->first();
+        $refJabatan = $refJabatanId ? \App\Models\RefJabatanSatker::find($refJabatanId) : null;
+
+        // 1. CARI RUMUS
+        $setup = null;
+        $isSpecificSetup = false; // Menandakan apakah ini rumus khusus untuk jabatan ini
+
+        if ($rumusId) {
+            $setup = DB::table('rumus_kodes')->where('id', $rumusId)->first();
+            $isSpecificSetup = true;
+        } else {
+            $setup = DB::table('rumus_kodes')
+                ->where('is_applied', 1)
+                ->where(function ($q) use ($tingkatWilayahId) {
+                    $q->where('tingkat_wilayah_id', $tingkatWilayahId)->orWhereNull('tingkat_wilayah_id');
+                })
+                ->where(function ($q) use ($jenisId) {
+                    $q->where('jenis_satker_id', $jenisId)->orWhereNull('jenis_satker_id');
+                })
+                ->where(function ($q) use ($refJabatanId) {
+                    if ($refJabatanId) {
+                        $q->where('ref_jabatan_satker_id', $refJabatanId)->orWhereNull('ref_jabatan_satker_id');
+                    } else {
+                        $q->whereNull('ref_jabatan_satker_id');
+                    }
+                })
+                ->orderByRaw('(CASE WHEN ref_jabatan_satker_id IS NOT NULL THEN 100 ELSE 0 END) + 
+                              (CASE WHEN tingkat_wilayah_id IS NOT NULL THEN 10 ELSE 0 END) + 
+                              (CASE WHEN jenis_satker_id IS NOT NULL THEN 1 ELSE 0 END) DESC')
+                ->first();
+
+            // Cek apakah rumus yang terpilih ini benar-benar ditujukan spesifik untuk jabatan ini
+            if ($setup && $setup->ref_jabatan_satker_id == $refJabatanId && $refJabatanId != null) {
+                $isSpecificSetup = true;
+            }
+        }
 
         if (!$setup) {
-            return response()->json(['error' => 'Setup Rumus belum dikonfigurasi untuk kombinasi ini. Silakan buat di menu Setup Kode.'], 404);
+            return response()->json(['error' => 'Setup Rumus tidak ditemukan untuk kombinasi ini.'], 404);
         }
 
         $kodeBaru = $setup->pola;
+
+        // ===============================================================================
+        // 🟢 JEMBATAN KODE DASAR (FIX BUG "TIDAK ADA JABATAN 00")
+        // ===============================================================================
+        // Jika tidak ada rumus spesifik, tapi jabatan punya kode bawaan (misal: "00", "01")
+        if (!$isSpecificSetup && $refJabatan && $refJabatan->kode_dasar) {
+            // Timpa pola Sapu Jagat dengan kode paten dari tabel ref_jabatan_satker
+            $kodeBaru = '[PARENT]' . $refJabatan->kode_dasar;
+            
+            // Jika ternyata di database jabatan ini butuh increment (walau jarang)
+            if ($refJabatan->is_increment) {
+                $kodeBaru .= '[INC:2, START:01]';
+            }
+        }
+        // ===============================================================================
+
         $parentCode = '';
         $kodeJf = '';
 
+        // Replace TAG PARENT
         if (str_contains($kodeBaru, '[PARENT]')) {
             $parent = Satker::find($parentId);
             $parentCode = $parent ? $parent->kode_satker : '';
             $kodeBaru = str_replace('[PARENT]', $parentCode, $kodeBaru);
         }
 
+        // Replace TAG WILAYAH
         if (str_contains($kodeBaru, '[KODE_WILAYAH]')) {
             $kodeBaru = str_replace('[KODE_WILAYAH]', $kodeWilayah, $kodeBaru);
         }
 
+        // Replace TAG JF
         if (str_contains($kodeBaru, '[KODE_JF]')) {
             $jabatanFungsionalId = $request->jabatan_id; 
             $jf = \App\Models\JabatanFungsional::find($jabatanFungsionalId);
@@ -355,52 +478,26 @@ class SatkerController extends Controller
             $kodeBaru = str_replace('[KODE_JF]', $kodeJf, $kodeBaru);
         }
 
-        // --- TAMBAHAN FIX KODE JABATAN FIX (Tidak Increment) ---
-        if ($refJabatanId) {
-            $jabatanSatker = \App\Models\RefJabatanSatker::find($refJabatanId);
-            if ($jabatanSatker) {
-                // 1. Jika di masa depan Anda memakai tag [KODE_JABATAN] di setup rumus
-                if (str_contains($kodeBaru, '[KODE_JABATAN]')) {
-                    $kodeBaru = str_replace('[KODE_JABATAN]', $jabatanSatker->kode_dasar ?? '', $kodeBaru);
-                }
-
-                // 2. Jika jabatan ini bersifat fix (bukan increment) dan punya kode_dasar,
-                // Timpa pola [INC:xx] menjadi kode dasar (contoh: 00).
-                if (!$jabatanSatker->is_increment && !empty($jabatanSatker->kode_dasar)) {
-                    $kodeBaru = preg_replace('/\[INC:\d+\]/', $jabatanSatker->kode_dasar, $kodeBaru);
-                }
-            }
-        }
-
-        // 4. Logic INC & Pencarian Bolong (Hanya jalan jika ada pola [INC:xx])
+        // --- ENGINE INCREMENT & START NUMBER BERTINGKAT ---
         $gaps = []; 
         
-        if (preg_match('/\[INC:(\d+)\]/', $kodeBaru, $matches)) {
+        // Membaca pola [INC:digit] ATAU [INC:digit, START:angka]
+        if (preg_match('/\[INC:(\d+)(?:,\s*START:(\d+))?\]/', $kodeBaru, $matches)) {
             $digit = (int)$matches[1];
-            $prefixPattern = explode('[INC', $setup->pola)[0];
+            $startLimit = isset($matches[2]) ? (int)$matches[2] : 1; // Default mulai dari 1 jika tidak diatur
 
-            if (str_contains($prefixPattern, '[PARENT]')) {
-                 $prefixPattern = str_replace('[PARENT]', $parentCode ?? '', $prefixPattern);
-            }
-            if (str_contains($prefixPattern, '[KODE_WILAYAH]')) {
-                 $prefixPattern = str_replace('[KODE_WILAYAH]', $kodeWilayah ?? '', $prefixPattern);
-            }
-            if (str_contains($prefixPattern, '[KODE_JF]')) {
-                 $prefixPattern = str_replace('[KODE_JF]', $kodeJf ?? '', $prefixPattern);
-            }
+            // Pecah pola untuk mencari awalan kode di database
+            $prefixPattern = explode('[INC', $kodeBaru)[0];
 
             $query = Satker::where('kode_satker', 'like', $prefixPattern . '%');
-            
             if ($parentId) {
                 $query->where('parent_satker_id', $parentId);
             } else {
                 $query->whereNull('parent_satker_id');
             }
 
-            // Kode double pengecekan periode dihapus, disisakan 1 yang rapi
-            $periodeId = $request->periode_id;
-            if ($periodeId) {
-                $query->where('periode_id', $periodeId);
+            if ($request->periode_id) {
+                $query->where('periode_id', $request->periode_id);
             }
             
             $existingCodes = $query->pluck('kode_satker')->toArray();
@@ -421,16 +518,25 @@ class SatkerController extends Controller
 
             $maxNum = !empty($existingNums) ? max($existingNums) : 0;
 
+            // Jika ada request custom start number (ex: Balai mulai dari 11/31)
             if ($request->has('start_num') && is_numeric($request->start_num)) {
                 $customStart = (int) $request->start_num - 1;
                 $maxNum = max($maxNum, $customStart);
             }
 
+            // Jika Max Num di DB masih lebih kecil dari Start Limit aturan Kemenag
+            if ($maxNum < $startLimit) {
+                $maxNum = $startLimit - 1;
+            }
+
             $loopStart = 1;
             if ($request->has('start_num') && is_numeric($request->start_num)) {
                 $loopStart = (int) $request->start_num;
+            } else {
+                $loopStart = $startLimit;
             }
 
+            // Hitung Gap (Nomor Bolong)
             for ($i = $loopStart; $i < $maxNum; $i++) {
                 if (!in_array($i, $existingNums)) {
                     $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);

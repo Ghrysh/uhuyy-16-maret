@@ -71,18 +71,62 @@
         </div>
 
         <nav class="flex-grow py-4 overflow-y-auto">
-            {{-- Cek Role User --}}
+            {{-- ========================================== --}}
+            {{-- RBAC DINAMIS: CEK HAK AKSES MENU --}}
+            {{-- ========================================== --}}
             @php
-                $userRoles = auth()->user()->roles->pluck('key')->toArray() ?? [];
-                $isSuperAdmin = in_array('super_admin', $userRoles);
-                $isRestricted = (in_array('admin_satker', $userRoles) || in_array('pejabat', $userRoles)) && !$isSuperAdmin;
+                $user = auth()->user();
+                $userRoles = $user->roles;
+                $isSuperAdmin = $userRoles->contains('key', 'super_admin');
+                
+                $allowedMenus = [];
+                foreach($userRoles as $role) {
+                    // 1. JIKA ROLE PEJABAT: Tarik menu dari status struktural aktifnya (Definitif/PLT/dll)
+                    if ($role->key === 'pejabat') {
+                        $activeAssignment = \App\Models\Penugasan::where('user_id', $user->id)
+                            ->where('status_aktif', 1)
+                            ->with('jenisPenugasan')
+                            ->first();
+                            
+                        if ($activeAssignment && $activeAssignment->jenisPenugasan && is_array($activeAssignment->jenisPenugasan->menus)) {
+                            foreach($activeAssignment->jenisPenugasan->menus as $key => $val) {
+                                $allowedMenus[$key] = $val;
+                            }
+                        }
+                    } 
+                    // 2. JIKA ROLE ADMIN: Tarik menu langsung dari m_roles
+                    else {
+                        if(is_array($role->menus)) {
+                            foreach($role->menus as $key => $val) {
+                                $allowedMenus[$key] = $val;
+                            }
+                        }
+                    }
+                }
+                
+                // Fungsi Helper Cek Akses
+                $canAccess = function($menuKey) use ($isSuperAdmin, $allowedMenus) {
+                    if ($isSuperAdmin) return true;
+                    if (!array_key_exists($menuKey, $allowedMenus)) return false;
+                    
+                    // Untuk menu satker & jabatan (yang strukturnya array bersarang)
+                    if (is_array($allowedMenus[$menuKey])) {
+                        return isset($allowedMenus[$menuKey]['enabled']) && $allowedMenus[$menuKey]['enabled'] == "1";
+                    }
+                    
+                    return !empty($allowedMenus[$menuKey]);
+                };
             @endphp
 
+            @if($canAccess('dashboard'))
             <a href="{{ route('admin.dashboard') }}"
                 class="{{ request()->routeIs('admin.dashboard') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center px-6 py-3 text-sm hover:bg-white/5 transition">
                 <i class="fas fa-th-large w-6"></i> <span>Dashboard</span>
             </a>
+            @endif
 
+            {{-- TAMPILKAN GRUP MASTER DATA JIKA PUNYA MINIMAL 1 AKSES DIDALAMNYA --}}
+            @if($canAccess('wilayah') || $canAccess('satker') || $canAccess('jabatan') || $canAccess('pegawai') || $canAccess('periode'))
             <div class="mt-2">
                 <button onclick="toggleDropdown('masterDropdown')" id="btn-masterDropdown"
                     class="w-full flex items-center justify-between px-6 py-3 text-sm text-gray-300 hover:bg-white/5 transition group">
@@ -93,45 +137,43 @@
                     <i class="fas fa-chevron-right text-[10px] transition-transform duration-200"></i>
                 </button>
 
-                <div id="masterDropdown"
-                    class="dropdown-container bg-black/10 {{ request()->routeIs('admin.wilayah.*', 'admin.satker.*', 'admin.setting-kode.*', 'admin.jabatan.*', 'admin.pegawai.*', 'admin.periode.*') ? 'open' : '' }}">
+                <div id="masterDropdown" class="dropdown-container bg-black/10 {{ request()->routeIs('admin.wilayah.*', 'admin.satker.*', 'admin.jabatan.*', 'admin.pegawai.*', 'admin.periode.*') ? 'open' : '' }}">
                     
-                    {{-- Sembunyikan Wilayah untuk Admin Satker --}}
-                    @if(!$isRestricted)
-                    <a href="{{ route('admin.wilayah.index') }}"
-                        class="{{ request()->routeIs('admin.wilayah.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('wilayah'))
+                    <a href="{{ route('admin.wilayah.index') }}" class="{{ request()->routeIs('admin.wilayah.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-location-dot w-5 text-xs"></i> <span>Wilayah</span>
                     </a>
                     @endif
                     
-                    {{-- MENU SATKER: Tetap ditampilkan untuk semua --}}
-                    <a href="{{ route('admin.satker.index') }}"
-                        class="{{ request()->routeIs('admin.satker.index') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('satker'))
+                    <a href="{{ route('admin.satker.index') }}" class="{{ request()->routeIs('admin.satker.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-building w-5 text-xs"></i> <span>Satuan Kerja</span>
                     </a>
+                    @endif
                     
-                    {{-- Sembunyikan menu Master lainnya untuk Admin Satker --}}
-                    @if(!$isRestricted)
-                    <a href="{{ route('admin.jabatan.index') }}"
-                        class="{{ request()->routeIs('admin.jabatan.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('jabatan'))
+                    <a href="{{ route('admin.jabatan.index') }}" class="{{ request()->routeIs('admin.jabatan.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-id-card w-5 text-xs"></i> <span>Jabatan Fungsional</span>
                     </a>
+                    @endif
                     
-                    <a href="{{ route('admin.pegawai.index') }}"
-                        class="{{ request()->routeIs('admin.pegawai.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('pegawai'))
+                    <a href="{{ route('admin.pegawai.index') }}" class="{{ request()->routeIs('admin.pegawai.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-users w-5 text-xs"></i> <span>Pegawai</span>
                     </a>
-                    
-                    <a href="{{ route('admin.periode.index') }}"
-                        class="{{ request()->routeIs('admin.periode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @endif
+
+                    @if($canAccess('periode'))
+                    <a href="{{ route('admin.periode.index') }}" class="{{ request()->routeIs('admin.periode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-calendar-alt w-5 text-xs"></i> <span>Periode</span>
                     </a>
                     @endif
                 </div>
             </div>
+            @endif
 
-            {{-- MENU PENGATURAN: Hanya muncul untuk Super Admin --}}
-            @if(!$isRestricted)
+            {{-- TAMPILKAN GRUP PENGATURAN JIKA PUNYA MINIMAL 1 AKSES DIDALAMNYA --}}
+            @if($canAccess('audit_log') || $canAccess('setting_kode') || $canAccess('manajemen_role') || $canAccess('regulasi'))
             <div class="mt-2">
                 <button onclick="toggleDropdown('settingsDropdown')" id="btn-settingsDropdown"
                     class="w-full flex items-center justify-between px-6 py-3 text-sm text-gray-300 hover:bg-white/5 transition group">
@@ -142,18 +184,31 @@
                     <i class="fas fa-chevron-right text-[10px] transition-transform duration-200"></i>
                 </button>
 
-                <div id="settingsDropdown"
-                    class="dropdown-container bg-black/10 {{ request()->routeIs('admin.audit.*', 'admin.setting-kode.*') ? 'open' : '' }}">
+                <div id="settingsDropdown" class="dropdown-container bg-black/10 {{ request()->routeIs('admin.audit.*', 'admin.setting-kode.*', 'admin.role.*', 'admin.regulasi.*') ? 'open' : '' }}">
                     
-                    <a href="{{ route('admin.audit.index') }}"
-                        class="{{ request()->routeIs('admin.audit.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('audit_log'))
+                    <a href="{{ route('admin.audit.index') }}" class="{{ request()->routeIs('admin.audit.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-clock-rotate-left w-5 text-xs"></i> <span>Audit Log</span>
                     </a>
+                    @endif
                     
-                    <a href="{{ route('admin.setting-kode.index') }}"
-                        class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                    @if($canAccess('setting_kode'))
+                    <a href="{{ route('admin.setting-kode.index') }}" class="{{ request()->routeIs('admin.setting-kode.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
                         <i class="fas fa-code w-5 text-xs"></i> <span>Rumus Kode</span>
                     </a>
+                    @endif
+
+                    @if($canAccess('manajemen_role'))
+                    <a href="{{ route('admin.role.index') }}" class="{{ request()->routeIs('admin.role.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-user-shield w-5 text-xs"></i> <span>Akses Role</span>
+                    </a>
+                    @endif
+
+                    @if($canAccess('regulasi'))
+                    <a href="{{ route('admin.regulasi.index') }}" class="{{ request()->routeIs('admin.regulasi.*') ? 'sidebar-active text-yellow-400' : 'text-gray-300' }} flex items-center pl-14 pr-6 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-gavel w-5 text-xs"></i> <span>Regulasi Penugasan</span>
+                    </a>
+                    @endif
                 </div>
             </div>
             @endif

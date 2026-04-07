@@ -1,0 +1,29 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('m_roles', function (Blueprint $table) {
+            $table->json('regulations')->nullable()->after('is_assignable');
+        });
+
+        Schema::table('m_jenis_penugasan', function (Blueprint $table) {
+            $table->json('regulations')->nullable()->after('is_assignable');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('m_roles', function (Blueprint $table) {
+            $table->dropColumn('regulations');
+        });
+        Schema::table('m_jenis_penugasan', function (Blueprint $table) {
+            $table->dropColumn('regulations');
+        });
+    }
+};

@@ -231,8 +231,49 @@ class PenugasanController extends Controller
     //     });
     // }
 
+    private function getPermissions()
+    {
+        $user = auth()->user(); // Gunakan helper auth() agar tidak perlu use Auth;
+        $userRoles = $user->roles;
+        $isSuperAdmin = $userRoles->contains('key', 'super_admin');
+
+        if ($isSuperAdmin) {
+            return ['is_super' => true, 'all_access' => true, 'actions' => ['create', 'edit', 'delete', 'assign', 'end_self', 'end_other', 'cuti_self', 'cuti_other']];
+        }
+
+        $permissions = ['is_super' => false, 'all_access' => false, 'actions' => []];
+
+        foreach ($userRoles as $role) {
+            $config = [];
+            if ($role->key === 'pejabat') {
+                $active = \App\Models\Penugasan::where('user_id', $user->id)->where('status_aktif', 1)->with('jenisPenugasan')->first();
+                if ($active && $active->jenisPenugasan) {
+                    $menus = $active->jenisPenugasan->menus;
+                    $config = is_array($menus) ? ($menus['satker'] ?? []) : [];
+                }
+            } else {
+                $menus = $role->menus;
+                $config = is_array($menus) ? ($menus['satker'] ?? []) : [];
+            }
+            
+            if (!empty($config) && ($config['enabled'] ?? false)) {
+                if ($config['all_access'] ?? false) $permissions['all_access'] = true;
+                if (isset($config['actions']) && is_array($config['actions'])) {
+                    $permissions['actions'] = array_unique(array_merge($permissions['actions'], $config['actions']));
+                }
+            }
+        }
+        return $permissions;
+    }
+
     public function store(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('assign', $perm['actions'])) {
+            $msg = 'Akses Ditolak: Anda tidak memiliki izin untuk Menambah Penugasan di Satker ini.';
+            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 403) : redirect()->back()->with('error', $msg);
+        }
+
         // Validasi semua field termasuk detailData
         $request->validate([
             'user_nip' => 'required|string',
@@ -330,157 +371,256 @@ class PenugasanController extends Controller
                 );
 
                 // ==============================================================================
-                // 1. IDENTIFIKASI JENIS PENUGASAN & ROLE
+                // ENGINE REGULASI: IDENTIFIKASI PERAN & TARIK ATURAN DARI DATABASE
                 // ==============================================================================
-                $jenisPenugasanBaru = MJenisPenugasan::find($request->jenis_penugasan_id);
-                $namaJenisBaru = $jenisPenugasanBaru ? strtolower(trim($jenisPenugasanBaru->nama)) : '';
-                
-                $isNewDefinitif = str_contains($namaJenisBaru, 'definitif');
-                $isNewPlt = str_contains($namaJenisBaru, 'plt');
-                $isNewPlh = str_contains($namaJenisBaru, 'plh');
-                $isPejabat = $isNewDefinitif || $isNewPlt || $isNewPlh;
-
                 $roleBaru = \App\Models\MRole::find($request->role_id);
-                $namaRoleBaru = $roleBaru ? strtolower(trim($roleBaru->nama)) : '';
                 $keyRoleBaru = $roleBaru ? strtolower(trim($roleBaru->key)) : '';
+                $isPejabat = ($keyRoleBaru === 'pejabat');
+
+                $jenisPenugasanBaru = $isPejabat ? \App\Models\MJenisPenugasan::find($request->jenis_penugasan_id) : null;
+                $namaPeran = $isPejabat ? ($jenisPenugasanBaru->nama ?? 'Pejabat') : ($roleBaru->nama ?? 'Admin/Sistem');
                 
-                // Deteksi ke-3 tipe Admin yang dibatasi 1 per satker
-                $isAdminSatker = str_contains($namaRoleBaru, 'admin satker') || $keyRoleBaru === 'admin_satker';
-                $isAdminJafungPengguna = str_contains($namaRoleBaru, 'pengguna') || str_contains($keyRoleBaru, 'jafung_pengguna');
-                $isAdminJafungPembina = str_contains($namaRoleBaru, 'pembina') || str_contains($keyRoleBaru, 'jafung_pembina');
+                // Tarik aturan JSON dari DB (Jenis Penugasan untuk Struktural, MRole untuk Admin)
+                $regulasi = $isPejabat ? ($jenisPenugasanBaru->regulations ?? []) : ($roleBaru->regulations ?? []);
+
+                // Ekstrak Variabel Regulasi
+                $allowMultiple = $regulasi['allow_multiple'] ?? "0";
+                $maxMultiple = (int)($regulasi['max_multiple'] ?? 1);
+                
+                $canSameRoleOtherSatker = $regulasi['same_role_other_satker'] ?? "0";
+                $canOtherAdminSameSatker = $regulasi['other_admin_same_satker'] ?? "0";
+                $canOtherAdminOtherSatker = $regulasi['other_admin_other_satker'] ?? "0";
+                
+                $canPejabatSame = $regulasi['rangkap_pejabat_same_satker'] ?? "0";
+                $allowedPejabatSame = $regulasi['allowed_pejabat_same_satker'] ?? [];
+                
+                $canPejabatOther = $regulasi['rangkap_pejabat_other_satker'] ?? "0";
+                $allowedPejabatOther = $regulasi['allowed_pejabat_other_satker'] ?? [];
+
+                $requiresAbsenceOf = $regulasi['requires_absence_of'] ?? [];
 
                 // ==============================================================================
-                // VALIDASI 1: ROLE ADMIN (Masing-masing Hanya Boleh 1 Aktif per Satker)
+                // 1. ENGINE VALIDASI: ATURAN RANGKAP JABATAN PEGAWAI
                 // ==============================================================================
-                $roleToCheck = null;
-                $roleLabel = '';
-                if ($isAdminSatker) { $roleToCheck = 'admin_satker'; $roleLabel = 'Admin Satker'; }
-                elseif ($isAdminJafungPengguna) { $roleToCheck = 'admin_jafung_pengguna'; $roleLabel = 'Admin Jabatan Fungsional (Pengguna)'; }
-                elseif ($isAdminJafungPembina) { $roleToCheck = 'admin_jafung_pembina'; $roleLabel = 'Admin Jabatan Fungsional (Pembina)'; }
-
-                if ($roleToCheck) {
-                    $existingAdmin = Penugasan::where('satker_id', $request->satker_id)
-                        ->whereHas('user.roles', function($q) use ($roleToCheck, $roleLabel) {
-                            $q->where('key', 'like', "%{$roleToCheck}%")->orWhereRaw('LOWER(nama) LIKE ?', ["%".strtolower($roleLabel)."%"]);
-                        })
-                        ->where(function($q) {
-                            $q->where('status_aktif', 1)
-                              ->orWhere(function($subQ) {
-                                  $subQ->where('status_aktif', 0)->whereNotNull('tanggal_selesai_cuti')->whereDate('tanggal_selesai_cuti', '>=', now());
-                              });
-                        })->first();
-
-                    if ($existingAdmin) {
-                        $sedangCuti = $existingAdmin->status_aktif == 0 && !empty($existingAdmin->tanggal_selesai_cuti);
-                        $msg = $sedangCuti 
-                            ? "Gagal: {$roleLabel} di Satker ini sedang dalam masa Cuti. Hanya diperbolehkan 1 {$roleLabel} yang terdaftar aktif." 
-                            : "Gagal: Satker ini sudah memiliki {$roleLabel} yang aktif. Silakan akhiri tugas {$roleLabel} sebelumnya jika ingin mengganti posisi.";
-                        
-                        return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
-                    }
-                }
-
-                // ==============================================================================
-                // VALIDASI 2: ATURAN PEGAWAI (Cek Rangkap Jabatan User)
-                // ==============================================================================
-                $activeUserAssignments = Penugasan::with('jenisPenugasan')
+                $activeAssignments = Penugasan::with(['jenisPenugasan'])
                     ->where('user_id', $user->id)
                     ->where(function($q) {
-                        $q->where('status_aktif', 1)
-                          ->orWhere(function($subQ) {
+                        $q->where('status_aktif', 1)->orWhere(function($subQ) {
                               $subQ->where('status_aktif', 0)->whereNotNull('tanggal_selesai_cuti')->whereDate('tanggal_selesai_cuti', '>=', now());
-                          });
+                        });
                     })->get();
 
-                foreach ($activeUserAssignments as $assignment) {
-                    $namaJenisEksisting = $assignment->jenisPenugasan ? strtolower(trim($assignment->jenisPenugasan->nama)) : '';
-                    $isExistingDefinitif = str_contains($namaJenisEksisting, 'definitif');
+                foreach ($activeAssignments as $exist) {
+                    $existIsPejabat = !empty($exist->jenis_penugasan_id);
+                    $isSameSatker = ($exist->satker_id == $request->satker_id);
+                    $existNama = $existIsPejabat ? ($exist->jenisPenugasan->nama ?? 'Pejabat') : 'Admin/Sistem';
 
-                    // ATURAN 2A: Tidak boleh ada 2 jabatan aktif di SATKER YANG SAMA
-                    if ($assignment->satker_id == $request->satker_id) {
-                        $namaJabatanEksisting = $assignment->jenisPenugasan ? $assignment->jenisPenugasan->nama : 'role tersebut';
-                        $msg = "Gagal: Pegawai ini masih aktif menjabat sebagai {$namaJabatanEksisting} di Satker ini. Selesaikan status tersebut terlebih dahulu.";
-                        return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                    // Cek Kesamaan Peran (Apakah peran yang didaftarkan sama dengan yang sedang diduduki?)
+                    $isSameRole = false;
+                    if ($isPejabat && $existIsPejabat && $exist->jenis_penugasan_id == $request->jenis_penugasan_id) $isSameRole = true;
+                    // Note: Untuk admin, anggap semua admin berbeda tipe (karena ID Role baru vs lama tidak disimpan di tabel Penugasan secara eksplisit, disaring di level satker)
+
+                    // SKENARIO A: Peran yang sama persis
+                    if ($isSameRole) {
+                        if ($isSameSatker) {
+                            $msg = "Regulasi Menolak: Pegawai ini sudah aktif sebagai {$namaPeran} di Satker ini.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        } else if ($canSameRoleOtherSatker == "0") {
+                            $msg = "Regulasi Menolak: Pegawai ini sudah menjadi {$namaPeran} di Satker lain. Aturan tidak mengizinkan merangkap di banyak tempat.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        }
                     }
 
-                    // ATURAN 2B: Definitif hanya boleh 1 di mana pun
-                    if ($isNewDefinitif && $isExistingDefinitif) {
-                        $msg = 'Gagal: Pegawai ini sudah berstatus Pejabat Definitif di Satker lain. Tidak bisa menjadi Definitif di dua tempat sekaligus.';
-                        return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                    // SKENARIO B: Mau merangkap sesama Admin
+                    if (!$isPejabat && !$existIsPejabat && !$isSameRole) {
+                        if ($isSameSatker && $canOtherAdminSameSatker == "0") {
+                            $msg = "Regulasi Menolak: Pegawai sudah menjadi Admin di Satker ini. Aturan tidak mengizinkan merangkap Admin lain di satu Satker.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        }
+                        if (!$isSameSatker && $canOtherAdminOtherSatker == "0") {
+                            $msg = "Regulasi Menolak: Pegawai sudah menjadi Admin di Satker lain. Aturan tidak mengizinkan merangkap Admin antar Satker.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        }
+                    }
+
+                    // SKENARIO C: Mau merangkap Pejabat (Struktural)
+                    if ($isPejabat && $existIsPejabat && !$isSameRole) {
+                        if ($isSameSatker) {
+                            if ($canPejabatSame == "0" || !in_array($exist->jenis_penugasan_id, $allowedPejabatSame)) {
+                                $msg = "Regulasi Menolak: Pegawai ini aktif sebagai {$existNama} di Satker ini. Aturan tidak mengizinkannya merangkap menjadi {$namaPeran}.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                        } else {
+                            if ($canPejabatOther == "0" || !in_array($exist->jenis_penugasan_id, $allowedPejabatOther)) {
+                                $msg = "Regulasi Menolak: Pegawai ini aktif sebagai {$existNama} di Satker lain. Aturan tidak mengizinkannya merangkap menjadi {$namaPeran}.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                        }
                     }
                 }
 
                 // ==============================================================================
-                // VALIDASI 3: ATURAN KURSI SATKER UNTUK PEJABAT (Definitif, PLT, PLH)
+                // NEW ENGINE 1: VALIDASI SYARAT KEKOSONGAN (KHUSUS PLT/PLH/DLL)
+                // ==============================================================================
+                if (!empty($requiresAbsenceOf)) {
+                    foreach ($requiresAbsenceOf as $reqTarget) {
+                        // Jika yang disyaratkan kosong adalah Jenis Penugasan (Pejabat)
+                        if (str_starts_with($reqTarget, 'jp_')) {
+                            $targetJpId = str_replace('jp_', '', $reqTarget);
+                            
+                            $adaYangAktif = Penugasan::where('satker_id', $request->satker_id)
+                                ->where('status_aktif', 1)
+                                ->where('jenis_penugasan_id', $targetJpId)
+                                ->first();
+
+                            if ($adaYangAktif) {
+                                $namaTarget = $adaYangAktif->jenisPenugasan ? $adaYangAktif->jenisPenugasan->nama : 'Pejabat Tersebut';
+                                $msg = "Regulasi Menolak: Tidak dapat menambahkan {$namaPeran} karena saat ini masih ada {$namaTarget} yang aktif bekerja di Satker ini.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                        } 
+                        // Jika yang disyaratkan kosong adalah Role (Admin)
+                        elseif (str_starts_with($reqTarget, 'role_')) {
+                            $targetRoleId = str_replace('role_', '', $reqTarget);
+                            
+                            $adaYangAktif = Penugasan::where('satker_id', $request->satker_id)
+                                ->where('status_aktif', 1)
+                                ->whereHas('user.roles', function($q) use ($targetRoleId) {
+                                    $q->where('m_roles.id', $targetRoleId);
+                                })->first();
+
+                            if ($adaYangAktif) {
+                                $roleTerlarang = \App\Models\MRole::find($targetRoleId);
+                                $namaTargetRole = $roleTerlarang ? $roleTerlarang->nama : 'Admin Tersebut';
+                                $msg = "Regulasi Menolak: Tidak dapat menambahkan {$namaPeran} karena saat ini masih ada {$namaTargetRole} yang aktif bekerja di Satker ini.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                        }
+                    }
+                }
+
+                // ==============================================================================
+                // NEW ENGINE 2: CROSS-CHECK PENGGANTI CUTI (MENCEGAH PENYUSUP LINTAS ROLE)
+                // ==============================================================================
+                // Jika lolos syarat kekosongan di atas, pastikan apakah kekosongan itu karena CUTI.
+                if (!empty($requiresAbsenceOf)) {
+                    $pegawaiCuti = Penugasan::with('jenisPenugasan')
+                        ->where('satker_id', $request->satker_id)
+                        ->where('status_aktif', 0)
+                        ->whereNotNull('tanggal_selesai_cuti')
+                        ->whereDate('tanggal_selesai_cuti', '>=', now())
+                        ->get();
+
+                    foreach ($pegawaiCuti as $cuti) {
+                        $targetJpIdString = $cuti->jenis_penugasan_id ? "jp_" . $cuti->jenis_penugasan_id : "role_" . ($cuti->user->roles->first()->id ?? '');
+                        
+                        if (in_array($targetJpIdString, $requiresAbsenceOf)) {
+                            $cutiRegulasi = $cuti->jenis_penugasan_id ? ($cuti->jenisPenugasan->regulations ?? []) : [];
+                            $canReplace = $cutiRegulasi['cuti_replaceable'] ?? "0";
+                            $allowedReplacementRoles = $cutiRegulasi['cuti_replacement_roles'] ?? [];
+                            
+                            $incomingRoleIdFormat = $isPejabat ? "penugasan_{$request->jenis_penugasan_id}" : "role_{$request->role_id}";
+                            $namaCuti = $cuti->jenis_penugasan_id ? ($cuti->jenisPenugasan->nama ?? 'Pejabat') : 'Pegawai';
+
+                            if ($canReplace == "0") {
+                                $msg = "Regulasi Menolak: {$namaCuti} sedang cuti, namun posisinya disetting TIDAK BOLEH digantikan oleh siapapun untuk sementara waktu.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                            
+                            if (!in_array($incomingRoleIdFormat, $allowedReplacementRoles)) {
+                                $msg = "Regulasi Menolak: {$namaCuti} sedang cuti, tetapi pengaturannya tidak mengizinkan {$namaPeran} sebagai pengganti sementaranya.";
+                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            }
+                        }
+                    }
+                }
+
+                // ==============================================================================
+                // 2. ENGINE VALIDASI: KUOTA PER SATKER & ATURAN CUTI
+                // ==============================================================================
+                $existingInSatkerQuery = Penugasan::where('satker_id', $request->satker_id)
+                    ->where(function($q) {
+                        $q->where('status_aktif', 1)->orWhere(function($subQ) {
+                            $subQ->where('status_aktif', 0)->whereNotNull('tanggal_selesai_cuti')->whereDate('tanggal_selesai_cuti', '>=', now());
+                        });
+                    });
+
+                // Filter tipe kursi
+                if ($isPejabat) {
+                    $existingInSatkerQuery->where('jenis_penugasan_id', $request->jenis_penugasan_id);
+                } else {
+                    $existingInSatkerQuery->whereHas('user.roles', function($q) use ($request) {
+                        $q->where('m_roles.id', $request->role_id);
+                    });
+                }
+                
+                $activeCountInSatker = $existingInSatkerQuery->count();
+
+                if ($allowMultiple == "0" && $activeCountInSatker >= 1) {
+                    // Cek apakah orang yang ada di kursi itu sedang cuti
+                    $existingItem = $existingInSatkerQuery->first();
+                    $sedangCuti = ($existingItem->status_aktif == 0 && !empty($existingItem->tanggal_selesai_cuti));
+                    
+                    // Cek regulasi kursi yang sedang kosong ditinggal cuti itu
+                    $existRegulasi = $isPejabat ? ($existingItem->jenisPenugasan->regulations ?? []) : ($roleBaru->regulations ?? []);
+                    $canReplace = $existRegulasi['cuti_replaceable'] ?? "0";
+                    $allowedReplacementRoles = $existRegulasi['cuti_replacement_roles'] ?? [];
+                    
+                    // Bentuk format ID pengganti (misal: "penugasan_2" untuk plt)
+                    $incomingRoleIdFormat = $isPejabat ? "penugasan_{$request->jenis_penugasan_id}" : "role_{$request->role_id}";
+
+                    if (!$sedangCuti) {
+                        $msg = "Regulasi Menolak: Satker ini sudah memiliki {$namaPeran} yang aktif bekerja. Kuota maksimal untuk peran ini adalah 1 orang.";
+                        return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                    } else if ($sedangCuti) {
+                        if ($canReplace == "0") {
+                            $msg = "Regulasi Menolak: {$namaPeran} di Satker ini sedang Cuti, namun sistem mengatur posisinya TIDAK BOLEH digantikan sementara.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        } else if (!in_array($incomingRoleIdFormat, $allowedReplacementRoles)) {
+                            $msg = "Regulasi Menolak: {$namaPeran} sedang cuti, tetapi posisinya tidak diizinkan digantikan oleh peran yang Anda pilih.";
+                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                        }
+                    }
+                } else if ($allowMultiple == "1" && $maxMultiple > 0 && $activeCountInSatker >= $maxMultiple) {
+                    $msg = "Regulasi Menolak: Kuota {$namaPeran} di Satker ini sudah penuh (Maksimal {$maxMultiple} orang aktif).";
+                    return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                }
+
+                // ==============================================================================
+                // 3. LOGIKA HIERARKI STRUKTURAL: KONFIRMASI DEFINITIF VS PLT/PLH
                 // ==============================================================================
                 $messageForSuccess = 'Data penugasan berhasil ditambah!';
 
                 if ($isPejabat) {
-                    // Cari kursi yang sedang terisi (Aktif biasa ATAU Aktif karena cuti)
-                    $existingDefinitif = Penugasan::where('satker_id', $request->satker_id)
-                        ->whereHas('jenisPenugasan', function($q) { $q->whereRaw('LOWER(nama) LIKE ?', ['%definitif%']); })
-                        ->where(function($q) { 
-                            $q->where('status_aktif', 1)
-                              ->orWhere(function($subQ) { 
-                                  $subQ->where('status_aktif', 0)->whereNotNull('tanggal_selesai_cuti')->whereDate('tanggal_selesai_cuti', '>=', now()); 
-                              }); 
-                        })->first();
-                        
-                    $existingPlt = Penugasan::where('satker_id', $request->satker_id)->whereHas('jenisPenugasan', function($q){$q->whereRaw('LOWER(nama) LIKE ?', ['%plt%']);})->where('status_aktif', 1)->first();
-                    $existingPlh = Penugasan::where('satker_id', $request->satker_id)->whereHas('jenisPenugasan', function($q){$q->whereRaw('LOWER(nama) LIKE ?', ['%plh%']);})->where('status_aktif', 1)->first();
+                    $namaJenisBaruLower = strtolower($namaPeran);
+                    $isNewDefinitif = str_contains($namaJenisBaruLower, 'definitif');
 
-                    // --- JIKA MENAMBAHKAN DEFINITIF ---
                     if ($isNewDefinitif) {
-                        if ($existingDefinitif) {
-                            $sedangCuti = $existingDefinitif->status_aktif == 0 && !empty($existingDefinitif->tanggal_selesai_cuti);
-                            $msg = $sedangCuti 
-                                ? 'Gagal: Pejabat Definitif di Satker ini sedang dalam masa Cuti (kursi tidak kosong). Anda hanya dapat menugaskan PLT atau PLH untuk menggantikan sementara.'
-                                : 'Gagal: Satker ini sudah memiliki Pejabat Definitif yang aktif. Silakan akhiri tugas pejabat sebelumnya secara permanen (beri End Date) terlebih dahulu.';
-                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
-                        }
-                        
-                        // Definitif baru masuk -> Cek apakah ada PLT/PLH yang harus dinonaktifkan
-                        if ($existingPlt || $existingPlh) {
-                            
-                            // --- LOGIKA KONFIRMASI BARU ---
-                            // Jika request belum membawa flag 'confirm_override', minta frontend memunculkan popup
+                        // Cari adakah PLT / PLH yang sedang menumpang di satker ini?
+                        $existingPltPlh = Penugasan::where('satker_id', $request->satker_id)
+                            ->whereHas('jenisPenugasan', function($q) { 
+                                $q->whereRaw('LOWER(nama) LIKE ?', ['%plt%'])->orWhereRaw('LOWER(nama) LIKE ?', ['%plh%']); 
+                            })->where('status_aktif', 1)->exists();
+
+                        if ($existingPltPlh) {
+                            // Minta persetujuan UI (Popup SweetAlert)
                             if (!$request->has('confirm_override')) {
                                 return response()->json([
                                     'success' => false,
                                     'require_confirmation' => true,
-                                    'message' => 'Terdapat Pejabat PLT/PLH yang sedang aktif di Satker ini. Menambahkan Pejabat Definitif akan secara otomatis menonaktifkan PLT/PLH tersebut hari ini juga. Apakah Anda yakin ingin melanjutkan?'
-                                ], 200); // Kirim status 200 agar masuk ke alur sukses di JS
+                                    'message' => 'Terdapat Pejabat PLT/PLH aktif di Satker ini. Karena Definitif baru masuk, PLT/PLH tersebut akan otomatis dinonaktifkan hari ini juga. Lanjutkan?'
+                                ], 200); 
                             }
-                            // -------------------------------
 
+                            // Kick out PLT/PLH (Berikan End Date hari ini)
                             Penugasan::where('satker_id', $request->satker_id)
-                                ->whereHas('jenisPenugasan', function($q) { $q->whereRaw('LOWER(nama) LIKE ?', ['%plt%'])->orWhereRaw('LOWER(nama) LIKE ?', ['%plh%']); })
+                                ->whereHas('jenisPenugasan', function($q) { 
+                                    $q->whereRaw('LOWER(nama) LIKE ?', ['%plt%'])->orWhereRaw('LOWER(nama) LIKE ?', ['%plh%']); 
+                                })
                                 ->where('status_aktif', 1)
                                 ->update(['status_aktif' => 0, 'tanggal_selesai' => now()]);
-                            $messageForSuccess .= ' Catatan: Pejabat PLT/PLH sebelumnya otomatis dinonaktifkan dan masuk ke Histori karena Pejabat Definitif baru telah menjabat.';
-                        }
-                    }
-                    
-                    // --- JIKA MENAMBAHKAN PLT / PLH ---
-                    else if ($isNewPlt || $isNewPlh) {
-                        // Tolak jika ada Definitif yang AKTIF BEKERJA (bukan cuti)
-                        if ($existingDefinitif) {
-                            $sedangCuti = $existingDefinitif->status_aktif == 0 && !empty($existingDefinitif->tanggal_selesai_cuti);
-                            if (!$sedangCuti) {
-                                // Artinya existingDefinitif benar-benar hadir dan aktif bekerja (status_aktif == 1)
-                                $msg = "Gagal: Tidak bisa menambahkan PLT/PLH karena ada Pejabat Definitif yang sedang aktif di Satker ini. PLT/PLH hanya bisa ditambahkan jika kursi Definitif sedang kosong (sudah End Date) atau pejabatnya sedang Cuti.";
-                                return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
-                            }
-                        }
-                        
-                        // Validasi Kuota 1 PLT / 1 PLH per satker
-                        if ($isNewPlt && $existingPlt) {
-                            $msg = "Gagal: Satker ini sudah memiliki Pejabat PLT yang aktif. Hanya diperbolehkan 1 PLT dalam satu waktu.";
-                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
-                        }
-                        if ($isNewPlh && $existingPlh) {
-                            $msg = "Gagal: Satker ini sudah memiliki Pejabat PLH yang aktif. Hanya diperbolehkan 1 PLH dalam satu waktu.";
-                            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                            
+                            $messageForSuccess .= ' Catatan: PLT/PLH yang menjabat sebelumnya telah otomatis diakhiri (End Date).';
                         }
                     }
                 }
@@ -545,7 +685,7 @@ class PenugasanController extends Controller
                 }
 
                 // $user->roles()->syncWithoutDetaching([$request->role_id]);
-                $user->roles()->sync([$request->role_id]);
+                $user->roles()->syncWithoutDetaching([$request->role_id]);
 
                 Log::info('Isi tabel user_roles setelah insert:', [
                     'data' => DB::table('user_roles')->get()
@@ -643,8 +783,24 @@ class PenugasanController extends Controller
     {
         try {
             $penugasan = Penugasan::findOrFail($id);
+            $isSelf = (auth()->id() == $penugasan->user_id); // Gunakan helper auth()
+            $isCutiRequest = ($request->jenis_aksi === 'cuti');
 
-            if ($request->jenis_aksi === 'cuti') {
+            // CEK HAK AKSI SECARA DINAMIS DARI DATABASE
+            $perm = $this->getPermissions();
+            if (!$perm['is_super'] && !$perm['all_access']) {
+                // Tentukan aksi apa yang sedang dilakukan user ini
+                $reqAction = $isCutiRequest ? ($isSelf ? 'cuti_self' : 'cuti_other') : ($isSelf ? 'end_self' : 'end_other');
+                
+                if (!in_array($reqAction, $perm['actions'])) {
+                    return response()->json([
+                        'success' => false, 
+                        'message' => 'Akses Ditolak: Anda tidak memiliki izin untuk melakukan aksi ('. $reqAction .') ini.'
+                    ], 403);
+                }
+            }
+
+            if ($isCutiRequest) {
                 $penugasan->update([
                     'status_aktif'         => 0,
                     'tanggal_mulai_cuti'   => $request->tanggal_mulai_cuti,
@@ -652,7 +808,6 @@ class PenugasanController extends Controller
                 ]);
                 $pesan = 'Pejabat berhasil dicutikan.';
             } 
-
             else {
                 $penugasan->update([
                     'status_aktif'         => 0,
@@ -669,9 +824,10 @@ class PenugasanController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            // Jika masih error, pesan asli akan muncul di SweetAlert
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal memperbarui status.'
+                'message' => 'Gagal memproses: ' . $e->getMessage()
             ], 500);
         }
     }

@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class MRole extends Model
 {
-    use HasUuids;
-
     protected $table = 'm_roles';
-    protected $fillable = ['key', 'nama'];
+    public $timestamps = false; 
 
-    public function users()
-    {
-        return $this->belongsToMany(User::class, 'user_roles', 'role_id', 'user_id');
-    }
+    protected $fillable = [
+        'key', 'nama', 'menus', 'is_assignable', 'regulations'
+    ];
+
+    protected $casts = [
+        'menus' => 'array',
+        'is_assignable' => 'boolean',
+        'regulations' => 'array',
+    ];
 }

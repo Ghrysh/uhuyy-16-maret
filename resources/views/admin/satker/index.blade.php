@@ -227,7 +227,9 @@
                     </div>
 
                     {{-- BUTTON TAMBAH --}}
-                    <button type="button" onclick="toggleModal('modalTambahSatker')"
+                    @php $canCreateSatker = $perm['is_super'] || $perm['all_access'] || in_array('create', $perm['actions'] ?? []); @endphp
+                    
+                    <button type="button" @click="{{ $canCreateSatker ? "openTambahModalWithPeriode(activePeriode)" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menambah Satker.', 'error')" }}"
                         class="bg-[#112D4E] hover:bg-blue-900 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition shadow-sm whitespace-nowrap">
                         <i class="fas fa-plus text-[10px]"></i>
                         <span class="hidden sm:inline">Tambah Satker</span>
@@ -373,9 +375,9 @@
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Wilayah</label>
                         <select name="wilayah_id" id="wilayah_id" onchange="handleWilayahChange()" required
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                            <option value="">Pilih wilayah</option>
+                            <option value="" data-tingkat="">Pilih wilayah</option>
                             @foreach ($wilayahs as $w)
-                                <option value="{{ $w->id }}">{{ $w->nama_wilayah }}</option>
+                                <option value="{{ $w->id }}" data-tingkat="{{ $w->tingkat_wilayah_id }}">{{ $w->nama_wilayah }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -455,34 +457,71 @@
 
                     <div>
                         {{-- TAMBAHAN: Opsi Khusus Penomoran Balai --}}
-                        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl mb-4">
-                            <label id="wrapper_opsi_balai" class="relative inline-flex items-center cursor-pointer mb-3">
-                                <input type="checkbox" id="is_balai_checkbox" class="sr-only peer" onchange="toggleBalaiOptions()">
-                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                <span class="ml-3 text-xs font-bold text-indigo-900 uppercase">Format Penomoran Khusus Balai</span>
-                            </label>
+                        <div id="wrapper_opsi_balai" class="hidden">
+                            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 mb-3">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-700">Format Penomoran Balai</h4>
+                                    <p class="text-[11px] text-slate-500">Gunakan angka awalan khusus untuk Balai</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="is_balai_checkbox" class="sr-only peer" onchange="toggleBalaiOptions()">
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#112D4E]"></div>
+                                </label>
+                            </div>
 
-                            <div id="container_opsi_balai" class="hidden">
+                            <div id="container_opsi_balai" class="hidden mb-4">
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Pilih Kategori Balai</label>
-                                <select id="start_num_balai" onchange="updateNamaBalai()" class="w-full px-4 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
+                                <select id="start_num_balai" onchange="updateNamaBalai()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Pilih Jenis Balai --</option>
                                     <option value="11">Balai Pendidikan dan Pelatihan (Mulai dari 11)</option>
                                     <option value="31">Balai Penelitian dan Pengembangan (Mulai dari 31)</option>
                                 </select>
-                                <p class="text-[10px] text-indigo-600 mt-1 italic">*Jika dicentang, auto-generate kode akan menyesuaikan angka awalan ini.</p>
                             </div>
                         </div>
 
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kode Satker (Generate)</label>
-                        <div class="flex gap-2 items-center" id="kode_container">
-                            <input type="text" name="kode_satker" id="kode_satker" placeholder="Contoh: 0102"
-                                required
-                                class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        {{-- DROPDOWN RUMUS MANUAL (OPSIONAL) --}}
+                        <div class="mb-5">
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
+                                Gunakan Rumus Lain (Opsional)
+                            </label>
+                            <select name="rumus_id" id="rumus_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                <option value="" data-original-text="-- Default --">-- Default --</option>
+                                @isset($rumusList)
+                                    @foreach($rumusList as $rm)
+                                        {{-- TAMBAHKAN data-pola DI SINI --}}
+                                        <option value="{{ $rm->id }}" 
+                                            data-jenis="{{ $rm->jenis_satker_id }}"
+                                            data-wilayah="{{ $rm->tingkat_wilayah_id }}"
+                                            data-jabatan="{{ $rm->ref_jabatan_satker_id }}"
+                                            data-pola="{{ $rm->pola }}"
+                                            data-original-text="{{ $rm->nama_rumus }} ( {{ $rm->pola }} )">
+                                            {{ $rm->nama_rumus }} ( {{ $rm->pola }} )
+                                        </option>
+                                    @endforeach
+                                @endisset
+                            </select>
+                        </div>
 
-                            <button type="button" onclick="generateSatkerCode(event)" title="Auto-generate kode"
-                                class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition flex items-center justify-center min-w-[45px]">
-                                <i class="fas fa-magic"></i>
-                            </button>
+                        {{-- Kode Satker (Generate) --}}
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kode Satker (Generate)</label>
+                            <div class="flex gap-2 items-center" id="kode_container">
+                                <input type="text" name="kode_satker" id="kode_satker" placeholder="Contoh: 0102"
+                                    required
+                                    class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+
+                                {{-- Tombol Generate Dikembalikan ke Desain Asli (Hanya Icon) --}}
+                                <button type="button" onclick="generateSatkerCode(event)" title="Auto-generate kode"
+                                    class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition flex items-center justify-center min-w-[45px]">
+                                    <i class="fas fa-magic"></i>
+                                </button>
+                            </div>
+                            
+                            {{-- Container Gap/Nomor Bolong --}}
+                            <div id="gap_selection_container" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2"><i class="fas fa-info-circle mr-1"></i> Terdeteksi Nomor Kosong di Tengah:</p>
+                                <div id="gap_list" class="flex flex-wrap gap-2"></div>
+                            </div>
                         </div>
                         
                         <div id="gap_selection_container" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -508,16 +547,8 @@
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                     </div>
 
-                    <div id="container_periode">
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Periode</label>
-                        <select name="periode_id" id="periode_id" onchange="filterParent()" required
-                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                            <option value="">Pilih Periode</option>
-                            @foreach ($periodes as $pe)
-                                <option value="{{ $pe->id }}">{{ $pe->nama_periode }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    {{-- Periode (Hidden, otomatis mengikuti Tab yang sedang aktif) --}}
+                    <input type="hidden" name="periode_id" id="periode_id" value="">
 
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Keterangan</label>
@@ -621,10 +652,12 @@
                     {{-- Wilayah --}}
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Wilayah</label>
-                        <select name="wilayah_id" id="edit_wilayah_id" required
-                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                        <select name="wilayah_id" id="wilayah_id" onchange="handleWilayahChange()" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                            <option value="" data-tingkat="">Pilih wilayah</option>
                             @foreach ($wilayahs as $w)
-                                <option value="{{ $w->id }}">{{ $w->nama_wilayah }}</option>
+                                {{-- BAGIAN INI YANG DITAMBAH DATA-TINGKAT --}}
+                                <option value="{{ $w->id }}" data-tingkat="{{ $w->tingkat_wilayah_id }}">{{ $w->nama_wilayah }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -776,7 +809,9 @@
                             <h4 class="text-sm font-bold text-slate-700">Daftar Pejabat</h4>
                         </div>
 
-                        <button type="button" onclick="openModalPenugasanDariDetail()"
+                        @php $canAssign = $perm['is_super'] || $perm['all_access'] || in_array('assign', $perm['actions'] ?? []); @endphp
+                        
+                        <button type="button" onclick="{{ $canAssign ? "openModalPenugasanDariDetail()" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menambah Penugasan.', 'error')" }}"
                             class="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-blue-100">
                             <i class="fas fa-user-plus mr-2"></i> Tambah Penugasan
                         </button>
@@ -1354,7 +1389,11 @@
         });
     </script>
     <script>
-        // Simpan semua data asli saat halaman dimuat
+        // ==============================================================
+        // 1. DATA MASTER DARI DATABASE (HARUS DI PALING ATAS)
+        // ==============================================================
+        const refJabatan = @json($refJabatanSatker);
+        
         const allParentOptions = Array.from(document.querySelectorAll('#parent_satker_id option'))
             .filter(opt => opt.value !== "")
             .map(opt => ({
@@ -1364,8 +1403,7 @@
                 periode: opt.getAttribute('data-periode') || ''
             }));
 
-        // console.log("Daftar Parent Options:", allParentOptions);
-        // Inisialisasi TomSelect
+        // Inisialisasi TomSelect untuk Parent
         var control = new TomSelect('#parent_satker_id', {
             render: {
                 option: function(data, escape) {
@@ -1379,349 +1417,95 @@
             }
         });
 
+        // FUNGSI BARU UNTUK BUKA MODAL TAMBAH DENGAN PERIODE AKTIF
+        function openTambahModalWithPeriode(periodeId) {
+            resetTambahSatkerModal(); // Reset isian form sebelumnya
+            document.getElementById('periode_id').value = periodeId; // Set periode secara tersembunyi
+            toggleModal('modalTambahSatker'); // Buka modalnya
+            filterParent(); // Pastikan opsi parent menyesuaikan periode
+        }
+
+        // ==============================================================
+        // 2. FUNGSI FILTER & LOGIKA FORM DINAMIS
+        // ==============================================================
         function filterParent() {
             const jenisSelect = document.getElementById('jenis_satker_id');
             const jenisId = jenisSelect.value;
             const parentContainer = document.getElementById('parent_container');
             const jabatanContainer = document.getElementById('container_status_jabatan'); 
+            
+            // AMBIL PERIODE AKTIF DARI HIDDEN INPUT
+            const currentPeriodeId = document.getElementById('periode_id').value;
 
-            // --- 🟢 LOGIKA BARU: TAMPILKAN OPSI BALAI HANYA UNTUK ESELON 3 ---
+            // --- TAMPILKAN OPSI BALAI HANYA UNTUK ESELON 3 ---
             const wrapperBalai = document.getElementById('wrapper_opsi_balai');
             const selectedText = jenisSelect.options[jenisSelect.selectedIndex]?.text.toLowerCase() || '';
             
-            // Asumsi: ID untuk Eselon 3 adalah '4' (sesuaikan jika berbeda di DB kamu)
-            // Atau sistem akan mendeteksi jika nama levelnya mengandung kata 'eselon 3' / 'eselon iii'
             if (jenisId === '4' || selectedText.includes('eselon 3') || selectedText.includes('eselon iii')) {
                 if (wrapperBalai) wrapperBalai.classList.remove('hidden');
             } else {
                 if (wrapperBalai) {
                     wrapperBalai.classList.add('hidden');
-                    // Reset agar centangnya hilang kalau user ganti ke eselon lain
                     document.getElementById('is_balai_checkbox').checked = false;
                     toggleBalaiOptions(); 
                 }
             }
 
             // --- LOGIKA TAMPIL/SEMBUNYI JABATAN ---
-            // Jika jenisId ada dan nilainya >= 2 (Eselon 2, 3, 4, dst)
             if (jenisId !== "" && parseInt(jenisId) >= 2) {
                 jabatanContainer.classList.remove('hidden');
             } else {
                 jabatanContainer.classList.add('hidden');
-                // Reset nilai jika disembunyikan
                 document.getElementById('tanpa_jabatan').value = "";
                 document.getElementById('container_jabatan_fungsional').classList.add('hidden');
                 
-                // --- 🟢 TAMBAHKAN KODE INI DI SINI 🟢 ---
-                // Pastikan nama satker bersih
                 const namaSatkerInput = document.getElementById('nama_satker');
                 if (namaSatkerInput) {
                     namaSatkerInput.value = '';
                     namaSatkerInput.dataset.staticText = '';
                 }
-                
-                // Reset hidden ID juga karena Eselon 1 tidak punya jabatan
                 updateRefJabatanId();
-                // ----------------------------------------
             }
 
-            // --- LOGIKA PARENT (Sudah ada di kode Anda) ---
+            // --- LOGIKA PARENT ---
             if (jenisId === "1" || jenisId === "") {
                 parentContainer.classList.add('hidden');
-                if (control) control.clear();
+                if (typeof control !== 'undefined' && control) control.clear();
                 return;
             }
 
             parentContainer.classList.remove('hidden');
             const targetParentEselon = parseInt(jenisId) - 1;
+            
+            // FILTER BERDASARKAN ESELON DAN PERIODE AKTIF
+            const filteredData = allParentOptions.filter(opt => 
+                opt.eselon === targetParentEselon && 
+                opt.periode == currentPeriodeId
+            );
 
-            const filteredData = allParentOptions.filter(opt => opt.eselon === targetParentEselon);
-
-            control.clearOptions();
-            filteredData.forEach(opt => {
-                control.addOption({
-                    value: opt.id,
-                    text: opt.text,
-                    periode: opt.periode
-                });
-            });
-            control.refreshOptions(false);
-        }
-
-
-        function updateNamaSatkerDariKabupaten() {
-            const namaSatkerInput = document.getElementById('nama_satker');
-            const wilayahSelect = document.getElementById('kabupaten_id');
-            const madrasahSelect = document.getElementById('jenis_madrasah');
-            const kategoriSelect = document.getElementById('kategori_kotakab');
-
-            let baseName = "";
-
-            // 1. Prioritas: Jika Madrasah dipilih
-            if (madrasahSelect && madrasahSelect.value !== "") {
-                baseName = madrasahSelect.options[madrasahSelect.selectedIndex].text;
-            }
-            // 2. Jika Kategori Unit dipilih (misal: Bimas Islam/Penyelenggara)
-            else if (kategoriSelect && kategoriSelect.value !== "" && kategoriSelect.value !== "madrasah") {
-                baseName = kategoriSelect.options[kategoriSelect.selectedIndex].text;
-            }
-            // 3. Fallback: Nama Kantor Kemenag Kabupaten
-            else if (wilayahSelect && wilayahSelect.value !== "") {
-                baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
-            }
-
-            namaSatkerInput.value = baseName;
-            namaSatkerInput.dataset.staticText = baseName ? baseName + " " : " ";
-        }
-
-        // Tambahkan fungsi handleJabatanChange jika belum ada untuk mendeteksi pilihan "Ada/Tidak Ada"
-        function handleJabatanChange() {
-            const jabatanSelect = document.getElementById('tanpa_jabatan');
-            const status = jabatanSelect.value;
-            const selectedOption = jabatanSelect.options[jabatanSelect.selectedIndex];
-            const parentUuid = selectedOption ? selectedOption.dataset.id : null;
-            const namaSatkerInput = document.getElementById('nama_satker');
-            const jenisSatker = document.getElementById('jenis_satker_id').value;
-
-            const containers = [
-                'container_kategori_unit',
-                'container_kategori_kotakab',
-                'container_kabupaten',
-                'container_jenis_madrasah', // Kontainer madrasah
-                'container_jabatan_fungsional'
-            ];
-
-            // Sembunyikan semua dulu
-            containers.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.add('hidden');
-            });
-
-            // --- 🟢 TAMBAHKAN KODE INI DI SINI 🟢 ---
-            // Reset value select anak agar ID lamanya tidak bocor ke hidden input
-            if(document.getElementById('kategori_unit')) document.getElementById('kategori_unit').value = "";
-            if(document.getElementById('kategori_kotakab')) document.getElementById('kategori_kotakab').value = "";
-            if(document.getElementById('jenis_madrasah')) document.getElementById('jenis_madrasah').value = "";
-            if(document.getElementById('jabatan_id')) document.getElementById('jabatan_id').value = "";
-
-            // Jika "-- Pilih Status Jabatan --" yang terpilih (kosong)
-            if (!status) {
-                namaSatkerInput.value = '';
-                namaSatkerInput.dataset.staticText = '';
-                updateRefJabatanId(); // eksekusi ini supaya hidden ID kembali kosong
-                resetKodeSatker(); // hapus input nomor otomatis jika ada
-                return;
-            }
-            // ----------------------------------------
-
-            // 1. JABATAN FUNGSIONAL
-            if (status === 'jabatan_fungsional') {
-                document.getElementById('container_jabatan_fungsional').classList.remove('hidden');
-            } // <--- Tambahkan tutup kurawal ini
-
-            // 2. LOGIC JABATAN BERTINGKAT (KAB/KOTA & KANWIL)
-            const children = refJabatan.filter(item => item.parent_id === parentUuid);
-
-            if (children.length > 0) {
-                let targetSelect = null;
-
-                if (status === 'jabatan_kotakab') {
-                    document.getElementById('container_kabupaten').classList.remove('hidden');
-                    if (jenisSatker === '4') {
-                        document.getElementById('container_kategori_kotakab').classList.remove('hidden');
-                        targetSelect = document.getElementById('kategori_kotakab');
-
-                        // CRITICAL: Jika kategori_kotakab sudah terpilih "Madrasah", pastikan container madrasah tetap muncul
-                        const kategoriSelect = document.getElementById('kategori_kotakab');
-                        if (kategoriSelect.value !== "") {
-                            handleKategoriKotaKabChange(); // Trigger agar madrasah muncul jika sudah dipilih
-                        }
-                    }
-                } else if (jenisSatker === '3') {
-                    document.getElementById('container_kategori_unit').classList.remove('hidden');
-                    targetSelect = document.getElementById('kategori_unit');
-                }
-
-                if (targetSelect && targetSelect.options.length <= 1) {
-                    populateSubJabatan(parentUuid, targetSelect);
-                }
-            }
-
-            // 3. UPDATE NAMA SATKER
-            if (status === 'tidak_ada') {
-                namaSatkerInput.value = 'Tidak Ada Jabatan';
-                namaSatkerInput.dataset.staticText = '';
-            } else if (status === 'jabatan_fungsional') {
-                const fungsionalSelect = document.getElementById('jabatan_id');
-                const opt = fungsionalSelect.options[fungsionalSelect.selectedIndex];
-                if (fungsionalSelect.value && opt.value !== "") {
-                    const text = opt.text.includes(' - ') ? opt.text.split(' - ')[1] : opt.text;
-                    namaSatkerInput.value = text;
-                    namaSatkerInput.dataset.staticText = ''; // <-- Ubah jadi kosong agar bebas diedit
-                }
-            } else if (status === 'jabatan_kotakab') {
-                updateNamaSatkerDariKabupaten();
-            } else if (status === 'jabatan_kanwil') {
-                // LOGIKA BARU: Cek apakah Kategori Unit (Eselon III Kanwil) ada isinya
-                const kategoriUnitSelect = document.getElementById('kategori_unit');
-                if (kategoriUnitSelect && kategoriUnitSelect.value !== "") {
-                    const text = kategoriUnitSelect.options[kategoriUnitSelect.selectedIndex].text;
-                    namaSatkerInput.value = text;
-                    namaSatkerInput.dataset.staticText = text + " "; // Ini tetap dikunci jika butuh prefix
-                } else {
-                    namaSatkerInput.value = selectedOption.text;
-                    namaSatkerInput.dataset.staticText = ''; // <-- Ubah jadi kosong agar bebas diedit
-                }
-            } else {
-                // UNTUK MANAJERIAL, PELAKSANA, DLL
-                namaSatkerInput.value = selectedOption.text;
-                namaSatkerInput.dataset.staticText = ''; // <-- UBAH JADI KOSONG DI SINI
-            }
-
-            updateRefJabatanId();
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Daftar semua ID yang harus memicu update nama satker saat nilainya berubah
-            const triggerIds = [
-                'kabupaten_id',
-                'kategori_kotakab',
-                'jenis_madrasah',
-                'kategori_unit',
-                'jabatan_id'
-            ];
-
-            triggerIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.addEventListener('change', function() {
-                        // Jika statusnya adalah jabatan kotakab, gunakan fungsi khusus kabupaten
-                        const status = document.getElementById('tanpa_jabatan').value;
-                        if (status === 'jabatan_kotakab') {
-                            updateNamaSatkerDariKabupaten();
-                        } else {
-                            handleJabatanChange();
-                        }
+            if (typeof control !== 'undefined' && control) {
+                control.clearOptions();
+                filteredData.forEach(opt => {
+                    control.addOption({
+                        value: opt.id,
+                        text: opt.text,
+                        periode: opt.periode
                     });
-                }
-            });
-        });
-
-        /**
-         * Helper function untuk mengisi dropdown anak (level 2 atau 3)
-         * berdasarkan parent_id dari database
-         */
-        function getKode(selectId) {
-
-            const el = document.getElementById(selectId);
-
-            if (!el) return "";
-
-            const option = el.options[el.selectedIndex];
-
-            return option?.dataset?.kode || "";
-
+                });
+                control.refreshOptions(false);
+            }
         }
 
-
-        // ================================
-        // POPULATE SUB JABATAN
-        // ================================
-        function populateSubJabatan(parentId, targetSelect) {
-
-            const children = refJabatan.filter(item => item.parent_id === parentId);
-
-            targetSelect.innerHTML = '<option value="">-- Pilih --</option>';
-
-            children.forEach(item => {
-
-                const option = document.createElement("option");
-
-                option.value = item.key_jabatan;
-                option.textContent = item.label_jabatan;
-
-                option.dataset.id = item.id;
-                option.dataset.kode = item.kode_dasar || "";
-                option.dataset.key = item.key_jabatan;
-
-                targetSelect.appendChild(option);
-
-            });
-
-        }
-
-        function getMiddleCode() {
-
-            const status = document.getElementById("tanpa_jabatan").value;
-
-            const kodeJabatan = getKode("tanpa_jabatan");
-            const kodeFungsional = getKode("jabatan_id");
-            const kodeUnit = getKode("kategori_unit");
-            const kodeKategori = getKode("kategori_kotakab");
-            const kodeMadrasah = getKode("jenis_madrasah");
-            const kategoriUnitEl = document.getElementById("kategori_unit");
-
-            // =========================
-            // JABATAN FUNGSIONAL
-            // =========================
-            if (status === "jabatan_fungsional") {
-                return kodeFungsional || "";
-            }
-
-            // =========================
-            // MANAJERIAL
-            // =========================
-            if (status === "manajerial") {
-                return ""; // biarkan backend yang generate
-            }
-
-            // =========================
-            // MADRASAH
-            // =========================
-            if (kodeMadrasah) {
-                return kodeMadrasah;
-            }
-
-            // =========================
-            // KATEGORI KOTA/KAB
-            // =========================
-            if (kodeKategori) {
-                return kodeKategori;
-            }
-
-            // =========================
-            // UNIT KANWIL
-            // =========================
-            if (kategoriUnitEl && kategoriUnitEl.value) {
-
-                const selected = kategoriUnitEl.options[kategoriUnitEl.selectedIndex];
-                const key = selected?.dataset?.key;
-                const kode = selected?.dataset?.kode;
-
-                console.log("UNIT KEY:", key);
-                console.log("UNIT KODE:", kode);
-
-                // Non Tata Usaha Kanwil
-                if (key === "no_tu_kanwil") {
-                    return "04";
-                }
-
-                return kode || "";
-            }
-
-            return kodeJabatan || "";
-        }
-
-
-        const refJabatan = @json($refJabatanSatker);
-
+        // ==============================================================
+        // 3. FUNGSI FILTER JABATAN BERDASARKAN WILAYAH
+        // ==============================================================
         function handleWilayahChange() {
-
             const wilayahSelect = document.getElementById('wilayah_id');
             const jabatanSelect = document.getElementById('tanpa_jabatan');
 
             if (!wilayahSelect.value) {
-                jabatanSelect.innerHTML = '<option value="">-- Pilih Status Jabatan --</option>';
+                jabatanSelect.innerHTML = '<option value="">-- Pilih Wilayah Terlebih Dahulu --</option>';
+                handleJabatanChange();
                 return;
             }
 
@@ -1731,7 +1515,6 @@
 
             let finalOptions = [];
 
-            // jabatan umum TANPA manajerial
             const commonOptions = refJabatan.filter(item =>
                 item.tingkat_wilayah_id === null &&
                 item.parent_id === null &&
@@ -1740,65 +1523,168 @@
 
             // PUSAT
             if (wilayahText.includes('pusat')) {
-
-                const pusatOptions = refJabatan.filter(item =>
+                finalOptions = refJabatan.filter(item =>
                     item.tingkat_wilayah_id === null && item.parent_id === null
                 );
-
-                finalOptions = pusatOptions;
-
             }
-
-            // PTKN
-            else if (wilayahText.includes('ptkn')) {
-
+            // PTKN / UNIVERSITAS / INSTITUT
+            else if (wilayahText.includes('ptkn') || wilayahText.includes('universitas') || wilayahText.includes('institut')) {
                 const ptknOptions = refJabatan.filter(item =>
                     item.tingkat_wilayah_id === 4 && item.parent_id === null
                 );
-
                 finalOptions = [...ptknOptions, ...commonOptions];
-
             }
-
             // PROVINSI / KABKOTA
             else {
-
                 const wilayahOptions = refJabatan.filter(item =>
                     item.key_jabatan === 'jabatan_kanwil' ||
                     item.key_jabatan === 'jabatan_kotakab'
                 );
-
                 finalOptions = [...wilayahOptions, ...commonOptions];
-
             }
 
             finalOptions.forEach(opt => {
-
                 const el = document.createElement('option');
                 el.value = opt.key_jabatan;
                 el.textContent = opt.label_jabatan;
                 el.dataset.id = opt.id;
                 el.dataset.kode = opt.kode_dasar || "";
-
                 jabatanSelect.appendChild(el);
-
             });
 
             handleJabatanChange();
+        }
+
+        function populateSubJabatan(parentId, targetSelect) {
+            const children = refJabatan.filter(item => item.parent_id === parentId);
+            targetSelect.innerHTML = '<option value="">-- Pilih --</option>';
+            children.forEach(item => {
+                const option = document.createElement("option");
+                option.value = item.key_jabatan;
+                option.textContent = item.label_jabatan;
+                option.dataset.id = item.id;
+                option.dataset.kode = item.kode_dasar || "";
+                option.dataset.key = item.key_jabatan;
+                targetSelect.appendChild(option);
+            });
+        }
+
+        function handleJabatanChange() {
+            const jabatanSelect = document.getElementById('tanpa_jabatan');
+            const status = jabatanSelect.value;
+            const selectedOption = jabatanSelect.options[jabatanSelect.selectedIndex];
+            const parentUuid = selectedOption ? selectedOption.dataset.id : null;
+            const namaSatkerInput = document.getElementById('nama_satker');
+            const jenisSatker = document.getElementById('jenis_satker_id').value;
+
+            const containers = [
+                'container_kategori_unit', 'container_kategori_kotakab',
+                'container_kabupaten', 'container_jenis_madrasah', 'container_jabatan_fungsional'
+            ];
+
+            containers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+
+            if(document.getElementById('kategori_unit')) document.getElementById('kategori_unit').value = "";
+            if(document.getElementById('kategori_kotakab')) document.getElementById('kategori_kotakab').value = "";
+            if(document.getElementById('jenis_madrasah')) document.getElementById('jenis_madrasah').value = "";
+            if(document.getElementById('jabatan_id')) document.getElementById('jabatan_id').value = "";
+
+            if (!status) {
+                namaSatkerInput.value = '';
+                namaSatkerInput.dataset.staticText = '';
+                updateRefJabatanId(); 
+                resetKodeSatker(); 
+                return;
+            }
+
+            if (status === 'jabatan_fungsional') {
+                document.getElementById('container_jabatan_fungsional').classList.remove('hidden');
+            } 
+
+            const children = refJabatan.filter(item => item.parent_id === parentUuid);
+
+            if (children.length > 0) {
+                let targetSelect = null;
+                if (status === 'jabatan_kotakab') {
+                    document.getElementById('container_kabupaten').classList.remove('hidden');
+                    if (jenisSatker === '4') { // Asumsi ID 4 = Eselon 3 Kota/Kab
+                        document.getElementById('container_kategori_kotakab').classList.remove('hidden');
+                        targetSelect = document.getElementById('kategori_kotakab');
+                        if (targetSelect.value !== "") handleKategoriKotaKabChange(); 
+                    }
+                } else if (jenisSatker === '3') { // Asumsi ID 3 = Eselon 3 Kanwil
+                    document.getElementById('container_kategori_unit').classList.remove('hidden');
+                    targetSelect = document.getElementById('kategori_unit');
+                }
+
+                if (targetSelect && targetSelect.options.length <= 1) {
+                    populateSubJabatan(parentUuid, targetSelect);
+                }
+            }
+
+            if (status === 'tidak_ada') {
+                namaSatkerInput.value = 'Tidak Ada Jabatan';
+                namaSatkerInput.dataset.staticText = '';
+            } else if (status === 'jabatan_fungsional') {
+                const fungsionalSelect = document.getElementById('jabatan_id');
+                const opt = fungsionalSelect.options[fungsionalSelect.selectedIndex];
+                if (fungsionalSelect.value && opt.value !== "") {
+                    const text = opt.text.includes(' - ') ? opt.text.split(' - ')[1] : opt.text;
+                    namaSatkerInput.value = text;
+                    namaSatkerInput.dataset.staticText = '';
+                }
+            } else if (status === 'jabatan_kotakab') {
+                updateNamaSatkerDariKabupaten();
+            } else if (status === 'jabatan_kanwil') {
+                const kategoriUnitSelect = document.getElementById('kategori_unit');
+                if (kategoriUnitSelect && kategoriUnitSelect.value !== "") {
+                    const text = kategoriUnitSelect.options[kategoriUnitSelect.selectedIndex].text;
+                    namaSatkerInput.value = text;
+                    namaSatkerInput.dataset.staticText = text + " ";
+                } else {
+                    namaSatkerInput.value = selectedOption.text;
+                    namaSatkerInput.dataset.staticText = ''; 
+                }
+            } else {
+                namaSatkerInput.value = selectedOption.text;
+                namaSatkerInput.dataset.staticText = ''; 
+            }
+
+            updateRefJabatanId();
+        }
+
+        function updateNamaSatkerDariKabupaten() {
+            const namaSatkerInput = document.getElementById('nama_satker');
+            const wilayahSelect = document.getElementById('kabupaten_id');
+            const madrasahSelect = document.getElementById('jenis_madrasah');
+            const kategoriSelect = document.getElementById('kategori_kotakab');
+
+            let baseName = "";
+
+            if (madrasahSelect && madrasahSelect.value !== "") {
+                baseName = madrasahSelect.options[madrasahSelect.selectedIndex].text;
+            } else if (kategoriSelect && kategoriSelect.value !== "" && kategoriSelect.value !== "madrasah") {
+                baseName = kategoriSelect.options[kategoriSelect.selectedIndex].text;
+            } else if (wilayahSelect && wilayahSelect.value !== "") {
+                baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
+            }
+
+            namaSatkerInput.value = baseName;
+            namaSatkerInput.dataset.staticText = baseName ? baseName + " " : " ";
         }
 
         function handleKategoriKotaKabChange() {
             const kategoriSelect = document.getElementById('kategori_kotakab');
             const selectedOption = kategoriSelect.options[kategoriSelect.selectedIndex];
             const parentUuid = selectedOption ? selectedOption.dataset.id : null;
-            const selectedKey = kategoriSelect.value;
-
+            
             const madrasahDiv = document.getElementById('container_jenis_madrasah');
             const madrasahSelect = document.getElementById('jenis_madrasah');
 
             madrasahDiv.classList.add('hidden');
-
-            // cek apakah kategori ini punya child di DB
             const children = refJabatan.filter(item => item.parent_id === parentUuid);
 
             if (children.length > 0) {
@@ -1812,75 +1698,30 @@
 
         function handleJenisMadrasahChange() {
             resetKodeSatker();
-
             const jenisMadrasah = document.getElementById('jenis_madrasah');
             const namaSatkerInput = document.getElementById('nama_satker');
 
             if (jenisMadrasah.value !== "") {
-
                 const staticName = jenisMadrasah.options[jenisMadrasah.selectedIndex].text;
-
                 namaSatkerInput.dataset.staticText = staticName + " ";
                 namaSatkerInput.value = staticName + " ";
                 namaSatkerInput.focus();
-
             } else {
-
                 namaSatkerInput.dataset.staticText = "";
                 namaSatkerInput.value = "";
-
             }
             updateRefJabatanId();
         }
 
-        const namaSatkerInput = document.getElementById('nama_satker');
-
-        if (namaSatkerInput) {
-            // Proteksi agar prefix tidak bisa dihapus
-            namaSatkerInput.addEventListener('input', function() {
-                const staticPrefix = this.dataset.staticText;
-
-                // Jika ada prefix statis dan user mencoba menghapusnya
-                if (staticPrefix && !this.value.startsWith(staticPrefix)) {
-                    this.value = staticPrefix;
-                }
-            });
-
-            // Mencegah cursor diletakkan di tengah/depan teks statis
-            namaSatkerInput.addEventListener('click', function() {
-                const staticPrefix = this.dataset.staticText;
-                if (staticPrefix && this.selectionStart < staticPrefix.length) {
-                    this.setSelectionRange(staticPrefix.length, staticPrefix.length);
-                }
-            });
-
-            // Proteksi tambahan saat menekan tombol backspace/delete di area terlarang
-            namaSatkerInput.addEventListener('keydown', function(e) {
-                const staticPrefix = this.dataset.staticText;
-                if (staticPrefix && (e.key === 'Backspace' || e.key === 'Delete')) {
-                    if (this.selectionStart <= staticPrefix.length && this.selectionEnd <= staticPrefix
-                        .length) {
-                        e.preventDefault();
-                    }
-                }
-            });
-        }
-
-
         function handleKategoriUnitChange() {
-            // 1. Reset Kode Satker (Fungsi lama Anda)
             resetKodeSatker();
-
-            // 2. Update Nama Satker
             const kategoriSelect = document.getElementById('kategori_unit');
             const namaSatkerInput = document.getElementById('nama_satker');
 
             if (kategoriSelect.value !== "") {
-                // Mengambil teks "Tata Usaha" atau "Non Tata Usaha"
                 const selectedText = kategoriSelect.options[kategoriSelect.selectedIndex].text;
                 namaSatkerInput.value = selectedText;
             } else {
-                // Jika dikosongkan, balikkan ke nama Jabatan yang dipilih (Jabatan Kanwil)
                 const statusSelect = document.getElementById('tanpa_jabatan');
                 if (statusSelect.value !== "") {
                     namaSatkerInput.value = statusSelect.options[statusSelect.selectedIndex].text;
@@ -1889,17 +1730,123 @@
             updateRefJabatanId();
         }
 
+        function updateRefJabatanId() {
+            let id = "";
+            const selects = ["jenis_madrasah", "kategori_kotakab", "kategori_unit", "jabatan_id", "tanpa_jabatan"];
+            for (let s of selects) {
+                const el = document.getElementById(s);
+                if (el && el.value) {
+                    const opt = el.options[el.selectedIndex];
+                    if (opt?.dataset?.id) {
+                        id = opt.dataset.id;
+                        break;
+                    }
+                }
+            }
+            document.getElementById("ref_jabatan_satker_id").value = id;
+
+            // Trigger Pengecekan Rumus Valid tiap kali Jabatan berubah
+            filterRumusOptions();
+        }
+
+        // ==============================================================
+        // FUNGSI PENGUNCI (DISABLE) RUMUS YANG TIDAK COCOK
+        // ==============================================================
+        function filterRumusOptions() {
+            const formJenisId = document.getElementById('jenis_satker_id')?.value || "";
+            
+            // CARA LEBIH AMAN MENGAMBIL DATA TINGKAT WILAYAH
+            const wilayahSelect = document.getElementById('wilayah_id');
+            let formTingkatWilayahId = "";
+            if (wilayahSelect && wilayahSelect.selectedIndex >= 0) {
+                const selectedOpt = wilayahSelect.options[wilayahSelect.selectedIndex];
+                formTingkatWilayahId = selectedOpt?.getAttribute('data-tingkat') || "";
+            }
+            
+            const formJabatanId = document.getElementById('ref_jabatan_satker_id')?.value || "";
+            
+            const rumusSelect = document.getElementById('rumus_id');
+            if (!rumusSelect) return;
+            
+            const options = rumusSelect.querySelectorAll('option');
+            let isCurrentSelectionValid = false;
+
+            options.forEach(opt => {
+                if(opt.value === "") {
+                    opt.disabled = false;
+                    isCurrentSelectionValid = true; 
+                    return; 
+                }
+                
+                // Gunakan getAttribute agar aman dan konsisten sebagai text/string
+                const rJenis = opt.getAttribute('data-jenis') || "";
+                const rWilayah = opt.getAttribute('data-wilayah') || "";
+                const rJabatan = opt.getAttribute('data-jabatan') || "";
+                const rPola = opt.getAttribute('data-pola') || ""; 
+                
+                // PENTING: Gunakan == (bukan ===) agar angka 1 dan text "1" dianggap sama
+                let matchJenis = (!rJenis || rJenis == formJenisId);
+                let matchWilayah = (!rWilayah || rWilayah == formTingkatWilayahId);
+                let matchJabatan = (!rJabatan || rJabatan == formJabatanId);
+                
+                // --- LOGIKA VALIDASI STRUKTUR POLA ---
+                let matchPola = true;
+                let polaReason = "";
+                
+                // Jika Eselon 1 (Pusat/PTKN) -> TIDAK BOLEH ADA [PARENT]
+                if (formJenisId === "1" && rPola.includes('[PARENT]')) {
+                    matchPola = false;
+                    polaReason = "Struktur (Ada Induk)";
+                } 
+                // Jika Eselon 2, 3, 4 -> WAJIB ADA [PARENT]
+                else if (formJenisId !== "1" && formJenisId !== "" && !rPola.includes('[PARENT]')) {
+                    matchPola = false;
+                    polaReason = "Struktur (Tanpa Induk)";
+                }
+
+                if (matchJenis && matchWilayah && matchJabatan && matchPola) {
+                    opt.disabled = false;
+                    opt.text = opt.getAttribute('data-original-text');
+                    if (opt.selected) isCurrentSelectionValid = true;
+                } else {
+                    opt.disabled = true;
+                    let reason = [];
+                    if (!matchJenis) reason.push('Eselon');
+                    if (!matchWilayah) reason.push('Wilayah');
+                    if (!matchJabatan) reason.push('Jabatan');
+                    if (!matchPola) reason.push(polaReason); 
+                    
+                    opt.text = `[❌ Beda ${reason.join(' & ')}] ` + opt.getAttribute('data-original-text');
+                }
+            });
+            
+            if (!isCurrentSelectionValid && rumusSelect.value !== "") {
+                rumusSelect.value = "";
+                Toast.fire({
+                    icon: 'info',
+                    title: 'Rumus Direset',
+                    text: 'Rumus manual dibatalkan karena Anda mengubah kombinasi form.'
+                });
+            }
+        }
+
+        // ==============================================================
+        // 4. KODE SATKER AUTO GENERATE
+        // ==============================================================
         function resetKodeSatker() {
             const container = document.getElementById('kode_container');
-
-            // hapus hanya input hasil generate
             container.querySelectorAll('.generated-kode').forEach(el => el.remove());
-
-            // reset full code
             const fullCodeInput = document.getElementById('kode_satker_full');
-            if (fullCodeInput) {
-                fullCodeInput.value = '';
-            }
+            if (fullCodeInput) fullCodeInput.value = '';
+        }
+
+        function updateFullCode() {
+            const container = document.getElementById('kode_container');
+            const inputs = container.querySelectorAll('input');
+            const finalInput = document.getElementById('kode_satker_full');
+            let combined = '';
+            inputs.forEach(input => { combined += input.value.trim(); });
+            finalInput.value = combined;
         }
 
         async function generateSatkerCode(event) {
@@ -1907,28 +1854,15 @@
             const icon = btn.querySelector('i');
             const jenisId = document.getElementById('jenis_satker_id').value;
             const parentId = document.getElementById('parent_satker_id').value;
-            
-            // Ambil nilai periode dari form
             const periodeId = document.getElementById('periode_id')?.value || '';
 
-            // 1. Validasi Jenis & Parent
             if (!jenisId || (jenisId !== "1" && !parentId)) {
-                Toast.fire({
-                    icon: 'warning',
-                    title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' : 'Pilih Satker Induk Terlebih Dahulu!'
-                });
+                Toast.fire({ icon: 'warning', title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' : 'Pilih Satker Induk Terlebih Dahulu!' });
                 return;
             }
 
-            // 2. TAMBAHAN: Validasi Wajib Pilih Periode
             if (!periodeId) {
-                Toast.fire({
-                    icon: 'warning',
-                    title: 'Pilih Periode Terlebih Dahulu!',
-                    text: 'Sistem butuh data periode untuk mengecek nomor urut yang kosong.'
-                });
-                
-                // Fokuskan layar ke form periode agar user sadar
+                Toast.fire({ icon: 'warning', title: 'Pilih Periode Terlebih Dahulu!', text: 'Sistem butuh data periode untuk mengecek nomor urut yang kosong.' });
                 document.getElementById('periode_id').focus();
                 return;
             }
@@ -1937,7 +1871,6 @@
             icon.className = 'fas fa-spinner fa-spin';
             btn.disabled = true;
 
-            // Persiapan Wadah Gap (Jika ada nomor kosong)
             const gapContainer = document.getElementById('gap_selection_container');
             const gapList = document.getElementById('gap_list');
             if(gapContainer) gapContainer.classList.add('hidden');
@@ -1946,12 +1879,8 @@
             try {
                 const wilayahId = document.getElementById('wilayah_id')?.value || '';
                 const refJabatanId = document.getElementById("ref_jabatan_satker_id")?.value || document.getElementById('jabatan_id')?.value || '';
-                
-                // (BAGIAN INI YANG DIUBAH DI DALAM generateSatkerCode)
-                const periodeId = document.getElementById('periode_id')?.value || ''; 
-                
-                // AMBIL NILAI START NUM BALAI
                 const startNumBalai = document.getElementById('start_num_balai')?.value || '';
+                const rumusId = document.getElementById('rumus_id')?.value || '';
 
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId,
@@ -1959,30 +1888,26 @@
                     ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId,
                     periode_id: periodeId, 
-                    start_num: startNumBalai, // <--- KIRIM PARAMETER INI KE BACKEND
+                    start_num: startNumBalai,
+                    rumus_id: rumusId,
                     _t: Date.now()
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`, {
-                    method: 'GET',
-                    headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' },
-                    cache: 'no-store'
+                    method: 'GET', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }, cache: 'no-store'
                 });
 
                 const data = await response.json();
                 if (!response.ok && !data.success) throw new Error(data.message || data.error || 'Gagal generate kode');
 
-                // Tangkap kembalian dari Controller (antisipasi 'kode' atau 'code')
                 const generatedCode = data.kode || data.code || "";
 
-                // WADAH FUNGSI RENDER (Agar bisa dipakai ulang saat tombol gap di-klik)
                 const renderUiCode = (fullCode) => {
                     const container = document.getElementById('kode_container');
                     container.querySelectorAll('input').forEach(el => el.remove());
 
                     if (jenisId === "1") {
-                        let htmlInputs = `<input type="text" value="${fullCode}" readonly class="w-full px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center generated-kode">`;
-                        container.insertAdjacentHTML('afterbegin', htmlInputs);
+                        container.insertAdjacentHTML('afterbegin', `<input type="text" value="${fullCode}" readonly class="w-full px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center generated-kode">`);
                     } else {
                         const parentSelect = document.getElementById('parent_satker_id');
                         const parentText = parentSelect?.options[parentSelect.selectedIndex]?.text || '';
@@ -1990,11 +1915,10 @@
                         const prefixLength = displayParentKode.length;
                         const middle = fullCode.substring(prefixLength);
 
-                        let htmlInputs = `
+                        container.insertAdjacentHTML('afterbegin', `
                             <input type="text" value="${displayParentKode}" readonly class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
                             <input type="text" value="${middle}" readonly class="w-40 px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center font-medium generated-kode">
-                        `;
-                        container.insertAdjacentHTML('afterbegin', htmlInputs);
+                        `);
                     }
 
                     const finalInput = document.getElementById('kode_satker_full');
@@ -2002,22 +1926,16 @@
 
                     if (data.default_nama) {
                         const namaInput = document.querySelector('input[name="nama_satker"]');
-                        if (namaInput && namaInput.value.trim() === '') {
-                            namaInput.value = data.default_nama;
-                        }
+                        if (namaInput && namaInput.value.trim() === '') namaInput.value = data.default_nama;
                     }
-
-                    if (typeof updateFullCode === "function") updateFullCode();
+                    updateFullCode();
                 };
 
-                // Render default pertama kali
                 renderUiCode(generatedCode);
 
-                // LOGIKA GAP: Jika ada nomor urut yang bolong di tengah
                 if (data.gaps && data.gaps.length > 0 && gapContainer && gapList) {
                     gapContainer.classList.remove('hidden');
 
-                    // 1. Tombol Lanjut Biasa (Misal: 99)
                     const btnNext = document.createElement('button');
                     btnNext.type = 'button';
                     btnNext.innerHTML = `Lanjut ( <span class="font-mono">${generatedCode.slice(-2)}</span> )`;
@@ -2025,7 +1943,6 @@
                     btnNext.onclick = () => renderUiCode(generatedCode);
                     gapList.appendChild(btnNext);
 
-                    // 2. Tombol Pengisi Nomor Kosong (Misal: 11)
                     data.gaps.forEach(gCode => {
                         const btn = document.createElement('button');
                         btn.type = 'button';
@@ -2035,119 +1952,61 @@
                         gapList.appendChild(btn);
                     });
                 }
-
             } catch (error) {
-                Toast.fire({
-                    icon: 'error',
-                    title: error.message
-                });
+                Toast.fire({ icon: 'error', title: error.message });
             } finally {
                 icon.className = originalIconClass;
                 btn.disabled = false;
             }
         }
 
-        function updateFullCode() {
-
-            const container = document.getElementById('kode_container');
-
-            const inputs = container.querySelectorAll('input');
-
-            const finalInput = document.getElementById('kode_satker_full');
-
-            let combined = '';
-
-            inputs.forEach(input => {
-
-                combined += input.value.trim();
-
+        // ==============================================================
+        // 5. EVENT LISTENERS
+        // ==============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const triggerIds = ['kabupaten_id', 'kategori_kotakab', 'jenis_madrasah', 'kategori_unit', 'jabatan_id'];
+            triggerIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', function() {
+                        const status = document.getElementById('tanpa_jabatan').value;
+                        if (status === 'jabatan_kotakab') updateNamaSatkerDariKabupaten();
+                        else handleJabatanChange();
+                    });
+                }
             });
 
-            finalInput.value = combined;
-
-        }
-
-        function updateRefJabatanId() {
-
-            let id = "";
-
-            const selects = [
-                "jenis_madrasah",
-                "kategori_kotakab",
-                "kategori_unit",
-                "jabatan_id",
-                "tanpa_jabatan"
-            ];
-
-            for (let s of selects) {
-
-                const el = document.getElementById(s);
-
-                if (el && el.value) {
-
-                    const opt = el.options[el.selectedIndex];
-
-                    if (opt?.dataset?.id) {
-                        id = opt.dataset.id;
-                        break;
+            const namaSatkerInput = document.getElementById('nama_satker');
+            if (namaSatkerInput) {
+                namaSatkerInput.addEventListener('input', function() {
+                    const staticPrefix = this.dataset.staticText;
+                    if (staticPrefix && !this.value.startsWith(staticPrefix)) this.value = staticPrefix;
+                });
+                namaSatkerInput.addEventListener('click', function() {
+                    const staticPrefix = this.dataset.staticText;
+                    if (staticPrefix && this.selectionStart < staticPrefix.length) this.setSelectionRange(staticPrefix.length, staticPrefix.length);
+                });
+                namaSatkerInput.addEventListener('keydown', function(e) {
+                    const staticPrefix = this.dataset.staticText;
+                    if (staticPrefix && (e.key === 'Backspace' || e.key === 'Delete')) {
+                        if (this.selectionStart <= staticPrefix.length && this.selectionEnd <= staticPrefix.length) e.preventDefault();
                     }
-                }
-            }
-
-            document.getElementById("ref_jabatan_satker_id").value = id;
-        }
-
-        /**
-         * Handle Submit Form
-         */
-        document.getElementById('formTambahSatker').addEventListener('submit', function(e) {
-            const finalCode = document.getElementById('kode_satker_full').value;
-
-            if (!finalCode) {
-                e.preventDefault();
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Kode Satker Kosong',
-                    text: 'Silahkan klik tombol magic untuk generate kode atau isi manual.'
                 });
             }
-        });
 
-        // Update Listener TomSelect
-        if (control) {
-            control.on('change', function(value) {
-                const periodeContainer = document.getElementById('container_periode');
-                const periodeSelect = document.getElementById('periode_id');
+            document.getElementById('kode_container')?.addEventListener('input', function(e) {
+                if (e.target.tagName === 'INPUT') updateFullCode();
+            });
 
-                if (value) {
-
-                    const dataAsli = allParentOptions.find(item => item.id == value);
-
-                    console.log("Data ditemukan:", dataAsli);
-
-                    if (dataAsli && dataAsli.periode && dataAsli.periode !== "") {
-                        // ISI OTOMATIS
-                        periodeSelect.value = dataAsli.periode;
-
-                        // SEMBUNYIKAN
-                        periodeContainer.classList.add('hidden');
-                        periodeSelect.removeAttribute('required');
-
-                        console.log("Periode otomatis terisi: " + dataAsli.periode);
-                    } else {
-                        // TAMPILKAN MANUAL JIKA PERIODE KOSONG
-                        periodeContainer.classList.remove('hidden');
-                        periodeSelect.setAttribute('required', 'required');
-                        periodeSelect.value = "";
-                    }
-                } else {
-                    periodeContainer.classList.remove('hidden');
-                    periodeSelect.setAttribute('required', 'required');
+            document.getElementById('formTambahSatker')?.addEventListener('submit', function(e) {
+                const finalCode = document.getElementById('kode_satker_full').value;
+                if (!finalCode) {
+                    e.preventDefault();
+                    Swal.fire({ icon: 'warning', title: 'Kode Satker Kosong', text: 'Silahkan klik tombol magic untuk generate kode.' });
                 }
             });
-        }
+        });
 
-        // Tambahkan parameter periode_id di sini
     </script>
 
     <script>
@@ -2281,7 +2140,7 @@
 
                 if (users.length > 0) {
                     users.forEach((user, index) => {
-                        // LOGIKA BARU UNTUK STATUS BADGE (Ada tambahan status Cuti)
+                        // LOGIKA UNTUK STATUS BADGE
                         let statusBadge = '';
                         if (user.is_cuti) {
                             statusBadge = `<span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">SEDANG CUTI</span>`;
@@ -2291,30 +2150,29 @@
                             statusBadge = `<span class="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">NON-AKTIF</span>`;
                         }
 
-                        // LOGIKA BARU UNTUK TOMBOL (Berubah otomatis saat sedang cuti)
-                        let actionButton = '-';
-                        if (user.status_aktif == 1 && !user.is_cuti) {
-                            actionButton = `
-                                <div class="flex flex-col gap-1.5 min-w-[85px]">
-                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen">
-                                        <i class="fas fa-check-circle mr-1.5"></i> Selesai
-                                    </button>
-                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'cuti')" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti">
-                                        <i class="fas fa-calendar-minus mr-1.5"></i> Cuti
-                                    </button>
-                                </div>`;
-                        } else if (user.is_cuti) {
-                            actionButton = `
-                                <div class="flex flex-col gap-1.5 min-w-[85px]">
-                                    <button onclick="showDetailCuti('${user.name}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti">
-                                        <i class="fas fa-info-circle mr-1.5"></i> Detail Cuti
-                                    </button>
-                                    <button onclick="unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen">
-                                        <i class="fas fa-check-circle mr-1.5"></i> Selesai
-                                    </button>
-                                </div>`;
+                        // LOGIKA UNTUK TOMBOL (Selalu Tampil, dengan jebakan SweetAlert)
+                        let actionButton = '';
+                        
+                        if (user.status_aktif == 1 || user.is_cuti) { 
+                            actionButton = '<div class="flex flex-col gap-1.5 min-w-[85px]">';
+                            
+                            // Siapkan fungsi penolakan atau fungsi asli berdasarkan izin
+                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
+                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${user.name}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
+
+                            if (!user.is_cuti) {
+                                actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
+                                actionButton += `<button onclick="${cutiAction}" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti"><i class="fas fa-calendar-minus mr-1.5"></i> Cuti</button>`;
+                            } else {
+                                actionButton += `<button onclick="showDetailCuti('${user.name}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
+                                actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
+                            }
+                            actionButton += '</div>';
+                        } else {
+                            actionButton = '-'; // Jika Non-Aktif, tidak ada tombol aksi
                         }
 
+                        // RENDER BARIS TABEL
                         tableBody.innerHTML += `
                         <tr class="hover:bg-blue-50/50 transition duration-200" 
                             data-name="${(user.name || '').toLowerCase()}" 
@@ -2331,7 +2189,7 @@
                             <td class="px-4 py-3">${statusBadge}</td>
                             <td class="px-4 py-3 text-center align-middle">${actionButton}</td>
                         </tr>
-                    `;
+                        `;
                     });
 
                     document.getElementById('detail_user_count').innerText = `Menampilkan ${users.length} pejabat`;
@@ -2660,9 +2518,15 @@
             if (typeof updateFullCode === "function") {
                 updateFullCode();
             }
+
+            // reset rumus (jika ada)
+            const rumusSelect = document.getElementById('rumus_id');
+            if (rumusSelect) {
+                rumusSelect.value = "";
+            }
         }
 
-// ==========================================
+        // ==========================================
         // FITUR TAMBAH PENUGASAN TANPA RELOAD (AJAX)
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
@@ -2675,10 +2539,11 @@
                     const submitBtn = this.querySelector('button[type="submit"]');
                     const originalText = submitBtn.innerHTML;
                     
-                    // Kita bungkus proses pengiriman menjadi function mandiri agar bisa dipanggil ulang
                     const processSubmit = async (formDataObj) => {
                         submitBtn.disabled = true;
                         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
+                        
+                        let result = null; // DEKLARASIKAN DI LUAR TRY AGAR BISA DIBACA OLEH FINALLY
                         
                         try {
                             const response = await fetch(formPenugasan.action, {
@@ -2690,7 +2555,7 @@
                                 }
                             });
                             
-                            const result = await response.json();
+                            result = await response.json();
 
                             // ========================================================
                             // TANGKAP RESPON KONFIRMASI (PLT/PLH DITEMUKAN)
@@ -2707,9 +2572,8 @@
                                     cancelButtonText: 'Batal'
                                 }).then((confirmRes) => {
                                     if (confirmRes.isConfirmed) {
-                                        // Tambahkan flag 'confirm_override' ke form data
                                         formDataObj.append('confirm_override', '1');
-                                        processSubmit(formDataObj); // Jalankan ulang pengiriman ke server
+                                        processSubmit(formDataObj); 
                                     } else {
                                         submitBtn.disabled = false;
                                         submitBtn.innerHTML = originalText;
@@ -2729,17 +2593,13 @@
                                     showConfirmButton: false
                                 });
                                 
-                                // Tutup modal form tambah
                                 toggleModal('modalTambahPenugasan');
-                                
-                                // Reset isi form
                                 formPenugasan.reset();
                                 const tomSelectEl = document.getElementById('select_pegawai_local');
                                 if (tomSelectEl && tomSelectEl.tomselect) tomSelectEl.tomselect.clear();
                                 document.getElementById('res_nama').value = '';
                                 document.getElementById('res_info_tambahan').innerText = '';
                                 
-                                // Refresh Tabel di Modal Detail tanpa menutupnya
                                 const satkerId = document.getElementById('detail_satker_id').value;
                                 const satkerKode = document.getElementById('detail_kode').innerText;
                                 const satkerNama = document.getElementById('detail_nama').innerText;
@@ -2756,7 +2616,7 @@
                                 }
                                 Swal.fire('Validasi Gagal', errorText, 'error');
                             } else {
-                                // Jika Gagal karena Aturan Bisnis PM (ex: Double Definitif)
+                                // Jika Gagal karena Aturan Bisnis (ex: Regulasi / Double Definitif)
                                 Swal.fire('Gagal', result.message || 'Terjadi kesalahan sistem.', 'error');
                             }
                             

@@ -24,7 +24,6 @@ class AuthenticatedSessionController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-
         Log::info('Login attempt', [
             'login' => $request->login
         ]);
@@ -36,6 +35,15 @@ class AuthenticatedSessionController extends Controller
 
         $login = $request->login;
         $password = $request->password;
+
+        // Daftar role yang diizinkan untuk masuk ke sistem (Ditambahkan Admin Jafung)
+        $allowedRoles = [
+            'super_admin', 
+            'admin_satker', 
+            'pejabat', 
+            'admin_jafung_pengguna', 
+            'admin_jafung_pembina'
+        ];
 
         /*
         |--------------------------------------------------------------------------
@@ -51,11 +59,21 @@ class AuthenticatedSessionController extends Controller
                 filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'nip' => $login,
                 'password' => $password
             ])) {
+                
+                $user = Auth::user();
+                
+                // Cek Role juga untuk Local Login agar aman
+                $hasAccess = $user->roles()->whereIn('key', $allowedRoles)->exists();
+                
+                if (!$hasAccess) {
+                    Auth::logout();
+                    Log::warning('Login database ditolak: Tidak memiliki role', ['user_id' => $user->id]);
+                    return back()->withErrors([
+                        'login' => 'Akses ditolak. Akun Anda belum memiliki akses (Role) di sistem ini.'
+                    ]);
+                }
 
                 $request->session()->regenerate();
-
-                $user = Auth::user();
-
                 Log::info('Login database berhasil', [
                     'user_id' => $user->id
                 ]);
@@ -83,7 +101,6 @@ class AuthenticatedSessionController extends Controller
         $auth = $this->authenticateWithKemenag($login, $password);
 
         if (!$auth) {
-
             Log::warning('Auth API gagal', [
                 'login' => $login
             ]);
@@ -110,13 +127,12 @@ class AuthenticatedSessionController extends Controller
         $profile = $this->getProfile($auth['token']);
 
         if (!$profile) {
-
             Log::error('Gagal mengambil profile', [
                 'nip' => $auth['nip']
             ]);
 
             return back()->withErrors([
-                'login' => 'Gagal mengambil profil user.'
+                'login' => 'Gagal mengambil profil user dari API.'
             ]);
         }
 
@@ -142,6 +158,21 @@ class AuthenticatedSessionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | CEK ROLE SEBELUM LOGIN
+        |--------------------------------------------------------------------------
+        */
+        // Cukup cek apakah user ini punya minimal 1 role apa saja di database
+        $hasAccess = $user->roles()->exists();
+
+        if (!$hasAccess) {
+            Log::warning('User tidak memiliki role apa pun', ['user_id' => $user->id]);
+            return back()->withErrors([
+                'login' => 'Akses ditolak. NIP Anda terverifikasi, namun belum di-assign ke Role apa pun oleh Super Admin.'
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | LOGIN LARAVEL
         |--------------------------------------------------------------------------
         */
@@ -154,39 +185,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        /*
-        |--------------------------------------------------------------------------
-        | CEK ROLE
-        |--------------------------------------------------------------------------
-        */
-
-        $hasAccess = $user->roles()
-            ->whereIn('key', ['super_admin', 'admin_satker', 'pejabat'])
-            ->exists();
-
-        Log::info('Cek role akses', [
-            'user_id' => $user->id,
-            'has_access' => $hasAccess
-        ]);
-
-        if ($hasAccess) {
-
-            Log::info('User diarahkan ke dashboard', [
-                'user_id' => $user->id
-            ]);
-
-            return redirect()->intended(route('admin.dashboard'));
-        }
-
-        Log::warning('User tidak memiliki akses role', [
-            'user_id' => $user->id
-        ]);
-
-        Auth::logout();
-
-        return redirect()->route('login')->withErrors([
-            'status' => 'Akses ditolak.'
-        ]);
+        return redirect()->intended(route('admin.dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse

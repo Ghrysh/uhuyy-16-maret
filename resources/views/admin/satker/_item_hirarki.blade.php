@@ -1,9 +1,8 @@
 @php
     // Definisikan string pencarian level ini (nama + kode)
     $selfText = strtolower($item->nama_satker . ' ' . $item->kode_satker);
-    $itemMatch = "('{$item->nama_satker}'.toLowerCase().includes(search.toLowerCase()) || '{$item->kode_satker}'.includes(search))";
 
-    // LOGIKA BARU: Eselon 1 -> Tugas Tambahan (Jika Kode >= 21)
+    // LOGIKA Eselon 1 -> Tugas Tambahan (Jika Kode >= 21)
     $eselonName = $item->eselon ? $item->eselon->nama : '-';
     if ($item->jenis_satker_id == 1 && !empty($item->kode_satker)) {
         $prefix = substr($item->kode_satker, 0, 2);
@@ -12,27 +11,19 @@
         }
     }
 
-    // Logika Role/Permission (Tetap sama)
-    $user = auth()->user();
-    $isRestrictedRole = $user
-        ->roles()
-        ->whereIn('key', ['admin_satker', 'pejabat'])
-        ->exists();
+    // =========================================================
+    // LOGIKA BARU: BACA DARI ENGINE REGULASI ($perm)
+    // =========================================================
+    // Variabel $perm otomatis diwariskan dari index.blade.php
+    $actions = $perm['actions'] ?? [];
     
-    $canManage = true;
-    if ($isRestrictedRole) {
-        $canManage = $item->id == $user->satker_id;
-        if (!$canManage) {
-            $parent = $item->parent;
-            while ($parent) {
-                if ($parent->id == $user->satker_id) {
-                    $canManage = true;
-                    break;
-                }
-                $parent = $parent->parent;
-            }
-        }
-    }
+    $canCreate = $perm['is_super'] || $perm['all_access'] || in_array('create', $actions);
+    $canEdit   = $perm['is_super'] || $perm['all_access'] || in_array('edit', $actions);
+    $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $actions);
+    
+    // Tombol Detail selalu bisa diakses asalkan user punya hak melihat baris ini
+    $canViewDetail = true; 
+    // =========================================================
 @endphp
 
 <div x-data="{
@@ -113,46 +104,46 @@
                 {{ $item->status_aktif ? 'AKTIF' : 'NON-AKTIF' }}
             </span>
 
-            {{-- Action Buttons --}}
-            @if ($canManage)
-                <div
-                    class="flex items-center gap-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
+            {{-- Action Buttons Dinamis (Dengan Jebakan SweetAlert) --}}
+            <div class="flex items-center gap-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
 
-                    <button type="button"
-                        onclick="openTambahSubSatker('{{ $item->id }}', '{{ $item->jenis_satker_id }}', '{{ $item->wilayah_id }}', '{{ $item->periode_id }}', true)"
-                        class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Tambah">
-                        <i class="fas fa-plus text-sm"></i>
-                    </button>
+                {{-- TOMBOL TAMBAH ANAK --}}
+                <button type="button"
+                    onclick="{{ $canCreate ? "openTambahSubSatker('{$item->id}', '{$item->jenis_satker_id}', '{$item->wilayah_id}', '{$item->periode_id}', true)" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menambah Satker.', 'error')" }}"
+                    class="p-2 {{ $canCreate ? 'text-emerald-600 hover:bg-emerald-50' : 'text-emerald-400 opacity-60' }} rounded-lg transition" title="Tambah">
+                    <i class="fas fa-plus text-sm"></i>
+                </button>
 
-                    <button type="button"
-                        onclick="openDetailModal('{{ $item->kode_satker }}', '{{ $item->nama_satker }}', '{{ $eselonName }}', '{{ $item->wilayah ? $item->wilayah->nama_wilayah : '-' }}', '{{ $item->status_aktif }}', '{{ $item->id }}')"
-                        class="p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition"
-                        title="Detail">
-                        <i class="fas fa-eye text-sm"></i>
-                    </button>
+                {{-- TOMBOL DETAIL (Selalu Aktif) --}}
+                <button type="button"
+                    onclick="openDetailModal('{{ $item->kode_satker }}', '{{ $item->nama_satker }}', '{{ $eselonName }}', '{{ $item->wilayah ? $item->wilayah->nama_wilayah : '-' }}', '{{ $item->status_aktif }}', '{{ $item->id }}')"
+                    class="p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition"
+                    title="Detail">
+                    <i class="fas fa-eye text-sm"></i>
+                </button>
 
-                    <button type="button"
-                        onclick="openEditSatkerModal('{{ $item->id }}', '{{ $item->kode_satker }}', '{{ $item->nama_satker }}', '{{ $item->periode_id }}', '{{ $item->jenis_satker_id }}', '{{ $item->parent_satker_id }}', '{{ $item->wilayah_id }}', '{{ $item->keterangan }}', '{{ $item->status_aktif }}')"
-                        class="p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-600 rounded-lg transition"
-                        title="Edit">
-                        <i class="fas fa-edit text-sm"></i>
-                    </button>
+                {{-- TOMBOL EDIT --}}
+                <button type="button"
+                    onclick="{{ $canEdit ? "openEditSatkerModal('{$item->id}', '{$item->kode_satker}', '{$item->nama_satker}', '{$item->periode_id}', '{$item->jenis_satker_id}', '{$item->parent_satker_id}', '{$item->wilayah_id}', '{$item->keterangan}', '{$item->status_aktif}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengedit Satker ini.', 'error')" }}"
+                    class="p-2 {{ $canEdit ? 'text-amber-500 hover:bg-amber-50 hover:text-amber-600' : 'text-amber-300 opacity-60' }} rounded-lg transition"
+                    title="Edit">
+                    <i class="fas fa-edit text-sm"></i>
+                </button>
 
-                    <button type="button"
-                        onclick="openDeleteModal('{{ $item->id }}', '{{ $item->nama_satker }}', '{{ $item->kode_satker }}')"
-                        class="p-2 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition"
-                        title="Hapus">
-                        <i class="fas fa-trash text-sm"></i>
-                    </button>
+                {{-- TOMBOL HAPUS --}}
+                <button type="button"
+                    onclick="{{ $canDelete ? "openDeleteModal('{$item->id}', '{$item->nama_satker}', '{$item->kode_satker}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus Satker ini.', 'error')" }}"
+                    class="p-2 {{ $canDelete ? 'text-red-500 hover:bg-red-50 hover:text-red-600' : 'text-red-300 opacity-60' }} rounded-lg transition"
+                    title="Hapus">
+                    <i class="fas fa-trash text-sm"></i>
+                </button>
 
-                </div>
-            @endif
+            </div>
         </div>
     </div>
 
     {{-- Kontainer Anak --}}
     @if ($item->children && $item->children->count() > 0)
-        {{-- OTOMATIS TAMPIL: x-show akan true jika user sedang mencari --}}
         <div x-show="open || search !== ''" class="ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2">
             @foreach ($item->children as $child)
                 @include('admin.satker._item_hirarki', ['item' => $child])

@@ -35,8 +35,9 @@
     {{-- ========================================== --}}
     <div id="content-master" class="block animate-fade-in">
         <div class="flex justify-end mb-4">
-            <button onclick="toggleModal('modalTambahJabatan')"
-                class="bg-[#112D4E] hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm flex items-center transition shadow-sm">
+            @php $canCreate = $perm['is_super'] || $perm['all_access'] || in_array('create', $perm['actions'] ?? []); @endphp
+            <button type="button" onclick="{{ $canCreate ? "toggleModal('modalTambahJabatan')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menambah Jabatan.', 'error')" }}"
+                class="{{ $canCreate ? 'bg-[#112D4E] hover:bg-blue-900 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed' }} px-4 py-2 rounded-lg text-sm flex items-center transition shadow-sm">
                 <i class="fas fa-plus mr-2 text-[10px]"></i> Tambah Jabatan
             </button>
         </div>
@@ -115,21 +116,29 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 text-right space-x-3">
-                                    {{-- NOTE: Tambahan parameter baseline di sini --}}
+                                    @php 
+                                        $canEdit = $perm['is_super'] || $perm['all_access'] || in_array('edit', $perm['actions'] ?? []); 
+                                        $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $perm['actions'] ?? []); 
+                                    @endphp
+
                                     <button type="button"
-                                        onclick="openEditModal('{{ $item->id }}', '{{ $item->kode_jabatan }}', '{{ $item->nama_jabatan }}', '{{ $item->jenis_jabatan_id }}', '{{ $item->jabatan_fungsional_id }}', '{{ $item->baseline }}')"
-                                        class="text-slate-400 hover:text-blue-600 transition">
+                                        onclick="{{ $canEdit ? "openEditModal('{$item->id}', '{$item->kode_jabatan}', '{$item->nama_jabatan}', '{$item->jenis_jabatan_id}', '{$item->jabatan_fungsional_id}', '{$item->baseline}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengedit Jabatan.', 'error')" }}"
+                                        class="{{ $canEdit ? 'text-slate-400 hover:text-blue-600' : 'text-slate-300 opacity-50' }} transition" title="Edit">
                                         <i class="fas fa-pen-to-square"></i>
                                     </button>
+                                    
                                     <button type="button"
-                                        onclick="confirmDelete('{{ $item->id }}', '{{ $item->nama_jabatan }}')"
-                                        class="text-slate-400 hover:text-red-600 transition">
+                                        onclick="{{ $canDelete ? "confirmDelete('{$item->id}', '{$item->nama_jabatan}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus Jabatan.', 'error')" }}"
+                                        class="{{ $canDelete ? 'text-slate-400 hover:text-red-600' : 'text-slate-300 opacity-50' }} transition" title="Hapus">
                                         <i class="fas fa-trash-can"></i>
                                     </button>
+                                    
+                                    @if($canDelete)
                                     <form id="delete-form-{{ $item->id }}"
                                         action="{{ route('admin.jabatan.destroy', $item->id) }}" method="POST" class="hidden">
                                         @csrf @method('DELETE')
                                     </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -418,6 +427,12 @@
     </style>
     <script>
         // ==========================================
+        // INJECT PERMISSION KE JAVASCRIPT
+        // ==========================================
+        const permMatriksSetBaseline = {{ ($perm['is_super'] || $perm['all_access'] || in_array('set_baseline', $perm['matriks'] ?? [])) ? 'true' : 'false' }};
+        const permMatriksEditKuota = {{ ($perm['is_super'] || $perm['all_access'] || in_array('edit_kuota', $perm['matriks'] ?? [])) ? 'true' : 'false' }};
+
+        // ==========================================
         // PERSISTENSI TAB (ANTI RESET SAAT RELOAD)
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
@@ -585,7 +600,8 @@
                             <div class="w-20"><label class="text-[10px] font-bold text-amber-800">MUDA</label><input type="number" id="base_mu" value="${bmu}" placeholder="0" class="w-full px-2 py-1 text-sm border-amber-300 rounded focus:ring-amber-500 text-center"></div>
                             <div class="w-20"><label class="text-[10px] font-bold text-amber-800">MADYA</label><input type="number" id="base_ma" value="${bma}" placeholder="0" class="w-full px-2 py-1 text-sm border-amber-300 rounded focus:ring-amber-500 text-center"></div>
                             <div class="w-20"><label class="text-[10px] font-bold text-amber-800">UTAMA</label><input type="number" id="base_u" value="${bu}" placeholder="0" class="w-full px-2 py-1 text-sm border-amber-300 rounded focus:ring-amber-500 text-center"></div>
-                            <button onclick="simpanBaselineJenjang('${fungsionalId}')" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded text-xs font-bold shadow-sm h-[30px] ml-2 transition-colors"><i class="fas fa-save mr-1"></i> Set Baseline</button>
+                            <button onclick="${permMatriksSetBaseline ? `simpanBaselineJenjang('${fungsionalId}')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengubah Baseline.', 'error')`}" 
+                            class="${permMatriksSetBaseline ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-amber-300 text-amber-50 opacity-60'} px-4 py-1.5 rounded text-xs font-bold shadow-sm h-[30px] ml-2 transition-colors"><i class="fas fa-save mr-1"></i> Set Baseline</button>
                         </div>
                     </div>
                 `;
@@ -657,14 +673,14 @@
                                         <span class="text-sm tracking-tight">${item.nama_satker}</span>
                                     </div>
                                 </td>
-                                <td class="px-2 py-1 align-top">${createInputHTML(kp, item.id, 'kp', item.parent_id)}</td>
-                                <td class="px-2 py-1 align-top">${createInputHTML(kmu, item.id, 'kmu', item.parent_id)}</td>
-                                <td class="px-2 py-1 align-top">${createInputHTML(kma, item.id, 'kma', item.parent_id)}</td>
-                                <td class="px-2 py-1 align-top">${createInputHTML(ku, item.id, 'ku', item.parent_id)}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kp, item.id, 'kp', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kp === '' ? '0' : kp}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kmu, item.id, 'kmu', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kmu === '' ? '0' : kmu}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kma, item.id, 'kma', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kma === '' ? '0' : kma}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(ku, item.id, 'ku', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${ku === '' ? '0' : ku}</div>`}</td>
                                 <td class="px-4 py-3 align-middle text-center font-bold text-emerald-600" id="total_${item.id}">${totalRow}</td>
                                 <td class="px-4 py-3 align-middle text-center">
                                     ${isParent 
-                                        ? `<button onclick="simpanKuotaGroup('${item.id}')" class="text-[11px] bg-[#112D4E] hover:bg-blue-900 text-white px-3 py-2 rounded-md transition shadow-sm w-full font-bold uppercase tracking-wider"><i class="fas fa-save mr-1"></i> Simpan</button>` 
+                                        ? `<button onclick="${permMatriksEditKuota ? `simpanKuotaGroup('${item.id}')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengubah Kuota Satker.', 'error')`}" class="text-[11px] ${permMatriksEditKuota ? 'bg-[#112D4E] hover:bg-blue-900 text-white' : 'bg-slate-300 text-slate-500 opacity-60'} px-3 py-2 rounded-md transition shadow-sm w-full font-bold uppercase tracking-wider"><i class="fas fa-save mr-1"></i> Simpan</button>` 
                                         : `<span class="text-[10px] text-slate-400 italic block w-full">Via Induk</span>`
                                     }
                                 </td>

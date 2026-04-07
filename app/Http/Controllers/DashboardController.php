@@ -13,6 +13,35 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $user = auth()->user();
+        $userRoles = $user->roles;
+        $isSuperAdmin = $userRoles->contains('key', 'super_admin');
+        
+        // 1. Cek Hak Akses Dashboard
+        if (!$isSuperAdmin) {
+            $allowedMenus = [];
+            foreach($userRoles as $role) {
+                if ($role->key === 'pejabat') {
+                    $activeAssignment = \App\Models\Penugasan::where('user_id', $user->id)->where('status_aktif', 1)->first();
+                    if ($activeAssignment && $activeAssignment->jenisPenugasan && is_array($activeAssignment->jenisPenugasan->menus)) {
+                        $allowedMenus = array_merge($allowedMenus, $activeAssignment->jenisPenugasan->menus);
+                    }
+                } else if (is_array($role->menus)) {
+                    $allowedMenus = array_merge($allowedMenus, $role->menus);
+                }
+            }
+            
+            // 2. Jika tidak ada akses Dashboard, lempar ke menu yang mereka punya aksesnya!
+            if (empty($allowedMenus['dashboard'])) {
+                if (isset($allowedMenus['satker'])) return redirect()->route('admin.satker.index');
+                if (isset($allowedMenus['jabatan'])) return redirect()->route('admin.jabatan.index');
+                if (isset($allowedMenus['pegawai'])) return redirect()->route('admin.pegawai.index');
+                
+                // Jika zonk sama sekali, lempar pesan error
+                abort(403, 'Akses Ditolak. Hubungi Administrator.');
+            }
+        }
+
         // 1. Mengambil Data Statistik untuk Cards
         $stats = [
             'total_satker'  => Satker::count(),
