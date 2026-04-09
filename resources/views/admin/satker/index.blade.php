@@ -482,24 +482,12 @@
                         {{-- DROPDOWN RUMUS MANUAL (OPSIONAL) --}}
                         <div class="mb-5">
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
-                                Gunakan Rumus Lain (Opsional)
+                                Gunakan Rumus Tersimpan (Opsional)
                             </label>
-                            <select name="rumus_id" id="rumus_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                                <option value="" data-original-text="-- Default --">-- Default --</option>
-                                @isset($rumusList)
-                                    @foreach($rumusList as $rm)
-                                        {{-- TAMBAHKAN data-pola DI SINI --}}
-                                        <option value="{{ $rm->id }}" 
-                                            data-jenis="{{ $rm->jenis_satker_id }}"
-                                            data-wilayah="{{ $rm->tingkat_wilayah_id }}"
-                                            data-jabatan="{{ $rm->ref_jabatan_satker_id }}"
-                                            data-pola="{{ $rm->pola }}"
-                                            data-original-text="{{ $rm->nama_rumus }} ( {{ $rm->pola }} )">
-                                            {{ $rm->nama_rumus }} ( {{ $rm->pola }} )
-                                        </option>
-                                    @endforeach
-                                @endisset
+                            <select name="rumus_id" id="rumus_id" class="w-full">
+                                <option value="">-- Default (Sistem Otomatis) --</option>
                             </select>
+                            <p class="text-[10px] text-slate-500 mt-1 italic">*Hanya rumus yang sesuai dengan hierarki yang akan ditampilkan.</p>
                         </div>
 
                         {{-- Kode Satker (Generate) --}}
@@ -1392,7 +1380,10 @@
         // ==============================================================
         // 1. DATA MASTER DARI DATABASE (HARUS DI PALING ATAS)
         // ==============================================================
-        const refJabatan = @json($refJabatanSatker);
+        
+        // HAPUS where('is_applied', true) AGAR SEMUA RUMUS AKTIF & TIDAK AKTIF TERAMBIL
+        const refJabatan = @json($refJabatanSatker ?? \Illuminate\Support\Facades\DB::table('ref_jabatan_satker')->get());
+        window.allRumusData = @json($rumusList ?? \Illuminate\Support\Facades\DB::table('rumus_kodes')->orderBy('nama_rumus', 'asc')->get());
         
         const allParentOptions = Array.from(document.querySelectorAll('#parent_satker_id option'))
             .filter(opt => opt.value !== "")
@@ -1403,8 +1394,11 @@
                 periode: opt.getAttribute('data-periode') || ''
             }));
 
-        // Inisialisasi TomSelect untuk Parent
+        // INISIALISASI TOMSELECT UNTUK PARENT
         var control = new TomSelect('#parent_satker_id', {
+            onChange: function(value) {
+                if(typeof filterRumusOptions === 'function') filterRumusOptions(); 
+            },
             render: {
                 option: function(data, escape) {
                     return `<div class="py-1">
@@ -1417,27 +1411,86 @@
             }
         });
 
+        // INISIALISASI TOMSELECT UNTUK RUMUS
+        var rumusControl = new TomSelect('#rumus_id', {
+            valueField: 'id',
+            labelField: 'nama_rumus',
+            searchField: ['nama_rumus', 'preview_text'],
+            render: {
+                option: function(data, escape) {
+                    if(data.id === "") return `<div class="font-bold text-slate-600 py-2">${escape(data.nama_rumus)}</div>`;
+                    
+                    // Label visual jika rumus berstatus Tidak Aktif
+                    let isApplied = data.is_applied === true || data.is_applied === 1 || data.is_applied === '1';
+                    let badge = isApplied ? '' : `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Tidak Aktif</span>`;
+
+                    return `
+                        <div class="py-1.5 flex flex-col">
+                            <div class="flex items-center">
+                                <span class="text-sm font-semibold text-slate-800">${escape(data.nama_rumus)}</span>
+                                ${badge}
+                            </div>
+                            <span class="text-[11px] font-mono text-slate-400 mt-0.5">
+                                Kode: <span class="text-slate-600">${data.prefix}</span><span class="text-blue-600 font-bold bg-blue-50 px-1 rounded ml-[2px]">${data.suffix}</span>
+                            </span>
+                        </div>
+                    `;
+                },
+                item: function(data, escape) {
+                    if(data.id === "") return `<div class="font-bold text-slate-600">${escape(data.nama_rumus)}</div>`;
+                    return `
+                        <div class="flex items-center font-semibold text-sm text-slate-800">
+                            ${escape(data.nama_rumus)} 
+                            <span class="font-mono text-xs ml-2 text-slate-400">
+                                ${data.prefix}<span class="text-blue-600 font-bold ml-[2px]">${data.suffix}</span>
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+        });
+
         // FUNGSI BARU UNTUK BUKA MODAL TAMBAH DENGAN PERIODE AKTIF
         function openTambahModalWithPeriode(periodeId) {
-            resetTambahSatkerModal(); // Reset isian form sebelumnya
-            document.getElementById('periode_id').value = periodeId; // Set periode secara tersembunyi
-            toggleModal('modalTambahSatker'); // Buka modalnya
-            filterParent(); // Pastikan opsi parent menyesuaikan periode
+            resetTambahSatkerModal(); 
+            document.getElementById('periode_id').value = periodeId; 
+            toggleModal('modalTambahSatker'); 
+            filterParent(); 
         }
 
         // ==============================================================
-        // 2. FUNGSI FILTER & LOGIKA FORM DINAMIS
+        // 2. FUNGSI LOGIKA PREVIEW & FILTER RUMUS
         // ==============================================================
+
+        // Fungsi mengubah [PARENT][INC:2] menjadi angka preview "012101"
+        function getPolaPreview(pola, parentCode) {
+            let prefix = "";
+            let suffix = pola || "";
+
+            if (suffix.includes("[PARENT]")) {
+                prefix = parentCode && parentCode !== "[-]" ? parentCode : "[Induk]";
+                suffix = suffix.replace(/\[PARENT\]/g, "");
+            }
+
+            // Ubah [INC:2, START:01] jadi angka "01" sebagai visual
+            suffix = suffix.replace(/\[INC:(\d+)(?:,\s*START:(\d+))?\]/g, function(match, digits, start) {
+                let numStr = start ? start.trim() : '1';
+                while(numStr.length < parseInt(digits)) numStr = '0' + numStr;
+                return numStr;
+            });
+
+            return { prefix, suffix };
+        }
+
         function filterParent() {
             const jenisSelect = document.getElementById('jenis_satker_id');
             const jenisId = jenisSelect.value;
             const parentContainer = document.getElementById('parent_container');
             const jabatanContainer = document.getElementById('container_status_jabatan'); 
             
-            // AMBIL PERIODE AKTIF DARI HIDDEN INPUT
             const currentPeriodeId = document.getElementById('periode_id').value;
 
-            // --- TAMPILKAN OPSI BALAI HANYA UNTUK ESELON 3 ---
+            // --- TAMPILKAN OPSI BALAI ---
             const wrapperBalai = document.getElementById('wrapper_opsi_balai');
             const selectedText = jenisSelect.options[jenisSelect.selectedIndex]?.text.toLowerCase() || '';
             
@@ -1447,7 +1500,7 @@
                 if (wrapperBalai) {
                     wrapperBalai.classList.add('hidden');
                     document.getElementById('is_balai_checkbox').checked = false;
-                    toggleBalaiOptions(); 
+                    if(typeof toggleBalaiOptions === 'function') toggleBalaiOptions(); 
                 }
             }
 
@@ -1477,7 +1530,6 @@
             parentContainer.classList.remove('hidden');
             const targetParentEselon = parseInt(jenisId) - 1;
             
-            // FILTER BERDASARKAN ESELON DAN PERIODE AKTIF
             const filteredData = allParentOptions.filter(opt => 
                 opt.eselon === targetParentEselon && 
                 opt.periode == currentPeriodeId
@@ -1514,32 +1566,19 @@
             jabatanSelect.innerHTML = '<option value="">-- Pilih Status Jabatan --</option>';
 
             let finalOptions = [];
-
             const commonOptions = refJabatan.filter(item =>
                 item.tingkat_wilayah_id === null &&
                 item.parent_id === null &&
                 item.key_jabatan !== 'manajerial'
             );
 
-            // PUSAT
             if (wilayahText.includes('pusat')) {
-                finalOptions = refJabatan.filter(item =>
-                    item.tingkat_wilayah_id === null && item.parent_id === null
-                );
-            }
-            // PTKN / UNIVERSITAS / INSTITUT
-            else if (wilayahText.includes('ptkn') || wilayahText.includes('universitas') || wilayahText.includes('institut')) {
-                const ptknOptions = refJabatan.filter(item =>
-                    item.tingkat_wilayah_id === 4 && item.parent_id === null
-                );
+                finalOptions = refJabatan.filter(item => item.tingkat_wilayah_id === null && item.parent_id === null);
+            } else if (wilayahText.includes('ptkn') || wilayahText.includes('universitas') || wilayahText.includes('institut')) {
+                const ptknOptions = refJabatan.filter(item => item.tingkat_wilayah_id === 4 && item.parent_id === null);
                 finalOptions = [...ptknOptions, ...commonOptions];
-            }
-            // PROVINSI / KABKOTA
-            else {
-                const wilayahOptions = refJabatan.filter(item =>
-                    item.key_jabatan === 'jabatan_kanwil' ||
-                    item.key_jabatan === 'jabatan_kotakab'
-                );
+            } else {
+                const wilayahOptions = refJabatan.filter(item => item.key_jabatan === 'jabatan_kanwil' || item.key_jabatan === 'jabatan_kotakab');
                 finalOptions = [...wilayahOptions, ...commonOptions];
             }
 
@@ -1596,7 +1635,7 @@
                 namaSatkerInput.value = '';
                 namaSatkerInput.dataset.staticText = '';
                 updateRefJabatanId(); 
-                resetKodeSatker(); 
+                if(typeof resetKodeSatker === 'function') resetKodeSatker(); 
                 return;
             }
 
@@ -1610,12 +1649,12 @@
                 let targetSelect = null;
                 if (status === 'jabatan_kotakab') {
                     document.getElementById('container_kabupaten').classList.remove('hidden');
-                    if (jenisSatker === '4') { // Asumsi ID 4 = Eselon 3 Kota/Kab
+                    if (jenisSatker === '4') { 
                         document.getElementById('container_kategori_kotakab').classList.remove('hidden');
                         targetSelect = document.getElementById('kategori_kotakab');
                         if (targetSelect.value !== "") handleKategoriKotaKabChange(); 
                     }
-                } else if (jenisSatker === '3') { // Asumsi ID 3 = Eselon 3 Kanwil
+                } else if (jenisSatker === '3') { 
                     document.getElementById('container_kategori_unit').classList.remove('hidden');
                     targetSelect = document.getElementById('kategori_unit');
                 }
@@ -1697,7 +1736,7 @@
         }
 
         function handleJenisMadrasahChange() {
-            resetKodeSatker();
+            if(typeof resetKodeSatker === 'function') resetKodeSatker();
             const jenisMadrasah = document.getElementById('jenis_madrasah');
             const namaSatkerInput = document.getElementById('nama_satker');
 
@@ -1714,7 +1753,7 @@
         }
 
         function handleKategoriUnitChange() {
-            resetKodeSatker();
+            if(typeof resetKodeSatker === 'function') resetKodeSatker();
             const kategoriSelect = document.getElementById('kategori_unit');
             const namaSatkerInput = document.getElementById('nama_satker');
 
@@ -1746,87 +1785,80 @@
             document.getElementById("ref_jabatan_satker_id").value = id;
 
             // Trigger Pengecekan Rumus Valid tiap kali Jabatan berubah
-            filterRumusOptions();
+            if(typeof filterRumusOptions === 'function') filterRumusOptions();
         }
 
         // ==============================================================
-        // FUNGSI PENGUNCI (DISABLE) RUMUS YANG TIDAK COCOK
+        // FUNGSI PENGUNCI / FILTER RUMUS BERDASARKAN HIERARKI
         // ==============================================================
         function filterRumusOptions() {
             const formJenisId = document.getElementById('jenis_satker_id')?.value || "";
+            const formJabatanId = document.getElementById('ref_jabatan_satker_id')?.value || "";
             
-            // CARA LEBIH AMAN MENGAMBIL DATA TINGKAT WILAYAH
             const wilayahSelect = document.getElementById('wilayah_id');
             let formTingkatWilayahId = "";
             if (wilayahSelect && wilayahSelect.selectedIndex >= 0) {
                 const selectedOpt = wilayahSelect.options[wilayahSelect.selectedIndex];
                 formTingkatWilayahId = selectedOpt?.getAttribute('data-tingkat') || "";
             }
-            
-            const formJabatanId = document.getElementById('ref_jabatan_satker_id')?.value || "";
-            
-            const rumusSelect = document.getElementById('rumus_id');
-            if (!rumusSelect) return;
-            
-            const options = rumusSelect.querySelectorAll('option');
-            let isCurrentSelectionValid = false;
 
-            options.forEach(opt => {
-                if(opt.value === "") {
-                    opt.disabled = false;
-                    isCurrentSelectionValid = true; 
-                    return; 
+            let parentCode = "[-]";
+            if (typeof control !== 'undefined' && control) {
+                const selectedParentId = control.getValue();
+                if (selectedParentId) {
+                    const parentOption = control.options[selectedParentId];
+                    if (parentOption && parentOption.text) {
+                        parentCode = parentOption.text.split('-')[0].trim();
+                    }
                 }
+            }
+
+            // 1. FILTER: HANYA RUMUS YANG COCOK YANG DISISAKAN (Tidak ada X Merah lagi)
+            let validRumus = (window.allRumusData || []).filter(rm => {
+                let matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == formJenisId);
+                let matchWilayah = (!rm.tingkat_wilayah_id || rm.tingkat_wilayah_id == formTingkatWilayahId);
+                let matchJabatan = (!rm.ref_jabatan_satker_id || rm.ref_jabatan_satker_id == formJabatanId);
                 
-                // Gunakan getAttribute agar aman dan konsisten sebagai text/string
-                const rJenis = opt.getAttribute('data-jenis') || "";
-                const rWilayah = opt.getAttribute('data-wilayah') || "";
-                const rJabatan = opt.getAttribute('data-jabatan') || "";
-                const rPola = opt.getAttribute('data-pola') || ""; 
-                
-                // PENTING: Gunakan == (bukan ===) agar angka 1 dan text "1" dianggap sama
-                let matchJenis = (!rJenis || rJenis == formJenisId);
-                let matchWilayah = (!rWilayah || rWilayah == formTingkatWilayahId);
-                let matchJabatan = (!rJabatan || rJabatan == formJabatanId);
-                
-                // --- LOGIKA VALIDASI STRUKTUR POLA ---
                 let matchPola = true;
-                let polaReason = "";
-                
-                // Jika Eselon 1 (Pusat/PTKN) -> TIDAK BOLEH ADA [PARENT]
-                if (formJenisId === "1" && rPola.includes('[PARENT]')) {
-                    matchPola = false;
-                    polaReason = "Struktur (Ada Induk)";
-                } 
-                // Jika Eselon 2, 3, 4 -> WAJIB ADA [PARENT]
-                else if (formJenisId !== "1" && formJenisId !== "" && !rPola.includes('[PARENT]')) {
-                    matchPola = false;
-                    polaReason = "Struktur (Tanpa Induk)";
-                }
+                if (formJenisId === "1" && (rm.pola || "").includes('[PARENT]')) matchPola = false;
+                else if (formJenisId !== "1" && formJenisId !== "" && !(rm.pola || "").includes('[PARENT]')) matchPola = false;
 
-                if (matchJenis && matchWilayah && matchJabatan && matchPola) {
-                    opt.disabled = false;
-                    opt.text = opt.getAttribute('data-original-text');
-                    if (opt.selected) isCurrentSelectionValid = true;
-                } else {
-                    opt.disabled = true;
-                    let reason = [];
-                    if (!matchJenis) reason.push('Eselon');
-                    if (!matchWilayah) reason.push('Wilayah');
-                    if (!matchJabatan) reason.push('Jabatan');
-                    if (!matchPola) reason.push(polaReason); 
-                    
-                    opt.text = `[❌ Beda ${reason.join(' & ')}] ` + opt.getAttribute('data-original-text');
-                }
+                return matchJenis && matchWilayah && matchJabatan && matchPola;
             });
+
+            // 2. Petakan data valid menjadi opsi TomSelect
+            let optionsData = [{ id: "", nama_rumus: "-- Default (Sistem Otomatis) --", prefix: "", suffix: "", preview_text: "", is_applied: true }];
             
-            if (!isCurrentSelectionValid && rumusSelect.value !== "") {
-                rumusSelect.value = "";
-                Toast.fire({
-                    icon: 'info',
-                    title: 'Rumus Direset',
-                    text: 'Rumus manual dibatalkan karena Anda mengubah kombinasi form.'
+            validRumus.forEach(rm => {
+                let parsed = getPolaPreview(rm.pola || "", parentCode);
+                optionsData.push({
+                    id: rm.id,
+                    nama_rumus: rm.nama_rumus,
+                    prefix: parsed.prefix,
+                    suffix: parsed.suffix,
+                    preview_text: parsed.prefix + parsed.suffix,
+                    is_applied: rm.is_applied // Membawa status aktif ke tampilan
                 });
+            });
+
+            // 3. Render ke dalam Dropdown
+            if (typeof rumusControl !== 'undefined' && rumusControl) {
+                let currentValue = rumusControl.getValue();
+                rumusControl.clear(true);
+                rumusControl.clearOptions();
+                rumusControl.addOptions(optionsData);
+                
+                if (optionsData.some(opt => String(opt.id) === String(currentValue))) {
+                    rumusControl.setValue(currentValue, true);
+                } else if (currentValue !== "") {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.fire({
+                            icon: 'info',
+                            title: 'Rumus Direset',
+                            text: 'Pilihan rumus dibatalkan karena Anda mengubah hierarki form.'
+                        });
+                    }
+                }
             }
         }
 
@@ -2660,6 +2692,183 @@
                 namaInput.value = "Balai Pendidikan dan Pelatihan ";
             } else if (select.value === "31") {
                 namaInput.value = "Balai Penelitian dan Pengembangan ";
+            }
+        }
+    </script>
+    <script>
+        // ==============================================================
+        // FITUR DROPDOWN RUMUS DENGAN LIVE PREVIEW PREDIKSI KODE
+        // ==============================================================
+        let rumusTomSelect = null;
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // 1. Inisialisasi TomSelect pada Dropdown Rumus
+            const rumusEl = document.getElementById('rumus_id');
+            if (rumusEl) {
+                rumusTomSelect = new TomSelect('#rumus_id', {
+                    valueField: 'id',
+                    labelField: 'nama_rumus',
+                    searchField: ['nama_rumus', 'preview_text'],
+                    render: {
+                        option: function(data, escape) {
+                            if(data.id === "") return `<div class="font-bold text-slate-600 py-2">${escape(data.nama_rumus)}</div>`;
+                            
+                            let isApplied = data.is_applied == 1 || data.is_applied == true;
+                            let badge = isApplied ? '' : `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Tidak Aktif</span>`;
+                            
+                            return `
+                                <div class="py-1.5 flex flex-col">
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-semibold text-slate-800">${escape(data.nama_rumus)}</span>
+                                        ${badge}
+                                    </div>
+                                    <span class="text-[11px] font-mono text-slate-500 mt-0.5">
+                                        Output: <span class="text-slate-700">${escape(data.prefix)}</span><span class="text-blue-600 font-bold bg-blue-100 px-1 rounded ml-[2px]">${escape(data.suffix)}</span>
+                                    </span>
+                                </div>
+                            `;
+                        },
+                        item: function(data, escape) {
+                            if(data.id === "") return `<div class="font-bold text-slate-600">${escape(data.nama_rumus)}</div>`;
+                            return `
+                                <div class="flex items-center font-semibold text-sm text-slate-800">
+                                    ${escape(data.nama_rumus)} 
+                                    <span class="font-mono text-xs ml-2 text-slate-500">
+                                        (${escape(data.prefix)}<span class="text-blue-600 font-bold ml-[2px]">${escape(data.suffix)}</span>)
+                                    </span>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+            }
+
+            // 2. Pasang Event Listener ke Input Form untuk Memicu Filter Rumus
+            const triggerIds = [
+                'jenis_satker_id', 'parent_satker_id', 'wilayah_id', 
+                'tanpa_jabatan', 'kategori_kotakab', 'jenis_madrasah', 'kategori_unit', 'jabatan_id'
+            ];
+            triggerIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', updateDropdownRumus);
+                }
+            });
+
+            // Panggil sekali saat load
+            setTimeout(updateDropdownRumus, 500);
+        });
+
+        // 3. Logika Memprediksi Angka Selanjutnya
+        function getPrediksiKode(pola, parentCode, periodeId) {
+            let rawStr = pola || "";
+            
+            // Ganti [PARENT] dengan kode induk yang dipilih
+            if (rawStr.includes("[PARENT]")) {
+                let pCode = parentCode && parentCode !== "[-]" ? parentCode : "[Induk]";
+                rawStr = rawStr.replace(/\[PARENT\]/g, pCode);
+            }
+
+            let finalPrefix = "";
+            let finalSuffix = "";
+
+            // Cari pola [INC]
+            let incRegex = /\[INC:(\d+)(?:,\s*START:(\d+))?\]/g;
+            let match = incRegex.exec(rawStr);
+            
+            if (match) {
+                finalPrefix = rawStr.substring(0, match.index); // Bagian sebelum [INC]
+                let digits = parseInt(match[1]);
+                let startNum = parseInt(match[2] || '1');
+                
+                if (finalPrefix.includes("[Induk]") || finalPrefix.includes("[-]")) {
+                    // Jika induk belum dipilih, tampilkan START sebagai preview
+                    finalSuffix = String(startNum).padStart(digits, '0');
+                } else {
+                    // MENCARI DATA TERAKHIR DI DATABASE (existingSatkers)
+                    let existing = (window.existingSatkers || [])
+                        .filter(s => s.periode_id == periodeId && 
+                                     s.kode_satker && 
+                                     s.kode_satker.startsWith(finalPrefix) && 
+                                     s.kode_satker.length === finalPrefix.length + digits)
+                        .map(s => parseInt(s.kode_satker.substring(finalPrefix.length)))
+                        .filter(n => !isNaN(n));
+                        
+                    if (existing.length === 0) {
+                        finalSuffix = String(startNum).padStart(digits, '0');
+                    } else {
+                        let maxNum = Math.max(...existing);
+                        let nextNum = maxNum >= startNum ? maxNum + 1 : startNum;
+                        finalSuffix = String(nextNum).padStart(digits, '0');
+                    }
+                }
+            } else {
+                finalPrefix = rawStr;
+                finalSuffix = "";
+            }
+
+            return { prefix: finalPrefix, suffix: finalSuffix };
+        }
+
+        // 4. Logika Filter Opsi yang Tampil
+        function updateDropdownRumus() {
+            if (!rumusTomSelect) return;
+
+            const formJenisId = document.getElementById('jenis_satker_id')?.value || "";
+            const formJabatanId = document.getElementById('ref_jabatan_satker_id')?.value || "";
+            const currentPeriodeId = document.getElementById('periode_id')?.value || "";
+            
+            const wilayahSelect = document.getElementById('wilayah_id');
+            let formTingkatWilayahId = "";
+            if (wilayahSelect && wilayahSelect.selectedIndex >= 0) {
+                const selectedOpt = wilayahSelect.options[wilayahSelect.selectedIndex];
+                formTingkatWilayahId = selectedOpt?.getAttribute('data-tingkat') || "";
+            }
+
+            const parentSelect = document.getElementById('parent_satker_id');
+            let parentCode = "[-]";
+            if (parentSelect && parentSelect.selectedIndex >= 0) {
+                const pt = parentSelect.options[parentSelect.selectedIndex].text;
+                if (pt && pt.includes('-')) {
+                    parentCode = pt.split('-')[0].trim();
+                }
+            }
+
+            // Seleksi rumus yang sesuai kriteria form
+            let validRumus = (window.rumusDatabase || []).filter(rm => {
+                let matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == formJenisId);
+                let matchWilayah = (!rm.tingkat_wilayah_id || rm.tingkat_wilayah_id == formTingkatWilayahId);
+                let matchJabatan = (!rm.ref_jabatan_satker_id || rm.ref_jabatan_satker_id == formJabatanId);
+                
+                let matchPola = true;
+                if (formJenisId === "1" && (rm.pola || "").includes('[PARENT]')) matchPola = false;
+                else if (formJenisId !== "1" && formJenisId !== "" && !(rm.pola || "").includes('[PARENT]')) matchPola = false;
+
+                return matchJenis && matchWilayah && matchJabatan && matchPola;
+            });
+
+            // Map data untuk dropdown dengan Prediksi Angka
+            let optionsData = [{ id: "", nama_rumus: "-- Default (Sistem Otomatis) --", prefix: "", suffix: "", preview_text: "", is_applied: true }];
+            
+            validRumus.forEach(rm => {
+                let parsed = getPrediksiKode(rm.pola || "", parentCode, currentPeriodeId);
+                optionsData.push({
+                    id: rm.id,
+                    nama_rumus: rm.nama_rumus,
+                    prefix: parsed.prefix,
+                    suffix: parsed.suffix,
+                    preview_text: parsed.prefix + parsed.suffix,
+                    is_applied: rm.is_applied
+                });
+            });
+
+            let currentValue = rumusTomSelect.getValue();
+            rumusTomSelect.clear(true);
+            rumusTomSelect.clearOptions();
+            rumusTomSelect.addOptions(optionsData);
+            
+            if (optionsData.some(opt => String(opt.id) === String(currentValue))) {
+                rumusTomSelect.setValue(currentValue, true);
             }
         }
     </script>

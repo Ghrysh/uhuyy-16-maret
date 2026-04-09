@@ -79,7 +79,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/setting-kode/rumus/{id}', [\App\Http\Controllers\SettingKodeController::class, 'destroyRumus'])->name('setting-kode.destroyRumus');
     Route::post('/setting-kode/rumus/{id}/apply', [\App\Http\Controllers\SettingKodeController::class, 'applyRumus'])->name('setting-kode.applyRumus');
 
+    Route::post('/setting-kode/jabatan', [\App\Http\Controllers\SettingKodeController::class, 'storeJabatan'])->name('setting-kode.storeJabatan');
+    Route::put('/setting-kode/jabatan/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateJabatan'])->name('setting-kode.updateJabatan');
+    Route::delete('/setting-kode/jabatan/{id}', [\App\Http\Controllers\SettingKodeController::class, 'destroyJabatan'])->name('setting-kode.destroyJabatan');
+
     Route::get('/pegawai/search-local', [App\Http\Controllers\PegawaiController::class, 'searchLocal'])->name('pegawai.search-local');
+
+    Route::resource('role', \App\Http\Controllers\RoleController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('role/penugasan', [\App\Http\Controllers\RoleController::class, 'storePenugasan'])->name('role.penugasan.store');
+    Route::delete('role/penugasan/{id}', [\App\Http\Controllers\RoleController::class, 'destroyPenugasan'])->name('role.penugasan.destroy');
+    
+    Route::resource('regulasi', \App\Http\Controllers\RegulasiController::class)->only(['index', 'update']);
 });
 
 Route::middleware('auth')->group(function () {

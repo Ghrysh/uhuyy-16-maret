@@ -409,7 +409,8 @@
             });
         }
 
-        document.getElementById('formEditAkses').action = `/admin/role/${id}`;
+        let baseUrl = "{{ url('admin/role') }}";
+        document.getElementById('formEditAkses').action = `${baseUrl}/${id}`;
         toggleModal('modalEditAkses');
     }
 

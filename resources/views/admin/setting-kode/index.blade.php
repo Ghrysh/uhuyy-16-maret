@@ -127,10 +127,31 @@
                         </button>
                     </div>
                     
-                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-900/50 rounded text-sm text-white mb-4 border border-slate-700">
-                        <i class="fas fa-eye text-slate-500"></i>
-                        <div id="formula_preview" class="font-bold flex items-center gap-1.5">
-                            <span class="text-slate-300 italic">Preview kode akan muncul di sini...</span>
+                    <div class="flex items-start justify-between px-3 py-2 bg-slate-900/50 rounded text-sm text-white mb-4 border border-slate-700 gap-4">
+                        <div class="flex items-center gap-2 mt-1">
+                            <i class="fas fa-eye text-slate-500"></i>
+                            <div id="formula_preview" class="font-bold flex items-center gap-1.5"><span class="text-slate-300 italic">Preview kode akan muncul di sini...</span></div>
+                        </div>
+                        
+                        <div class="flex flex-col items-end gap-1.5 shrink-0">
+                            <div x-show="formulaInput.length > 0" class="text-[10px] font-bold bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded border border-indigo-500/30 w-fit shadow-sm">
+                                <i class="fas fa-calculator mr-1"></i> ~ <span x-text="estimatedDigits"></span> 
+                                <span x-show="formulaInput.includes('[PARENT]') && getInheritedExtra(selectedLevel, selectedWilayahId) > 0" class="text-amber-400 font-black">
+                                    (+<span x-text="getInheritedExtra(selectedLevel, selectedWilayahId)"></span>)
+                                </span> Digit
+                            </div>
+                            
+                            <div class="flex flex-col gap-1 items-end">
+                                <div x-show="formulaInput.includes('[PARENT]') && getInheritedExtra(selectedLevel, selectedWilayahId) > 0" class="text-[9px] text-amber-100 bg-amber-500/20 border border-amber-500/30 px-1.5 py-1 rounded flex items-start gap-1 w-fit max-w-[200px] leading-tight text-right shadow-sm">
+                                    <i class="fas fa-info-circle mt-0.5"></i> 
+                                    <span>[PARENT] memiliki angka tetap</span>
+                                </div>
+
+                                <div x-show="hasFixedCode && formulaInput.length > 0 && !formulaInput.includes(currentFixedCode)" class="text-[9px] text-red-100 bg-red-500/20 border border-red-500/30 px-1.5 py-1 rounded flex items-start gap-1 w-fit max-w-[200px] leading-tight text-right shadow-sm">
+                                    <i class="fas fa-exclamation-triangle mt-0.5"></i> 
+                                    <span>Angka tetap (<b x-text="currentFixedCode"></b>) belum dimasukkan.</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -219,7 +240,88 @@
                                     </div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 font-mono font-bold text-blue-600 bg-blue-50/30">{{ $r->pola }}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-col gap-1.5">
+                                    <span class="font-mono font-bold text-blue-600 bg-blue-50/30 px-2 py-1 rounded w-fit border border-blue-100">{{ $r->pola }}</span>
+                                    @php
+                                        // 1. FUNGSI UNTUK MELACAK TAMBAHAN ANGKA TETAP DARI PARENT (+X)
+                                        if (!isset($getInheritedExtra)) {
+                                            $getInheritedExtra = function($es, $wil, $allRumus, $allJabs) use (&$getInheritedExtra) {
+                                                $es = (int)$es;
+                                                if ($es <= 1) return 0;
+                                                $p = $allRumus->first(function($item) use ($es, $wil) { return (int)$item->jenis_satker_id === ($es - 1) && $item->tingkat_wilayah_id == $wil; });
+                                                if (!$p) $p = $allRumus->first(function($item) use ($es) { return (int)$item->jenis_satker_id === ($es - 1) && empty($item->tingkat_wilayah_id); });
+                                                
+                                                $extra = 0;
+                                                if ($p) {
+                                                    if ($p->ref_jabatan_satker_id) {
+                                                        $jab = $allJabs->firstWhere('id', $p->ref_jabatan_satker_id);
+                                                        if ($jab && $jab->kode_dasar) $extra += strlen(trim($jab->kode_dasar));
+                                                    }
+                                                    if (str_contains($p->pola ?? '', '[PARENT]')) $extra += $getInheritedExtra($es - 1, $wil, $allRumus, $allJabs);
+                                                }
+                                                return $extra;
+                                            };
+                                        }
+
+                                        $est_digit = 0;
+                                        $temp_pola = $r->pola ?? '';
+                                        $eselon = (int) ($r->jenis_satker_id ?? 1);
+                                        $wilayah = $r->tingkat_wilayah_id;
+                                        
+                                        // 2. ESTIMASI DIGIT DASAR (Otomatis: Eselon - 1 dikali 2)
+                                        if (str_contains($temp_pola, '[PARENT]')) {
+                                            $est_digit += max(0, ($eselon - 1) * 2);
+                                        }
+                                        
+                                        // 3. Tambah digit dari [INC] dan angka manual yang diketik di rumus ini
+                                        if (preg_match_all('/\[INC:(\d+)/', $temp_pola, $matches)) {
+                                            foreach($matches[1] as $digit) $est_digit += (int) $digit;
+                                        }
+                                        $clean_pola = preg_replace('/\[PARENT\]|\[INC:[^\]]+\]/', '', $temp_pola);
+                                        $est_digit += strlen(trim($clean_pola));
+
+                                        // 4. Cek apakah rumus ini sendiri punya kode tetap yang terlewat
+                                        $fixed_code = '';
+                                        if ($r->ref_jabatan_satker_id && isset($refJabatans)) {
+                                            $jabatan = $refJabatans->firstWhere('id', $r->ref_jabatan_satker_id);
+                                            if ($jabatan && $jabatan->kode_dasar) $fixed_code = trim($jabatan->kode_dasar);
+                                        }
+
+                                        // 5. Hitung pelacakan Angka Tetap Parent (Memunculkan Warning Kuning)
+                                        $inherited_extra = 0;
+                                        if (str_contains($temp_pola, '[PARENT]')) {
+                                            $inherited_extra = $getInheritedExtra($eselon, $wilayah, $rumusList, $refJabatans);
+                                        }
+                                    @endphp
+                                    
+                                    {{-- TAMPILAN BARU --}}
+                                    <div class="flex flex-col gap-1 mt-0.5">
+                                        <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold w-fit border border-indigo-200 shadow-sm">
+                                            <i class="fas fa-calculator mr-1 text-indigo-400"></i> ~ 
+                                            {{ $est_digit }} 
+                                            @if($inherited_extra > 0)
+                                                <span class="text-amber-600 font-black">(+{{ $inherited_extra }})</span>
+                                            @endif
+                                            Digit
+                                        </span>
+                                        
+                                        @if($inherited_extra > 0)
+                                            <div class="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-1 rounded-md flex items-start gap-1 w-fit leading-tight shadow-sm mt-0.5">
+                                                <i class="fas fa-info-circle mt-0.5 text-amber-500"></i> 
+                                                <span>[PARENT] memiliki angka tetap</span>
+                                            </div>
+                                        @endif
+
+                                        @if($fixed_code !== '' && !str_contains($temp_pola, $fixed_code))
+                                            <div class="text-[9px] text-red-700 bg-red-50 border border-red-200 px-1.5 py-1 rounded-md flex items-start gap-1 w-fit leading-tight shadow-sm mt-0.5">
+                                                <i class="fas fa-exclamation-triangle mt-0.5 text-red-500"></i> 
+                                                <span>Angka tetap <b>({{ $fixed_code }})</b> belum dimasukkan.</span>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-center">
                                 @if($r->is_applied)
                                     <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-sm border border-emerald-200"><i class="fas fa-check-circle mr-1"></i> Aktif</span>
@@ -440,9 +542,32 @@
                                 </button>
                             </div>
                             
-                            <div class="flex items-center gap-2 px-3 py-2 bg-slate-900/50 rounded text-sm text-white mb-4 border border-slate-700">
-                                <i class="fas fa-eye text-slate-500"></i>
-                                <div class="font-bold flex items-center gap-1.5" x-html="getEditPreview()"></div>
+                            <div class="flex items-start justify-between px-3 py-2 bg-slate-900/50 rounded text-sm text-white mb-4 border border-slate-700 gap-4">
+                                <div class="flex items-center gap-2 mt-1">
+                                    <i class="fas fa-eye text-slate-500"></i>
+                                    <div class="font-bold flex items-center gap-1.5" x-html="getEditPreview()"></div>
+                                </div>
+                                
+                                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                                    <div x-show="editData.pola.length > 0" class="text-[10px] font-bold bg-amber-500/20 text-amber-300 px-2 py-1 rounded border border-amber-500/30 w-fit shadow-sm">
+                                        <i class="fas fa-calculator mr-1"></i> ~ <span x-text="editEstimatedDigits"></span> 
+                                        <span x-show="editData.pola.includes('[PARENT]') && getInheritedExtra(editData.jenis_satker_id, editData.tingkat_wilayah_id) > 0" class="text-amber-200 font-black">
+                                            (+<span x-text="getInheritedExtra(editData.jenis_satker_id, editData.tingkat_wilayah_id)"></span>)
+                                        </span> Digit
+                                    </div>
+                                    
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div x-show="editData.pola.includes('[PARENT]') && getInheritedExtra(editData.jenis_satker_id, editData.tingkat_wilayah_id) > 0" class="text-[9px] text-amber-100 bg-amber-500/20 border border-amber-500/30 px-1.5 py-1 rounded flex items-start gap-1 w-fit max-w-[200px] leading-tight text-right shadow-sm">
+                                            <i class="fas fa-info-circle mt-0.5"></i> 
+                                            <span>[PARENT] memiliki angka tetap</span>
+                                        </div>
+
+                                        <div x-show="editHasFixedCode && editData.pola.length > 0 && !editData.pola.includes(editCurrentFixedCode)" class="text-[9px] text-red-100 bg-red-500/20 border border-red-500/30 px-1.5 py-1 rounded flex items-start gap-1 w-fit max-w-[200px] leading-tight text-right shadow-sm">
+                                            <i class="fas fa-exclamation-triangle mt-0.5"></i> 
+                                            <span>Angka tetap (<b x-text="editCurrentFixedCode"></b>) belum dimasukkan.</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="flex flex-wrap gap-2 items-center justify-between">
@@ -609,6 +734,68 @@ Alpine.data('formulaBuilder', () => ({
                 if (!this.editData.ref_jabatan_satker_id) return '';
                 const jab = this.allJabatans.find(j => j.id == this.editData.ref_jabatan_satker_id);
                 return jab ? (jab.kode_dasar || '') : '';
+            },
+
+            allRumus: window.rumusDatabase || [],
+
+            // ==========================================
+            // LOGIKA PELACAK HIERARKI & ANGKA TETAP
+            // ==========================================
+            
+            // 1. Fungsi Baku Estimasi Panjang (Eselon - 1 * 2)
+            getParentLength(eselon) {
+                eselon = parseInt(eselon);
+                if (isNaN(eselon) || eselon <= 1) return 0;
+                return (eselon - 1) * 2; 
+            },
+
+            // 2. FUNGSI UNTUK MENDETEKSI TOTAL EXTRA DIGIT DARI PARENT (TETAP ADA)
+            getInheritedExtra(eselon, wilayahId) {
+                eselon = parseInt(eselon);
+                if (isNaN(eselon) || eselon <= 1) return 0;
+
+                let parent = this.allRumus.find(r => parseInt(r.jenis_satker_id) === eselon - 1 && r.tingkat_wilayah_id == wilayahId);
+                if (!parent) parent = this.allRumus.find(r => parseInt(r.jenis_satker_id) === eselon - 1 && (!r.tingkat_wilayah_id || r.tingkat_wilayah_id === 'all'));
+
+                let extra = 0;
+                if (parent) {
+                    if (parent.ref_jabatan_satker_id) {
+                        let jab = this.allJabatans.find(j => j.id == parent.ref_jabatan_satker_id);
+                        if (jab && jab.kode_dasar) {
+                            extra += String(jab.kode_dasar).trim().length;
+                        }
+                    }
+                    if ((parent.pola || '').includes('[PARENT]')) {
+                        extra += this.getInheritedExtra(eselon - 1, wilayahId);
+                    }
+                }
+                return extra;
+            },
+
+            // 3. Hitung Preview Buat Baru
+            get estimatedDigits() {
+                let total = 0; let p = this.formulaInput || ''; let lvl = parseInt(this.selectedLevel) || 1;
+                
+                if (p.includes('[PARENT]')) total += this.getParentLength(lvl);
+                
+                const incRegex = /\[INC:(\d+)/g; let match;
+                while ((match = incRegex.exec(p)) !== null) total += parseInt(match[1]);
+                
+                let clean = p.replace(/\[PARENT\]/g, '').replace(/\[INC:[^\]]+\]/g, '').trim();
+                return total + clean.length;
+            },
+
+            // 4. Hitung Preview Modal Edit
+            get editEstimatedDigits() {
+                let total = 0; let p = this.editData.pola || ''; let lvl = parseInt(this.editData.jenis_satker_id) || 1;
+                
+                if (p.includes('[PARENT]')) total += this.getParentLength(lvl);
+                
+                const incRegex = /\[INC:(\d+)/g; let match;
+                while ((match = incRegex.exec(p)) !== null) total += parseInt(match[1]);
+                
+                let clean = p.replace(/\[PARENT\]/g, '').replace(/\[INC:[^\]]+\]/g, '').trim();
+                return total + clean.length;
             },
 
             init() {

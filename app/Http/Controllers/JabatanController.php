@@ -219,7 +219,6 @@ class JabatanController extends Controller
                             ->find($user->satker_id);
                             
             if ($userSatker) {
-                // Masukkan induknya dulu (agar posisinya di atas saat dirender)
                 if ($userSatker->parent_satker_id) {
                     $parentSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
                                         ->find($userSatker->parent_satker_id);
@@ -227,51 +226,47 @@ class JabatanController extends Controller
                         $satkers->push($parentSatker);
                     }
                 }
-                // Masukkan satkernya sendiri
                 $satkers->push($userSatker);
             }
         } 
-        // JIKA SUPER ADMIN: Tampilkan seluruh Satker (Eselon 1 dan 2) seperti biasa
+        // JIKA SUPER ADMIN: Tampilkan seluruh Satker (PERBAIKAN HIERARKI ESELON 1-5)
         else {
-            $eselon1 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                        ->whereNull('parent_satker_id')
+            // Kita tarik SEMUA satker di periode ini, dan langsung diurutkan berdasarkan kode_satker.
+            // Karena format kode_satker itu berurutan (01, 0101, 010101), ini otomatis menyusun 
+            // data layaknya pohon hierarki dari atas ke bawah!
+            $satkers = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
                         ->orderBy('kode_satker', 'asc')
                         ->get();
-                        
-            $eselon2 = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                        ->whereIn('parent_satker_id', $eselon1->pluck('id'))
-                        ->orderBy('kode_satker', 'asc')
-                        ->get();
-                        
-            foreach ($eselon1 as $induk) {
-                $satkers->push($induk);
-                $anak_anak = $eselon2->where('parent_satker_id', $induk->id);
-                foreach ($anak_anak as $anak) {
-                    $satkers->push($anak);
-                }
-            }
         }
 
         // Ambil data kuota yang sudah disimpan
         $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
         
-        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $user) {
+        // Ambil semua ID parent untuk mengecek mana satker yang punya bawahan (tombol simpan akan muncul)
+        $parentIds = $satkers->pluck('parent_satker_id')->filter()->unique()->toArray();
+        
+        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $parentIds) {
             $kuota = $kuotas->get($satker->id);
             
-            // Atur visual indentasi (0 untuk induk, 1 untuk anak)
-            $level = $satker->parent_satker_id ? 1 : 0; 
+            // Menentukan Level Indentasi: Eselon 1 = Level 0, Eselon 2 = Level 1, dst.
+            if ($isAdminJafung) {
+                $level = $satker->parent_satker_id ? 1 : 0; 
+            } else {
+                $level = max(0, ($satker->jenis_satker_id ?? 1) - 1);
+            }
             
             return [
                 'id'            => $satker->id,
                 'parent_id'     => $satker->parent_satker_id,
                 'nama_satker'   => $satker->nama_satker,
                 'level'         => $level,
+                'has_children'  => in_array($satker->id, $parentIds), // Tandai jika punya bawahan
                 'kuota_pertama' => $kuota ? $kuota->kuota_pertama : 0,
                 'kuota_muda'    => $kuota ? $kuota->kuota_muda : 0,
                 'kuota_madya'   => $kuota ? $kuota->kuota_madya : 0,
                 'kuota_utama'   => $kuota ? $kuota->kuota_utama : 0,
             ];
-        });
+        })->values();
 
         return response()->json([
             'baseline'  => $jabatan->baseline,

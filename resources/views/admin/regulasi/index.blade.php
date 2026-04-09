@@ -349,7 +349,8 @@
             document.querySelector('input[name="regulations[cuti_replaceable]"][value="0"]').checked = true;
         }
 
-        document.getElementById('formRegulasi').action = `/admin/regulasi/${id}`;
+        let baseUrlRegulasi = "{{ url('admin/regulasi') }}";
+        document.getElementById('formRegulasi').action = `${baseUrlRegulasi}/${id}`;
         toggleModal('modalRegulasi');
     }
 </script>
