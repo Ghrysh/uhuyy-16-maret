@@ -93,8 +93,9 @@ class JabatanController extends Controller
         
         $nextBaseCode = $lastJabatan && $lastJabatan->base_last ? (int)$lastJabatan->base_last + 1 : 801;
 
-        // 3. DROPDOWN JUGA DIFILTER BERDASARKAN PERIODE
-        $dropdownJabatans = Jabatan::with('fungsional')
+        // 3. DROPDOWN SANGAT RINGAN (Hanya panggil kolom yang butuh)
+        $dropdownJabatans = Jabatan::with('fungsional:id,kode,name')
+            ->select('id', 'nama_jabatan', 'kode_jabatan', 'jabatan_fungsional_id')
             ->where('periode_id', $activePeriodeId)
             ->orderBy('kode_jabatan', 'asc')
             ->get();
@@ -208,47 +209,32 @@ class JabatanController extends Controller
         $userRoles = $user->roles()->pluck('key')->toArray();
         $isSuperAdmin = in_array('super_admin', $userRoles);
         
-        // Deteksi apakah user adalah Admin Jafung
         $isAdminJafung = (in_array('admin_jafung_pengguna', $userRoles) || in_array('admin_jafung_pembina', $userRoles)) && !$isSuperAdmin;
 
         $satkers = collect();
 
-        // JIKA ADMIN JAFUNG: Hanya tampilkan Satkernya dan Induk Satkernya
         if ($isAdminJafung && $user->satker_id) {
-            $userSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                            ->find($user->satker_id);
-                            
+            $userSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)->find($user->satker_id);
             if ($userSatker) {
                 if ($userSatker->parent_satker_id) {
-                    $parentSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
-                                        ->find($userSatker->parent_satker_id);
-                    if ($parentSatker) {
-                        $satkers->push($parentSatker);
-                    }
+                    $parentSatker = \App\Models\Satker::where('periode_id', $jabatan->periode_id)->find($userSatker->parent_satker_id);
+                    if ($parentSatker) $satkers->push($parentSatker);
                 }
                 $satkers->push($userSatker);
             }
-        } 
-        // JIKA SUPER ADMIN: Tampilkan seluruh Satker (PERBAIKAN HIERARKI ESELON 1-5)
-        else {
-            // Kita tarik SEMUA satker di periode ini, dan langsung diurutkan berdasarkan kode_satker.
-            // Karena format kode_satker itu berurutan (01, 0101, 010101), ini otomatis menyusun 
-            // data layaknya pohon hierarki dari atas ke bawah!
+        } else {
+            // TARIK SEMUA SATKER SECARA BERURUTAN (Otomatis membentuk pohon hierarki Eselon 1-5 dengan sangat cepat)
             $satkers = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
                         ->orderBy('kode_satker', 'asc')
                         ->get();
         }
 
-        // Ambil data kuota yang sudah disimpan
         $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
-        
-        // Ambil semua ID parent untuk mengecek mana satker yang punya bawahan (tombol simpan akan muncul)
         $parentIds = $satkers->pluck('parent_satker_id')->filter()->unique()->toArray();
         
         $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $parentIds) {
             $kuota = $kuotas->get($satker->id);
             
-            // Menentukan Level Indentasi: Eselon 1 = Level 0, Eselon 2 = Level 1, dst.
             if ($isAdminJafung) {
                 $level = $satker->parent_satker_id ? 1 : 0; 
             } else {
@@ -260,7 +246,7 @@ class JabatanController extends Controller
                 'parent_id'     => $satker->parent_satker_id,
                 'nama_satker'   => $satker->nama_satker,
                 'level'         => $level,
-                'has_children'  => in_array($satker->id, $parentIds), // Tandai jika punya bawahan
+                'has_children'  => in_array($satker->id, $parentIds),
                 'kuota_pertama' => $kuota ? $kuota->kuota_pertama : 0,
                 'kuota_muda'    => $kuota ? $kuota->kuota_muda : 0,
                 'kuota_madya'   => $kuota ? $kuota->kuota_madya : 0,

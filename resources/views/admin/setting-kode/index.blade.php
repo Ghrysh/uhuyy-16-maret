@@ -204,7 +204,7 @@
                 </div>
             </div>
             {{-- TAMBAHAN ID CONTAINER & KELAS SCROLL --}}
-            <div id="rumusTableContainer" class="overflow-x-auto max-h-[60vh] scroll-smooth">
+            <div id="rumusTableContainer" class="overflow-y-auto overflow-x-auto max-h-[60vh] scroll-smooth">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px]">
                         <tr>
@@ -370,7 +370,7 @@
                 </div>
             </div>
             {{-- TAMBAHAN ID CONTAINER & KELAS SCROLL --}}
-            <div id="jabatanTableContainer" class="overflow-x-auto max-h-[60vh] scroll-smooth">
+            <div id="jabatanTableContainer" class="overflow-y-auto overflow-x-auto max-h-[60vh] scroll-smooth">
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px] sticky top-0 z-10">
                         <tr>
@@ -902,7 +902,8 @@ Alpine.data('formulaBuilder', () => ({
                             const term = val.toLowerCase();
                             const rows = container.querySelectorAll(rowClass);
                             
-                            this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50/50', 'transition-all'));
+                            // Bersihkan highlight lama
+                            this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', '!bg-blue-200', 'transition-all'));
                             this.matches = [];
                             this.currentMatchIndex = 0;
 
@@ -922,7 +923,8 @@ Alpine.data('formulaBuilder', () => ({
                             }
                         }, 300);
                     } else {
-                        this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50/50', 'transition-all'));
+                        // Bersihkan saat search kosong
+                        this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', '!bg-blue-200', 'transition-all'));
                         this.matches = [];
                     }
                 });
@@ -932,18 +934,22 @@ Alpine.data('formulaBuilder', () => ({
             scrollToMatch(index, containerId) {
                 if (this.matches.length === 0) return;
                 
+                // Hapus highlight dari hasil yang sebelumnya aktif
                 if (this.matches[this.currentMatchIndex]) {
-                    this.matches[this.currentMatchIndex].classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50/50', 'transition-all');
+                    this.matches[this.currentMatchIndex].classList.remove('ring-2', 'ring-blue-400', '!bg-blue-200', 'transition-all');
                 }
                 
+                // Looping index (Jika next di hasil terakhir, kembali ke 1. Dan sebaliknya)
                 if (index < 0) index = this.matches.length - 1;
                 if (index >= this.matches.length) index = 0;
                 
                 this.currentMatchIndex = index;
                 const target = this.matches[this.currentMatchIndex];
                 
-                target.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50/50', 'transition-all');
+                // Tambahkan highlight ke target yang sedang dilihat (Gunakan !bg-blue-200 agar tembus <tr>)
+                target.classList.add('ring-2', 'ring-blue-400', '!bg-blue-200', 'transition-all');
 
+                // Gulir ke elemen tersebut
                 const container = document.getElementById(containerId);
                 const cRect = container.getBoundingClientRect();
                 const mRect = target.getBoundingClientRect();
@@ -1226,7 +1232,7 @@ Alpine.data('formulaBuilder', () => ({
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
 
                 try {
-                    const payload = { satker: changedData };
+                    const payload = { kode_satker_baru: changedData };
                     const response = await fetch(form.action, {
                         method: 'POST',
                         headers: {

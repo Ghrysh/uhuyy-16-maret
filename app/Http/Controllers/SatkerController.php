@@ -11,6 +11,7 @@ use App\Models\MJenisPenugasan;
 use App\Models\RefJabatanSatker;
 use App\Models\MRole;
 use App\Models\LogSistem;
+use App\Models\MJenisSatker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -118,13 +119,17 @@ class SatkerController extends Controller
         $user = Auth::user();
         $userRoles = $user->roles()->pluck('key')->toArray();
 
-        $satkerQuery = Satker::with('children');
-        $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon']);
-        $tableQuery = Satker::query()->with(['wilayah', 'eselon']);
-        $listQuery = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id');
-        $parentsQuery = Satker::query();
+        $periodes = Periode::orderBy('created_at', 'asc')->get();
+        // Pastikan activePeriodeId terdefinisi untuk filter
+        $activePeriodeId = $request->input('periode_id', $periodes->where('is_active', true)->first()->id ?? ($periodes->last()->id ?? null));
 
-        // PENERAPAN VISIBILITAS DARI REGULASI
+        $satkerQuery = Satker::with('children')->where('periode_id', $activePeriodeId);
+        $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon'])->where('periode_id', $activePeriodeId);
+        $tableQuery = Satker::query()->with(['wilayah', 'eselon'])->where('periode_id', $activePeriodeId);
+        $listQuery = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id')->where('periode_id', $activePeriodeId);
+        $parentsQuery = Satker::query()->where('periode_id', $activePeriodeId);
+
+        // PENERAPAN VISIBILITAS DARI REGULASI (Ini yang mengembalikan data Anda yang "hilang")
         if ($perm['visibility'] !== 'all') {
             $allowedIds = $perm['allowed_ids'];
 
@@ -156,9 +161,13 @@ class SatkerController extends Controller
 
         // Master Data lainnya
         $jenisSatkers = DB::table('m_jenis_satker')->get();
-        $periodes = Periode::orderBy('created_at', 'asc')->get();
-        $jabatan = Jabatan::with('fungsional')->get();
-        $pegawais = User::all();
+        $jabatan = Jabatan::where('periode_id', $activePeriodeId)->with('fungsional')->get();
+        
+        // ----------------------------------------------------------------------
+        // PENGHAPUSAN QUERY BERAT ($pegawais = User::all()) YANG MEMBUAT LEMOT!
+        // ----------------------------------------------------------------------
+        $pegawais = collect([]); 
+        
         $jenis_penugasans = MJenisPenugasan::all();
         $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])->orderBy('kode_wilayah', 'asc')->get();
         $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)->orderBy('kode_wilayah', 'asc')->get();
@@ -172,7 +181,11 @@ class SatkerController extends Controller
         
         $rumusList = DB::table('rumus_kodes')->orderBy('id', 'asc')->get();
 
-        return view('admin.satker.index', compact('satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList'));
+        return view('admin.satker.index', compact(
+            'satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 
+            'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 
+            'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList', 'activePeriodeId'
+        ));
     }
     
     private function getAllDescendantIds($satkerId) {
