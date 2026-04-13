@@ -23,6 +23,7 @@ Route::get('/', function () {
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/export', [DashboardController::class, 'exportLaporan'])->name('dashboard.export');
 
     Route::get('/wilayah', [WilayahController::class, 'index'])->name('wilayah.index');
     Route::get('/wilayah/create', [WilayahController::class, 'create'])->name('wilayah.create');

@@ -156,7 +156,7 @@ class RumusJabatanSeeder extends Seeder
         // Insert ulang semua Rumus dengan memetakan ID jabatannya ke ID yang "Lama" tadi
         // ===================================================================================
         $rumusList = [
-            // Batch 1
+            // BATCH 1
             ['nama_rumus' => 'Biro di PTKN', 'jenis_satker_id' => 2, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala Pusat PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => '11abc7e2-45c4-4b86-8199-343b9687fc97', 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Ketua Jurusan S-2/S-3 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => 'c17d4bba-0974-4717-9a6d-0f58c7450e64', 'pola' => '[PARENT][INC:2, START:51]', 'is_applied' => false, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
@@ -168,7 +168,7 @@ class RumusJabatanSeeder extends Seeder
             ['nama_rumus' => 'SPI/Lembaga PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 2, 'ref_jabatan_satker_id' => '4a1811d3-aa8e-4fc6-94fa-063a5bb38c28', 'pola' => '[PARENT]9[INC:2, START:61]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Eselon III Pusat', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
 
-            // Batch 2
+            // BATCH 2
             ['nama_rumus' => 'Kabag, Kabid, Pembimas, Kakanmenag pada Kanwil', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Kantor Kementerian Agama kabupaten/kota', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:41]', 'is_applied' => true, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Dekan PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => 'd15eda72-db79-421f-8ba6-e65694f5470b', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
@@ -177,11 +177,10 @@ class RumusJabatanSeeder extends Seeder
             ['nama_rumus' => 'Ketua Jurusan S-1 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => 'c17d4bba-0974-4717-9a6d-0f58c7450e64', 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'BDK-BLA BMB PSDM', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:11]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Eselon IV Pusat', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Kristen Eselon IV', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Kasubag, Kasi, Penyenggara pada Kanmenag', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-
-            // Batch 3
             ['nama_rumus' => 'Sekretaris Jurusan S-1 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => 'e6f66877-002d-497e-91b6-eccdb1180373', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
+
+            // BATCH 3
             ['nama_rumus' => 'Sekretaris Jurusan S-2/S-3 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => '4e971613-662f-4582-8af8-ff130c68eb8e', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Sekretaris Pusat PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => '418b8309-806f-46d2-b32a-e2559989d55e', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Ketua Prodi S-1 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => '440ce913-6826-42d7-b449-f3a01215fed7', 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
@@ -191,9 +190,9 @@ class RumusJabatanSeeder extends Seeder
             ['nama_rumus' => 'Sekretaris Prodi S-2/S-3 PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => '4e971613-662f-4582-8af8-ff130c68eb8e', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Sekretaris Laboratorium PTKN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => '60e0fd36-dfc4-44cc-b4b3-5932dab85fac', 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => true, 'tingkat_wilayah_id' => 4, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala MTsN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:31]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-
-            // Batch 4
             ['nama_rumus' => 'Kepala MIN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 4
             ['nama_rumus' => 'Kepala MAN IC sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala MAN Kejuruan sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:31]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala MAN Keagamaan sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:61]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
@@ -201,12 +200,11 @@ class RumusJabatanSeeder extends Seeder
             ['nama_rumus' => 'LDK BMB PSDM', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Eselon I Pusat', 'jenis_satker_id' => 1, 'ref_jabatan_satker_id' => null, 'pola' => '[INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Kanwil Kemenag Provinsi', 'jenis_satker_id' => 2, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Kristen', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala MAN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:61]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-
-            // Batch 5
             ['nama_rumus' => 'Wakil Kepala MIN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala MTsN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 5
             ['nama_rumus' => 'Wakil Kepala MAN sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'KAUR TU Madrasah Eselon V (pada MIN/MTsN/MAN/MAN IC/MAN Kejuruan/Keagamaan)', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala Unit pada Madrasah (pada MIN/MTsN/MAN/MAN IC/MAN Kejuruan/Keagamaan)', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:11]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
@@ -215,50 +213,124 @@ class RumusJabatanSeeder extends Seeder
             ['nama_rumus' => 'Kepala SMAKN (Kristen) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:41]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala SMAKN (Katolik) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala MAN IC sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
-
-            // Batch 6
             ['nama_rumus' => 'Wakil Kepala MAN Kejuruan sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala MAN Keagamaan sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
+
+            // BATCH 6
             ['nama_rumus' => 'Wakil Kepala SMPTKN (Kristen) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala SMTKN (Kristen) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala SMAKN (Kristen) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Wakil Kepala SMAKN (Katolik) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:1, START:1]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Hindu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:33]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'Eselon V Pusat', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => true, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Pendidikan Islam', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:02]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Islam', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:07]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-
-            // Batch 7
-            ['nama_rumus' => 'Fungsi Haji dan Umrah', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:12]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Katolik', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:26]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Hindu', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:30]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Buddha', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:34]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Khonghucu', 'jenis_satker_id' => 3, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:35]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Pendidikan Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:02]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:11]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Haji dan Umrah', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:19]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:28]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-
-            // Batch 8
-            ['nama_rumus' => 'Fungsi Bimas Buddha', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:38]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
-            ['nama_rumus' => 'Fungsi Bimas Khonghucu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:41]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
             ['nama_rumus' => 'Kepala SMPTKN (Kristen) sebagai Tugas Tambahan', 'jenis_satker_id' => 5, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT]9[INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 1, 'is_auto_number' => true],
             ['nama_rumus' => 'Bagian Tata Usaha', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:01]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Bidang Pendidikan Madrasah', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:02]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Bidang Pendidikan Diniyah dan Pondok Pesantren', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:03]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Bidang Pendidikan Agama Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:04]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+
+            // BATCH 7
             ['nama_rumus' => 'Bidang Pendidikan Agama dan Pendidikan Keagamaan Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:05]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Bidang Urusan Agama Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:07]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Bidang Penerangan Agama Islam, dan Pemberdayaan Zakat dan Wakaf', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:08]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-
-            // Batch 9
             ['nama_rumus' => 'Bidang Penyelenggaraan Haji dan Umrah', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:12]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Bidang Bimbingan Masyarakat Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:24]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Pembimbing Masyarakat Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:25]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Pembimbing Masyarakat Katolik', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:29]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
-            ['nama_rumus' => 'Pembimbing Masyarakat Hindu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:33]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
             ['nama_rumus' => 'Pembimbing Masyarakat Buddha', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:34]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Pendidikan Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:06]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Bimbingan Masyarakat Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:09]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Haji dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:10]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+
+            // BATCH 8
+            ['nama_rumus' => 'Pembimbing Zakat dan Wakaf', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:11]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Pendidikan Agama Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Pendidikan Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:22]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Urusan Agama Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:23]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Bimbingan Masyarakat Kristen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:24]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Pendidikan Katolik', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:26]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Urusan Agama Katolik', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:27]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Bimbingan Masyarakat Katolik', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:28]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Pendidikan Hindu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:30]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Bidang Urusan Agama Hindu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:31]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+
+            // BATCH 9
+            ['nama_rumus' => 'Bidang Bimbingan Masyarakat Hindu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:32]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Pembimbing Masyarakat Hindu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:33]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Pembimbing Masyarakat Khonghucu', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:35]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kota Banda Aceh', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:41]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kota Langsa', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:42]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kota Lhokseumawe', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:43]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kota Sabang', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:44]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kota Subulussalam', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:45]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Barat', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:46]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Barat Daya', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:47]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+
+            // BATCH 10
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Besar', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:48]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Jaya', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:49]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Selatan', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:50]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Singkil', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:51]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Tamiang', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:52]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Tengah', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:53]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Tenggara', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:54]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Timur', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:55]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Aceh Utara', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:56]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Bener Meriah', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:57]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+
+            // BATCH 11
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Bireuen', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:58]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Gayo Lues', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:59]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Nagan Raya', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:60]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Pidie', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:61]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Pidie Jaya', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:62]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Kantor Kementerian Agama Kabupaten Simeulue', 'jenis_satker_id' => null, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:63]', 'is_applied' => false, 'tingkat_wilayah_id' => 2, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Madrasah', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:02]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Diniyah dan Pondok Pesantren', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:03]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Agama dan Pendidikan Keagamaan Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:04]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Agama Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:05]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 12
+            ['nama_rumus' => 'Seksi Pendidikan Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:06]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:07]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan, Haji, dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:08]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Pendidikan, Haji, dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:09]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Pendidikan Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:10]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Urusan Agama Islam dan Bina Syariah', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:11]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Penerangan Agama Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:12]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Penerangan Agama Islam dan Pemberdayaan Zakat dan Wakaf', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:13]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][PARENT][INC:2, START:14]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Haji dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:15]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 13
+            ['nama_rumus' => 'Penyelenggara Zakat dan Wakaf', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:16]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:17]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Haji dan Bimbingan Masyarakat Islam', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:18]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Penyelenggaraan Haji dan Umrah', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:19]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Haji dan Umrah', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:20]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:21]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Urusan Agama Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:22]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Bimbingan Masyarakat Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:23]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Urusan dan Pendidikan Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:24]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Pendidikan Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:25]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 14
+            ['nama_rumus' => 'Penyelenggara Urusan Agama Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:26]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Kristen', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:27]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:28]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Urusan Agama Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:29]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Bimbingan Masyarakat Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:30]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Pendidikan Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:31]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Katolik', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:32]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Pendidikan Hindu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:33]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Urusan Agama Hindu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:34]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Bimbingan Masyarakat Hindu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:35]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+
+            // BATCH 15
+            ['nama_rumus' => 'Penyelenggara Hindu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:36]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Hindu dan Buddha', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:37]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Pendidikan Buddha', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:38]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Seksi Bimbingan Masyarakat Buddha', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:39]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Buddha', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:40]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true],
+            ['nama_rumus' => 'Penyelenggara Khonghucu', 'jenis_satker_id' => 4, 'ref_jabatan_satker_id' => null, 'pola' => '[PARENT][INC:2, START:41]', 'is_applied' => false, 'tingkat_wilayah_id' => 3, 'is_auto_number' => true]
         ];
 
         // EKSEKUSI INSERT RUMUS (Menggunakan ID Jabatan Asli yang dipetakan)
