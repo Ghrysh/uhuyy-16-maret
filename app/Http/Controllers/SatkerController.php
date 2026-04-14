@@ -143,8 +143,8 @@ class SatkerController extends Controller
             $flatQuery->whereNull('parent_satker_id');
         }
 
-        $satkers = $satkerQuery->orderBy('kode_satker', 'asc')->get();
-        $allSatkersFlat = $flatQuery->orderBy('kode_satker', 'asc')->get();
+        $satkers = $satkerQuery->orderByRaw('LENGTH(kode_satker) ASC')->orderBy('kode_satker', 'asc')->get();
+        $allSatkersFlat = $flatQuery->orderByRaw('LENGTH(kode_satker) ASC')->orderBy('kode_satker', 'asc')->get();
 
         $search = $request->query('search');
         $allSatkers = $tableQuery->when($search, function ($query, $search) {

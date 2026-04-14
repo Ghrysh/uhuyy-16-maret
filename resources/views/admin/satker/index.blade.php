@@ -338,10 +338,21 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Wilayah</label>
-                        <select name="wilayah_id" id="wilayah_id" onchange="handleWilayahChange()" required
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Wilayah</label>
+                        <select id="kategori_wilayah" onchange="handleKategoriWilayahChange()" required
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                            <option value="" data-tingkat="">Pilih wilayah</option>
+                            <option value="">Pilih Kategori Wilayah</option>
+                            <option value="1">Pusat</option>
+                            <option value="4">PTKN</option>
+                            <option value="2">Satker Daerah</option>
+                        </select>
+                    </div>
+
+                    <div id="container_wilayah" class="hidden">
+                        <label id="label_wilayah" class="block text-xs font-bold text-slate-700 uppercase mb-2">Detail Wilayah</label>
+                        <select name="wilayah_id" id="wilayah_id" onchange="handleWilayahChange()"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                            <option value="" data-tingkat="">Pilih detail wilayah</option>
                             @foreach ($wilayahs as $w)
                                 <option value="{{ $w->id }}" data-tingkat="{{ $w->tingkat_wilayah_id }}">{{ $w->nama_wilayah }}</option>
                             @endforeach
@@ -453,6 +464,7 @@
                             </label>
                             <select id="filter_fungsi" onchange="updateDropdownRumus()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                 <option value="">-- Tampilkan Semua Rumus --</option>
+                                <option value="SPI">Satuan Pengawas Internal</option>
                                 <option value="Pendidikan Islam">Fungsi Pendidikan Islam</option>
                                 <option value="Bimas Islam">Fungsi Bimas Islam</option>
                                 <option value="Haji dan Umrah">Fungsi Haji dan Umrah</option>
@@ -2023,7 +2035,7 @@
         }
     </script>
 
-<script>
+    <script>
         // ==============================================================
         // 1. DATA MASTER & INISIALISASI
         // ==============================================================
@@ -2031,14 +2043,9 @@
         window.allRumusData = @json($rumusList ?? \Illuminate\Support\Facades\DB::table('rumus_kodes')->orderBy('nama_rumus', 'asc')->get());
         window.existingSatkers = @json(\Illuminate\Support\Facades\DB::table('satker')->select('kode_satker', 'periode_id')->get()); 
         
-        const allParentOptions = Array.from(document.querySelectorAll('#parent_satker_id option'))
-            .filter(opt => opt.value !== "")
-            .map(opt => ({
-                id: opt.value,
-                text: opt.text,
-                eselon: parseInt(opt.getAttribute('data-eselon')),
-                periode: opt.getAttribute('data-periode') || ''
-            }));
+        const allParentOptions = Array.from(document.querySelectorAll('#parent_satker_id option')).filter(opt => opt.value !== "").map(opt => ({
+            id: opt.value, text: opt.text, eselon: parseInt(opt.getAttribute('data-eselon')), periode: opt.getAttribute('data-periode') || ''
+        }));
 
         let control = null;
         let rumusTomSelect = null;
@@ -2048,9 +2055,7 @@
             if (parentSelectEl) {
                 if (parentSelectEl.tomselect) parentSelectEl.tomselect.destroy();
                 control = new TomSelect('#parent_satker_id', {
-                    onChange: function(value) {
-                        if (typeof updateDropdownRumus === 'function') updateDropdownRumus(); 
-                    },
+                    onChange: function(value) { if (typeof updateDropdownRumus === 'function') updateDropdownRumus(); },
                     render: {
                         option: function(data, escape) { return `<div class="py-1"><div class="text-sm text-slate-700 leading-relaxed">${escape(data.text)}</div></div>`; },
                         item: function(data, escape) { return `<div class="text-slate-700">${escape(data.text)}</div>`; }
@@ -2062,9 +2067,7 @@
             if (rumusEl) {
                 if (rumusEl.tomselect) rumusEl.tomselect.destroy();
                 rumusTomSelect = new TomSelect('#rumus_id', {
-                    valueField: 'id',
-                    labelField: 'nama_rumus',
-                    searchField: ['nama_rumus', 'preview_text'],
+                    valueField: 'id', labelField: 'nama_rumus', searchField: ['nama_rumus', 'preview_text'],
                     onChange: function(value) {
                         const namaSatkerInput = document.getElementById('nama_satker');
                         if (value !== "") {
@@ -2080,8 +2083,7 @@
                     render: {
                         option: function(data, escape) {
                             if(data.id === "") return `<div class="font-bold text-slate-600 py-2">${escape(data.nama_rumus)}</div>`;
-                            let isApplied = data.is_applied == 1 || data.is_applied == true;
-                            let badge = isApplied ? '' : `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Tidak Aktif</span>`;
+                            let badge = (data.is_applied == 1 || data.is_applied == true) ? '' : `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Tidak Aktif</span>`;
                             return `
                                 <div class="py-1.5 flex flex-col">
                                     <div class="flex items-center">
@@ -2102,8 +2104,7 @@
             triggerIds.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('change', function() {
-                    checkFungsiVisibility();
-                    updateDropdownRumus();
+                    checkFungsiVisibility(); updateDropdownRumus();
                     if(id !== 'jenis_satker_id' && id !== 'parent_satker_id') {
                         const status = document.getElementById('tanpa_jabatan')?.value;
                         if (status === 'jabatan_kotakab') updateNamaSatkerDariKabupaten();
@@ -2112,27 +2113,7 @@
                 });
             });
 
-            const namaSatkerInput = document.getElementById('nama_satker');
-            if (namaSatkerInput) {
-                namaSatkerInput.addEventListener('input', function() {
-                    const staticPrefix = this.dataset.staticText;
-                    if (staticPrefix && !this.value.startsWith(staticPrefix)) this.value = staticPrefix;
-                });
-                namaSatkerInput.addEventListener('click', function() {
-                    const staticPrefix = this.dataset.staticText;
-                    if (staticPrefix && this.selectionStart < staticPrefix.length) this.setSelectionRange(staticPrefix.length, staticPrefix.length);
-                });
-                namaSatkerInput.addEventListener('keydown', function(e) {
-                    const staticPrefix = this.dataset.staticText;
-                    if (staticPrefix && (e.key === 'Backspace' || e.key === 'Delete')) {
-                        if (this.selectionStart <= staticPrefix.length && this.selectionEnd <= staticPrefix.length) e.preventDefault();
-                    }
-                });
-            }
-
-            document.getElementById('kode_container')?.addEventListener('input', function(e) {
-                if (e.target.tagName === 'INPUT') updateFullCode();
-            });
+            document.getElementById('kode_container')?.addEventListener('input', function(e) { if (e.target.tagName === 'INPUT') updateFullCode(); });
 
             document.getElementById('formTambahSatker')?.addEventListener('submit', function(e) {
                 const finalCode = document.getElementById('kode_satker_full').value;
@@ -2141,9 +2122,69 @@
                     Swal.fire({ icon: 'warning', title: 'Kode Satker Kosong', text: 'Silahkan klik tombol magic untuk generate kode.' });
                 }
             });
-
             setTimeout(updateDropdownRumus, 500);
         });
+
+        // ==============================================================
+        // LOGIKA KATEGORI WILAYAH (POIN 3)
+        // ==============================================================
+        function handleKategoriWilayahChange() {
+            const kategoriSelect = document.getElementById('kategori_wilayah');
+            const wilayahContainer = document.getElementById('container_wilayah');
+            const wilayahSelect = document.getElementById('wilayah_id');
+
+            if (kategoriSelect.value === "") {
+                wilayahContainer.classList.add('hidden');
+                wilayahSelect.value = "";
+                wilayahSelect.removeAttribute('required');
+                handleWilayahChange();
+                return;
+            }
+
+            const targetTingkat = kategoriSelect.value;
+
+            // KUNCI PERBAIKAN: Lepaskan status 'disabled' pada semua opsi terlebih dahulu
+            // agar browser mau mengirimkan data ini ke server (Laravel) saat di-submit.
+            const options = wilayahSelect.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.hidden = false;
+                opt.disabled = false;
+            });
+
+            // Jika Pusat atau PTKN -> Auto-Select dan Sembunyikan Dropdown Detail
+            if (targetTingkat === '1' || targetTingkat === '4') {
+                wilayahContainer.classList.add('hidden');
+                wilayahSelect.removeAttribute('required');
+                
+                // Cari opsi yang sesuai di dropdown wilayah, lalu pilih diam-diam
+                for (let opt of options) {
+                    if (opt.getAttribute('data-tingkat') === targetTingkat) {
+                        wilayahSelect.value = opt.value;
+                        break;
+                    }
+                }
+            } 
+            // Jika Satker Daerah -> Tampilkan Dropdown Provinsi untuk dipilih
+            else if (targetTingkat === '2') {
+                wilayahContainer.classList.remove('hidden');
+                wilayahSelect.setAttribute('required', 'required');
+                wilayahSelect.value = ""; // Reset agar user harus milih
+                
+                // Hanya tampilkan provinsi (tingkat wilayah 2), sisanya disable lagi
+                options.forEach(opt => {
+                    if (opt.value === "") return;
+                    if (opt.getAttribute('data-tingkat') !== targetTingkat) {
+                        opt.hidden = true; 
+                        opt.disabled = true; // Disable yang bukan provinsi
+                    }
+                });
+            }
+            
+            // Panggil trigger ke Jabatan dkk
+            handleWilayahChange();
+            checkFungsiVisibility();
+            updateDropdownRumus();
+        }
 
         function openTambahModalWithPeriode(periodeId) {
             resetTambahSatkerModal(); 
@@ -2152,9 +2193,6 @@
             filterParent(); 
         }
 
-        // ==============================================================
-        // 2. FUNGSI LOGIKA RUMUS & GENERATOR KODE
-        // ==============================================================
         function getPrediksiKode(pola, parentCode, periodeId) {
             let rawStr = pola || "";
             if (rawStr.includes("[PARENT]")) {
@@ -2173,21 +2211,15 @@
                 
                 const startNumBalai = document.getElementById('start_num_balai')?.value;
                 const containerBalai = document.getElementById('container_opsi_balai');
-                if (startNumBalai && containerBalai && !containerBalai.classList.contains('hidden')) {
-                    startNum = parseInt(startNumBalai);
-                }
+                if (startNumBalai && containerBalai && !containerBalai.classList.contains('hidden')) startNum = parseInt(startNumBalai);
                 
-                if (finalPrefix.includes("[Induk]") || finalPrefix.includes("[-]")) {
-                    finalSuffix = String(startNum).padStart(digits, '0');
-                } else {
-                    let existing = (window.existingSatkers || [])
-                        .filter(s => {
-                            let matchPeriode = periodeId ? (String(s.periode_id) === String(periodeId)) : true;
-                            let matchKode = s.kode_satker && s.kode_satker.startsWith(finalPrefix) && s.kode_satker.length === finalPrefix.length + digits;
-                            return matchPeriode && matchKode;
-                        })
-                        .map(s => parseInt(s.kode_satker.substring(finalPrefix.length)))
-                        .filter(n => !isNaN(n));
+                if (finalPrefix.includes("[Induk]") || finalPrefix.includes("[-]")) finalSuffix = String(startNum).padStart(digits, '0');
+                else {
+                    let existing = (window.existingSatkers || []).filter(s => {
+                        let matchPeriode = periodeId ? (String(s.periode_id) === String(periodeId)) : true;
+                        let matchKode = s.kode_satker && s.kode_satker.startsWith(finalPrefix) && s.kode_satker.length === finalPrefix.length + digits;
+                        return matchPeriode && matchKode;
+                    }).map(s => parseInt(s.kode_satker.substring(finalPrefix.length))).filter(n => !isNaN(n));
                         
                     if (existing.length === 0) finalSuffix = String(startNum).padStart(digits, '0');
                     else {
@@ -2196,32 +2228,21 @@
                         finalSuffix = String(nextNum).padStart(digits, '0');
                     }
                 }
-            } else {
-                finalPrefix = rawStr; finalSuffix = "";
-            }
+            } else { finalPrefix = rawStr; finalSuffix = ""; }
             return { prefix: finalPrefix, suffix: finalSuffix };
         }
 
         const fungsiConfig = {
+            "2": { "SPI": ["61"] }, // Poin 1 (SPI di Eselon 2 PTKN)
             "3": { 
-                "Pendidikan Islam": ["02", "03", "04", "05", "06"],
-                "Bimas Islam": ["07", "08", "09", "10", "11"],
-                "Haji dan Umrah": ["10", "12"],
-                "Bimas Kristen": ["21", "22", "23", "24", "25"],
-                "Bimas Katolik": ["26", "27", "28", "29"],
-                "Bimas Hindu": ["30", "31", "32", "33"],
-                "Bimas Buddha": ["34"],
-                "Bimas Khonghucu": ["35"]
+                "Pendidikan Islam": ["02", "03", "04", "05", "06"], "Bimas Islam": ["07", "08", "09", "10", "11"], "Haji dan Umrah": ["10", "12"],
+                "Bimas Kristen": ["21", "22", "23", "24", "25"], "Bimas Katolik": ["26", "27", "28", "29"], "Bimas Hindu": ["30", "31", "32", "33"],
+                "Bimas Buddha": ["34"], "Bimas Khonghucu": ["35"]
             },
             "4": { 
-                "Pendidikan Islam": ["02", "03", "04", "05", "06", "07", "08", "09", "10"],
-                "Bimas Islam": ["11", "12", "13", "14", "15", "16", "17", "18", "07", "08", "09"],
-                "Haji dan Umrah": ["19", "20", "08", "09"],
-                "Bimas Kristen": ["21", "22", "23", "24", "25", "26", "27"],
-                "Bimas Katolik": ["28", "29", "30", "31", "32"],
-                "Bimas Hindu": ["33", "34", "35", "36", "37"],
-                "Bimas Buddha": ["38", "39", "40", "37"],
-                "Bimas Khonghucu": ["41"]
+                "Pendidikan Islam": ["02", "03", "04", "05", "06", "07", "08", "09", "10"], "Bimas Islam": ["11", "12", "13", "14", "15", "16", "17", "18", "07", "08", "09"],
+                "Haji dan Umrah": ["19", "20", "08", "09"], "Bimas Kristen": ["21", "22", "23", "24", "25", "26", "27"], "Bimas Katolik": ["28", "29", "30", "31", "32"],
+                "Bimas Hindu": ["33", "34", "35", "36", "37"], "Bimas Buddha": ["38", "39", "40", "37"], "Bimas Khonghucu": ["41"]
             }
         };
 
@@ -2232,19 +2253,28 @@
             const container = document.getElementById('container_filter_fungsi');
             
             let tingkatWilayah = "";
-            if (wilayahSelect && wilayahSelect.selectedIndex >= 0) {
-                tingkatWilayah = wilayahSelect.options[wilayahSelect.selectedIndex]?.getAttribute('data-tingkat');
-            }
+            if (wilayahSelect && wilayahSelect.selectedIndex >= 0) tingkatWilayah = wilayahSelect.options[wilayahSelect.selectedIndex]?.getAttribute('data-tingkat');
 
+            const isPTKN = (tingkatWilayah === '4');
             const isKanwil = (tingkatWilayah === '2' && statusJabatan === 'jabatan_kanwil');
             const isKabKota = (tingkatWilayah === '2' && statusJabatan === 'jabatan_kotakab') || (tingkatWilayah === '3' && statusJabatan === 'jabatan_kotakab');
             
             let showFilter = false;
+            if (jenisId === '2' && isPTKN) showFilter = true; // Muncul di Eselon 2 PTKN (Khusus SPI)
             if (jenisId === '3' && isKanwil) showFilter = true;
             if (jenisId === '4' && isKabKota) showFilter = true;
 
             if (showFilter && container) {
                 container.classList.remove('hidden');
+                
+                // Menyembunyikan option yang tidak relevan dengan Eselon-nya
+                const filterEl = document.getElementById('filter_fungsi');
+                const opts = filterEl.querySelectorAll('option');
+                opts.forEach(opt => {
+                    if(opt.value === "") return;
+                    if(jenisId === '2') opt.style.display = (opt.value === 'SPI') ? 'block' : 'none'; // Eselon 2 HANYA SPI
+                    else opt.style.display = (opt.value === 'SPI') ? 'none' : 'block'; // Eselon lain JANGAN tampilkan SPI
+                });
             } else if (container) {
                 container.classList.add('hidden');
                 const filterEl = document.getElementById('filter_fungsi');
@@ -2259,19 +2289,12 @@
             const currentPeriodeId = document.getElementById('periode_id')?.value || "";
             const wilayahSelect = document.getElementById('wilayah_id');
             const filterFungsiVal = document.getElementById('filter_fungsi')?.value || ""; 
-            
-            // TAMBAHAN: Ambil nilai status jabatan
             const statusJabatan = document.getElementById('tanpa_jabatan')?.value || ""; 
             
             let formTingkatWilayahId = "";
             if (wilayahSelect && wilayahSelect.selectedIndex >= 0) formTingkatWilayahId = wilayahSelect.options[wilayahSelect.selectedIndex]?.getAttribute('data-tingkat') || "";
 
-            // KOREKSI TINGKAT WILAYAH PENTING
-            // Jika memilih "Jabatan di Kota/Kab", paksa sistem mencari rumus level Kabupaten (Tingkat 3)
-            // Walaupun dropdown wilayah utamanya sedang memilih Provinsi (Tingkat 2)
-            if (statusJabatan === 'jabatan_kotakab') {
-                formTingkatWilayahId = "3";
-            }
+            if (statusJabatan === 'jabatan_kotakab') formTingkatWilayahId = "3"; // Paksa Kab/Kota untuk Eselon 4
 
             let parentCode = "[-]";
             if (control) {
@@ -2280,17 +2303,10 @@
             }
 
             let validRumus = (window.allRumusData || []).filter(rm => {
-                
-                // KOREKSI JENIS SATKER PENTING
-                // Cegah rumus Eselon 3 (yang bernilai NULL di database) agar tidak bocor ke Eselon 4
                 let matchJenis = false;
-                if (formJenisId === "4") {
-                    matchJenis = (rm.jenis_satker_id == 4); // Eselon 4 harus ketat ID = 4
-                } else if (formJenisId === "3") {
-                    matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == 3); // Eselon 3 boleh 3 atau NULL
-                } else {
-                    matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == formJenisId);
-                }
+                if (formJenisId === "4") matchJenis = (rm.jenis_satker_id == 4); 
+                else if (formJenisId === "3") matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == 3); 
+                else matchJenis = (!rm.jenis_satker_id || rm.jenis_satker_id == formJenisId);
 
                 let matchWilayah = (!rm.tingkat_wilayah_id || rm.tingkat_wilayah_id == formTingkatWilayahId);
                 let matchJabatan = (!rm.ref_jabatan_satker_id || rm.ref_jabatan_satker_id == formJabatanId);
@@ -2337,12 +2353,10 @@
             const wrapperBalai = document.getElementById('wrapper_opsi_balai');
             const jabatanContainer = document.getElementById('container_status_jabatan'); 
 
-            if (jenisId === '4') {
-                if (wrapperBalai) wrapperBalai.classList.remove('hidden');
-            } else {
+            if (jenisId === '4') { if (wrapperBalai) wrapperBalai.classList.remove('hidden'); } 
+            else {
                 if (wrapperBalai) {
-                    wrapperBalai.classList.add('hidden');
-                    document.getElementById('is_balai_checkbox').checked = false;
+                    wrapperBalai.classList.add('hidden'); document.getElementById('is_balai_checkbox').checked = false;
                     if(typeof toggleBalaiOptions === 'function') toggleBalaiOptions(); 
                 }
             }
@@ -2397,10 +2411,7 @@
             const parentId = document.getElementById('parent_satker_id').value;
             const periodeId = document.getElementById('periode_id')?.value || '';
 
-            if (!jenisId || (jenisId !== "1" && !parentId)) {
-                Toast.fire({ icon: 'warning', title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' : 'Pilih Satker Induk Terlebih Dahulu!' });
-                return;
-            }
+            if (!jenisId || (jenisId !== "1" && !parentId)) { Toast.fire({ icon: 'warning', title: !jenisId ? 'Pilih Jenis Satker Terlebih Dahulu!' : 'Pilih Satker Induk Terlebih Dahulu!' }); return; }
             if (!periodeId) { Toast.fire({ icon: 'warning', title: 'Pilih Periode Terlebih Dahulu!' }); return; }
 
             const originalIconClass = icon.className;
@@ -2425,8 +2436,16 @@
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`);
-                const data = await response.json();
-                if (!response.ok && !data.success) throw new Error(data.message || 'Gagal generate kode');
+                
+                const textResponse = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(textResponse);
+                } catch (e) {
+                    throw new Error("Terjadi kesalahan pada server (Data terformat HTML/Error). Silakan hubungi admin.");
+                }
+
+                if (!response.ok && !data.success) throw new Error(data.message || 'Gagal membuat kode satker.');
 
                 const generatedCode = data.kode || data.code || "";
                 const renderUiCode = (fullCode) => {
@@ -2479,7 +2498,11 @@
                     });
                 }
             } catch (error) {
-                Toast.fire({ icon: 'error', title: error.message });
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Proses Ditolak',
+                    text: error.message
+                });
             } finally {
                 icon.className = originalIconClass; btn.disabled = false;
             }
@@ -2489,7 +2512,9 @@
             const wilayahSelect = document.getElementById('wilayah_id');
             const jabatanSelect = document.getElementById('tanpa_jabatan');
             const kabupatenSelect = document.getElementById('kabupaten_id'); 
+            const wilayahContainer = document.getElementById('container_wilayah');
 
+            // Cek Dropdown Provinsi untuk List Kabupaten
             const selectedProvinsiId = wilayahSelect.value;
             if (kabupatenSelect) {
                 const options = kabupatenSelect.querySelectorAll('option');
@@ -2504,21 +2529,24 @@
                 kabupatenSelect.value = ""; 
             }
 
-            if (!wilayahSelect.value) {
+            if (!wilayahSelect.value && !wilayahContainer.classList.contains('hidden')) {
                 jabatanSelect.innerHTML = '<option value="">-- Pilih Wilayah Terlebih Dahulu --</option>';
                 handleJabatanChange();
                 return;
             }
 
-            const wilayahText = wilayahSelect.options[wilayahSelect.selectedIndex].text.toLowerCase();
+            const wilayahText = (wilayahSelect.options[wilayahSelect.selectedIndex]?.text || "").toLowerCase();
             jabatanSelect.innerHTML = '<option value="">-- Pilih Status Jabatan --</option>';
 
             let finalOptions = [];
             const commonOptions = refJabatan.filter(item => item.tingkat_wilayah_id === null && item.parent_id === null && item.key_jabatan !== 'manajerial');
 
-            if (wilayahText.includes('pusat')) {
+            // Sesuaikan filter dropdown berdasarkan kategori juga
+            const kategoriValue = document.getElementById('kategori_wilayah')?.value;
+
+            if (wilayahText.includes('pusat') || kategoriValue === '1') {
                 finalOptions = refJabatan.filter(item => item.tingkat_wilayah_id === null && item.parent_id === null);
-            } else if (wilayahText.includes('ptkn') || wilayahText.includes('universitas') || wilayahText.includes('institut')) {
+            } else if (wilayahText.includes('ptkn') || wilayahText.includes('universitas') || wilayahText.includes('institut') || kategoriValue === '4') {
                 const ptknOptions = refJabatan.filter(item => item.tingkat_wilayah_id === 4 && item.parent_id === null);
                 finalOptions = [...ptknOptions, ...commonOptions];
             } else {
@@ -2608,7 +2636,6 @@
                 namaSatkerInput.value = selectedOption.text; namaSatkerInput.dataset.staticText = ''; 
             }
             
-            // Cek ulang fungsi visibilitas karena status jabatan berubah
             checkFungsiVisibility();
             updateRefJabatanId();
         }
@@ -2624,7 +2651,6 @@
             else if (wilayahSelect && wilayahSelect.value !== "") baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
             namaSatkerInput.value = baseName; namaSatkerInput.dataset.staticText = baseName ? baseName + " " : " ";
             
-            // Cek ulang fungsi visibilitas
             checkFungsiVisibility();
         }
 
