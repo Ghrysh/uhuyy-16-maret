@@ -80,7 +80,7 @@
         </div>
 
         <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100">
-            {{ $wilayahs->links() }}
+            {{ $wilayahs->withPath(url('admin/wilayah'))->links() }}
         </div>
     </div>
 
@@ -236,9 +236,9 @@
         }
 
         function openEditModal(id, kode, nama, tingkat_id, parent_id) {
-            // Set action form secara dinamis
+            // Set action form secara dinamis menggunakan helper url() Laravel
             const form = document.getElementById('formEditWilayah');
-            form.action = `/admin/wilayah/${id}`; // Sesuaikan dengan route admin Anda
+            form.action = `{{ url('admin/wilayah') }}/${id}`;
 
             // Isi nilai input
             document.getElementById('edit_kode').value = kode;
