@@ -555,10 +555,14 @@ class SatkerController extends Controller
                     $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);
                 }
             }
-
+        
             $nextNum = $maxNum + 1;
             $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
             $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
+        }
+
+        if ($setup && isset($setup->is_applied) && $setup->is_applied == 0) {
+            $gaps = [];
         }
 
         return response()->json([
