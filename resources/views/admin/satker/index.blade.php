@@ -491,30 +491,23 @@
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kode Satker (Generate)</label>
                             <div class="flex gap-2 items-center" id="kode_container">
-                                <input type="text" name="kode_satker" id="kode_satker" placeholder="Contoh: 0102"
-                                    required
-                                    class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                <input type="text" name="kode_satker" id="kode_satker" placeholder="Contoh: 0102" required class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
 
-                                {{-- Tombol Generate Dikembalikan ke Desain Asli (Hanya Icon) --}}
                                 <button type="button" onclick="generateSatkerCode(event)" title="Auto-generate kode"
                                     class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition flex items-center justify-center min-w-[45px]">
                                     <i class="fas fa-magic"></i>
                                 </button>
                             </div>
                             
-                            {{-- Container Gap/Nomor Bolong --}}
+                            {{-- PESAN INFORMATIF STATUS RUMUS (BARU DITAMBAHKAN) --}}
+                            <div id="info_generate_container" class="hidden mt-3 p-3 text-xs rounded-xl border"></div>
+
+                            {{-- Container Gap/Nomor Bolong (Dibersihkan dari duplikasi) --}}
                             <div id="gap_selection_container" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                                 <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2"><i class="fas fa-info-circle mr-1"></i> Terdeteksi Nomor Kosong di Tengah:</p>
                                 <div id="gap_list" class="flex flex-wrap gap-2"></div>
                             </div>
                         </div>
-                        
-                        <div id="gap_selection_container" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                            <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2"><i class="fas fa-info-circle mr-1"></i> Terdeteksi Nomor Kosong di Tengah:</p>
-                            <div id="gap_list" class="flex flex-wrap gap-2">
-                                </div>
-                        </div>
-                    </div>
 
                     <div class="mt-4 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
                         <label class="block text-[10px] font-bold text-blue-700 uppercase mb-1">Kode Satker Final (Akan
@@ -2104,8 +2097,10 @@
             triggerIds.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('change', function() {
-                    checkFungsiVisibility(); updateDropdownRumus();
-                    if(id !== 'jenis_satker_id' && id !== 'parent_satker_id') {
+                    checkFungsiVisibility(); 
+                    updateDropdownRumus();
+
+                    if(id !== 'parent_satker_id') {
                         const status = document.getElementById('tanpa_jabatan')?.value;
                         if (status === 'jabatan_kotakab') updateNamaSatkerDariKabupaten();
                         else handleJabatanChange();
@@ -2384,6 +2379,15 @@
             if(container) container.querySelectorAll('.generated-kode').forEach(el => el.remove());
             const fullCodeInput = document.getElementById('kode_satker_full');
             if (fullCodeInput) fullCodeInput.value = '';
+
+            const infoContainer = document.getElementById('info_generate_container');
+            if (infoContainer) {
+                infoContainer.classList.add('hidden');
+                infoContainer.innerHTML = '';
+            }
+            
+            const gapContainer = document.getElementById('gap_selection_container');
+            if (gapContainer) gapContainer.classList.add('hidden');
         }
 
         function updateFullCode() {
@@ -2413,6 +2417,12 @@
             const gapList = document.getElementById('gap_list');
             if(gapContainer) gapContainer.classList.add('hidden');
             if(gapList) gapList.innerHTML = '';
+
+            const infoContainer = document.getElementById('info_generate_container');
+            if (infoContainer) {
+                infoContainer.classList.add('hidden');
+                infoContainer.innerHTML = '';
+            }
 
             try {
                 const wilayahId = document.getElementById('wilayah_id')?.value || '';
@@ -2469,6 +2479,25 @@
                 };
 
                 renderUiCode(generatedCode);
+
+                if (infoContainer) {
+                    infoContainer.classList.remove('hidden');
+                    if (data.is_incremental) {
+                        if (data.is_new) {
+                            // Jika rumus baru dipakai pertama kali
+                            infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-blue-200 bg-blue-50 text-blue-700 leading-relaxed";
+                            infoContainer.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Belum ada satker yang menggunakan awalan kode ini. Kode akan dimulai dari <b class="font-mono text-sm">${generatedCode}</b>.`;
+                        } else {
+                            // Jika rumus sudah ada yang makai sebelumnya
+                            infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 leading-relaxed";
+                            infoContainer.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Awalan ini sudah digunakan. Terakhir dipakai oleh <b>${data.last_nama}</b> (<span class="font-mono">${data.last_kode}</span>). Sistem akan melanjutkan ke <b class="font-mono text-sm">${generatedCode}</b>.`;
+                        }
+                    } else {
+                        // Jika rumusnya statis (Tidak ada [INC])
+                        infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-slate-200 bg-slate-50 text-slate-700 leading-relaxed";
+                        infoContainer.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Rumus ini menghasilkan kode paten statis (tidak memiliki penambahan urutan).`;
+                    }
+                }
 
                 if (data.gaps && data.gaps.length > 0 && gapContainer && gapList) {
                     gapContainer.classList.remove('hidden');
@@ -2636,11 +2665,38 @@
             const wilayahSelect = document.getElementById('kabupaten_id');
             const madrasahSelect = document.getElementById('jenis_madrasah');
             const kategoriSelect = document.getElementById('kategori_kotakab');
+            const jenisSatkerId = document.getElementById('jenis_satker_id').value; // Ambil nilai eselon
+
             let baseName = "";
-            if (madrasahSelect && madrasahSelect.value !== "") baseName = madrasahSelect.options[madrasahSelect.selectedIndex].text;
-            else if (kategoriSelect && kategoriSelect.value !== "" && kategoriSelect.value !== "madrasah") baseName = kategoriSelect.options[kategoriSelect.selectedIndex].text;
-            else if (wilayahSelect && wilayahSelect.value !== "") baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
-            namaSatkerInput.value = baseName; namaSatkerInput.dataset.staticText = baseName ? baseName + " " : " ";
+            
+            if (madrasahSelect && madrasahSelect.value !== "") {
+                baseName = madrasahSelect.options[madrasahSelect.selectedIndex].text;
+            } 
+            else if (kategoriSelect && kategoriSelect.value !== "" && kategoriSelect.value !== "madrasah") {
+                let selectedText = kategoriSelect.options[kategoriSelect.selectedIndex].text;
+                
+                // ============================================================
+                // LOGIKA OTOMATIS TATA USAHA BERDASARKAN ESELON
+                // ============================================================
+                if (selectedText.toLowerCase().includes("tata usaha")) {
+                    if (jenisSatkerId === "3") {
+                        baseName = "Bagian Tata Usaha";
+                    } else if (jenisSatkerId === "4") {
+                        baseName = "Subbagian Tata Usaha";
+                    } else {
+                        baseName = selectedText;
+                    }
+                } else {
+                    baseName = selectedText;
+                }
+                // ============================================================
+            } 
+            else if (wilayahSelect && wilayahSelect.value !== "") {
+                baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
+            }
+
+            namaSatkerInput.value = baseName; 
+            namaSatkerInput.dataset.staticText = baseName ? baseName + " " : " ";
             
             checkFungsiVisibility();
         }

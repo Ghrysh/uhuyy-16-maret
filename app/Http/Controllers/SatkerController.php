@@ -493,9 +493,14 @@ class SatkerController extends Controller
 
         // --- ENGINE INCREMENT & START NUMBER BERTINGKAT ---
         $gaps = []; 
+        $isIncremental = false;
+        $isNew = true;
+        $lastKode = null;
+        $lastNama = null;
         
         // Membaca pola [INC:digit] ATAU [INC:digit, START:angka]
         if (preg_match('/\[INC:(\d+)(?:,\s*START:(\d+))?\]/', $kodeBaru, $matches)) {
+            $isIncremental = true;
             $digit = (int)$matches[1];
             $startLimit = isset($matches[2]) ? (int)$matches[2] : 1; // Default mulai dari 1 jika tidak diatur
 
@@ -513,23 +518,34 @@ class SatkerController extends Controller
                 $query->where('periode_id', $request->periode_id);
             }
             
-            $existingCodes = $query->pluck('kode_satker')->toArray();
+            // KODE YANG DIUBAH: Ambil seluruh baris untuk mendapatkan "nama_satker"
+            $existingSatkers = $query->get(['kode_satker', 'nama_satker']);
 
             $existingNums = [];
             $expectedLength = strlen($prefixPattern) + $digit;
 
-            foreach ($existingCodes as $c) {
-                $c = trim($c);
+            foreach ($existingSatkers as $s) {
+                $c = trim($s->kode_satker);
                 if (strlen($c) === $expectedLength) {
                     $numPart = substr($c, -$digit);
                     if (is_numeric($numPart)) {
-                        $existingNums[] = intval($numPart);
+                        // Simpan objek utuh berdasarkan urutan angkanya
+                        $existingNums[intval($numPart)] = $s;
                     }
                 }
             }
-            sort($existingNums);
+            
+            $existingKeys = array_keys($existingNums);
+            sort($existingKeys);
 
-            $maxNum = !empty($existingNums) ? max($existingNums) : 0;
+            $maxNum = !empty($existingKeys) ? max($existingKeys) : 0;
+
+            // CEK SATKER TERAKHIR
+            if ($maxNum > 0 && isset($existingNums[$maxNum])) {
+                $isNew = false;
+                $lastKode = $existingNums[$maxNum]->kode_satker;
+                $lastNama = $existingNums[$maxNum]->nama_satker;
+            }
 
             // Jika ada request custom start number (ex: Balai mulai dari 11/31)
             if ($request->has('start_num') && is_numeric($request->start_num)) {
@@ -551,24 +567,30 @@ class SatkerController extends Controller
 
             // Hitung Gap (Nomor Bolong)
             for ($i = $loopStart; $i < $maxNum; $i++) {
-                if (!in_array($i, $existingNums)) {
+                if (!in_array($i, $existingKeys)) { // UBAH ke $existingKeys
                     $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);
                 }
             }
-        
+
             $nextNum = $maxNum + 1;
             $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
             $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
         }
 
+        // Kosongkan opsi "kode kosong/gap" jika rumus BUKAN yang aktif
         if ($setup && isset($setup->is_applied) && $setup->is_applied == 0) {
-            $gaps = [];
+            $gaps = []; 
         }
 
+        // KODE YANG DIUBAH: Tambahkan variabel respon baru
         return response()->json([
             'code' => $kodeBaru,
             'gaps' => $gaps,
-            'default_nama' => $setup->default_nama_satker ?? ''
+            'default_nama' => $setup->default_nama_satker ?? '',
+            'is_incremental' => $isIncremental,
+            'is_new' => $isNew,
+            'last_kode' => $lastKode,
+            'last_nama' => $lastNama
         ]);
     }
 }
