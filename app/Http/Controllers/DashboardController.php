@@ -42,7 +42,7 @@ class DashboardController extends Controller
 
         // FILTER PERIODE AKTIF (Agar Data Tidak Bengkak / Dummy)
         $periodes = Periode::orderBy('created_at', 'asc')->get();
-        $activePeriodeId = $request->input('periode_id', $periodes->where('is_active', true)->first()->id ?? ($periodes->last()->id ?? null));
+        $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
         // 1. STATISTIK KARTU ATAS (DIFILTER PER PERIODE)
         $stats = [

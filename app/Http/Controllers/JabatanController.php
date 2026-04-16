@@ -66,7 +66,7 @@ class JabatanController extends Controller
 
         $periodes = Periode::orderBy('created_at', 'asc')->get();
         
-        $activePeriodeId = $request->input('periode_id', $periodes->where('is_active', true)->first()->id ?? ($periodes->last()->id ?? null));
+        $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
         $jabatans = Jabatan::with(['jenis', 'jenisSatker', 'fungsional'])
             ->where('periode_id', $activePeriodeId)

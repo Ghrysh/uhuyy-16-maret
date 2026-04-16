@@ -2213,22 +2213,13 @@
                 const containerBalai = document.getElementById('container_opsi_balai');
                 if (startNumBalai && containerBalai && !containerBalai.classList.contains('hidden')) startNum = parseInt(startNumBalai);
                 
-                if (finalPrefix.includes("[Induk]") || finalPrefix.includes("[-]")) finalSuffix = String(startNum).padStart(digits, '0');
-                else {
-                    let existing = (window.existingSatkers || []).filter(s => {
-                        let matchPeriode = periodeId ? (String(s.periode_id) === String(periodeId)) : true;
-                        let matchKode = s.kode_satker && s.kode_satker.startsWith(finalPrefix) && s.kode_satker.length === finalPrefix.length + digits;
-                        return matchPeriode && matchKode;
-                    }).map(s => parseInt(s.kode_satker.substring(finalPrefix.length))).filter(n => !isNaN(n));
-                        
-                    if (existing.length === 0) finalSuffix = String(startNum).padStart(digits, '0');
-                    else {
-                        let maxNum = Math.max(...existing);
-                        let nextNum = maxNum >= startNum ? maxNum + 1 : startNum;
-                        finalSuffix = String(nextNum).padStart(digits, '0');
-                    }
-                }
-            } else { finalPrefix = rawStr; finalSuffix = ""; }
+                finalSuffix = String(startNum).padStart(digits, '0');
+                
+            } else { 
+                finalPrefix = rawStr; 
+                finalSuffix = ""; 
+            }
+            
             return { prefix: finalPrefix, suffix: finalSuffix };
         }
 

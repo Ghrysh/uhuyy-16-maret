@@ -121,7 +121,7 @@ class SatkerController extends Controller
 
         $periodes = Periode::orderBy('created_at', 'asc')->get();
         // Pastikan activePeriodeId terdefinisi untuk filter
-        $activePeriodeId = $request->input('periode_id', $periodes->where('is_active', true)->first()->id ?? ($periodes->last()->id ?? null));
+        $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
         $satkerQuery = Satker::with('children')->where('periode_id', $activePeriodeId);
         $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon'])->where('periode_id', $activePeriodeId);
