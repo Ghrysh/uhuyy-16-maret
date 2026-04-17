@@ -243,6 +243,14 @@ class SatkerController extends Controller
             'perubahan'  => 'Menambahkan satker baru: ' . $satker->nama_satker . ' dengan kode: ' . $satker->kode_satker,
             'user_id'    => auth()->id(),
         ]);
+        
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Satuan Kerja berhasil ditambahkan!',
+                'satker_id' => $satker->id
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Satuan Kerja berhasil ditambahkan!');
     }
@@ -285,6 +293,13 @@ class SatkerController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Satuan Kerja berhasil diperbarui!',
+                'satker_id' => $satker->id
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Satuan Kerja berhasil diperbarui');
     }
@@ -293,9 +308,10 @@ class SatkerController extends Controller
     {
         $satker = Satker::findOrFail($id);
         
-        // Cek apakah punya bawahan
         if($satker->children()->count() > 0) {
-            // Menggunakan withErrors agar terbaca oleh script Toast Anda
+            if (request()->ajax() || request()->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Tidak dapat menghapus Satker yang memiliki unit bawahan'], 422);
+            }
             return redirect()->back()->withErrors(['error' => 'Tidak dapat menghapus Satker yang memiliki unit bawahan']);
         }
 
@@ -307,8 +323,11 @@ class SatkerController extends Controller
             'user_id' => auth()->id(),
         ]);
 
-
         $satker->delete();
+
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Satuan Kerja berhasil dihapus']);
+        }
         return redirect()->back()->with('success', 'Satuan Kerja berhasil dihapus');
     }
 

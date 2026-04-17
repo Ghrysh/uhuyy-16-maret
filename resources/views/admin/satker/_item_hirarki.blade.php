@@ -37,9 +37,11 @@
     }
 }" x-show="isVisible" class="satker-item w-full">
 
+    {{-- KUNCI PERBAIKAN: data-id diletakkan di sini, dan duplikasi class dihapus --}}
     <div class="satker-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-3 
     bg-white hover:bg-blue-50/50 rounded-xl transition border border-slate-100 
     sm:border-transparent sm:hover:border-blue-100 group"
+        data-id="{{ $item->id }}"
         :class="search !== '' && selfText.includes(search.toLowerCase()) ?
             'bg-amber-50 border-amber-200 ring-1 ring-amber-200' :
             ''">

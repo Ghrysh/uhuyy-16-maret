@@ -412,27 +412,6 @@
                         </select>
                     </div>
 
-                    {{-- Picklist Khusus Jabatan Kota/Kab --}}
-                    <div id="container_kategori_kotakab" class="hidden space-y-5">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Unit
-                                Kota/Kab</label>
-                            <select id="kategori_kotakab" onchange="handleKategoriKotaKabChange()"
-                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">>
-                                <option value="">-- Pilih Kategori --</option>
-                            </select>
-                        </div>
-
-                        {{-- Picklist Spesifik Madrasah --}}
-                        <div id="container_jenis_madrasah" class="hidden">
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenis Madrasah</label>
-                            <select id="jenis_madrasah" onchange="handleJenisMadrasahChange()"
-                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">>
-                                <option value="">-- Pilih Jenis Madrasah --</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <div>
                         {{-- TAMBAHAN: Opsi Khusus Penomoran Balai --}}
                         <div id="wrapper_opsi_balai" class="hidden">
@@ -487,6 +466,27 @@
                             <p class="text-[10px] text-slate-500 mt-1 italic">*Hanya rumus yang sesuai dengan hierarki yang akan ditampilkan.</p>
                         </div>
 
+                        {{-- Picklist Khusus Jabatan Kota/Kab --}}
+                        <div id="container_kategori_kotakab" class="hidden space-y-5 mb-5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Unit
+                                    Kota/Kab</label>
+                                <select id="kategori_kotakab" onchange="handleKategoriKotaKabChange()"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                    <option value="">-- Pilih Kategori --</option>
+                                </select>
+                            </div>
+
+                            {{-- Picklist Spesifik Madrasah --}}
+                            <div id="container_jenis_madrasah" class="hidden">
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenis Madrasah</label>
+                                <select id="jenis_madrasah" onchange="handleJenisMadrasahChange()"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                    <option value="">-- Pilih Jenis Madrasah --</option>
+                                </select>
+                            </div>
+                        </div>
+
                         {{-- Kode Satker (Generate) --}}
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kode Satker (Generate)</label>
@@ -508,6 +508,7 @@
                                 <div id="gap_list" class="flex flex-wrap gap-2"></div>
                             </div>
                         </div>
+                    </div>
 
                     <div class="mt-4 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
                         <label class="block text-[10px] font-bold text-blue-700 uppercase mb-1">Kode Satker Final (Akan
@@ -2100,6 +2101,7 @@
                     checkFungsiVisibility(); 
                     updateDropdownRumus();
 
+                    // Hapus pengecekan 'id !== jenis_satker_id' agar perubahan eselon langsung mengupdate nama
                     if(id !== 'parent_satker_id') {
                         const status = document.getElementById('tanpa_jabatan')?.value;
                         if (status === 'jabatan_kotakab') updateNamaSatkerDariKabupaten();
@@ -2754,5 +2756,163 @@
             document.getElementById("ref_jabatan_satker_id").value = id;
             if(typeof updateDropdownRumus === 'function') updateDropdownRumus();
         }
+    </script>
+
+    <script>
+        // FUNGSI UNTUK MERFRESH HIERARKI SATKER TANPA RELOAD PAGE
+        async function refreshSatkerTree(targetId, action) {
+            const container = document.getElementById('mainTreeContainer');
+            if (!container) return;
+
+            const currentScroll = container.scrollTop;
+            const openFolderIds = [];
+
+            // 1. Simpan state folder yang terbuka dengan membaca otak Alpine.js
+            container.querySelectorAll('.satker-item').forEach(item => {
+                if (typeof Alpine !== 'undefined') {
+                    try {
+                        if (Alpine.$data(item).open) {
+                            const row = item.querySelector('.satker-row');
+                            if (row && row.getAttribute('data-id')) {
+                                openFolderIds.push(row.getAttribute('data-id'));
+                            }
+                        }
+                    } catch (e) {}
+                }
+            });
+
+            try {
+                // Tampilkan loader
+                const loaderHtml = `<div id="tree_loader" class="absolute top-4 right-4 bg-blue-600 shadow-lg rounded-full px-4 py-2 text-xs font-bold text-white z-50 flex items-center"><i class="fas fa-sync fa-spin mr-2"></i> Memperbarui Tampilan...</div>`;
+                container.parentElement.insertAdjacentHTML('beforeend', loaderHtml);
+
+                // Fetch DOM baru
+                const response = await fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const htmlText = await response.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const newTree = doc.getElementById('mainTreeContainer');
+
+                if (newTree) {
+                    // Update DOM secara instan
+                    container.innerHTML = newTree.innerHTML;
+                    container.scrollTop = currentScroll; // Tahan agar tidak lompat ke atas
+
+                    // KUNCI: Beri jeda 200ms agar Alpine.js selesai me-restart DOM yang baru
+                    setTimeout(() => {
+                        
+                        // 2. Kembalikan folder yang tadinya terbuka
+                        openFolderIds.forEach(id => {
+                            const row = container.querySelector(`.satker-row[data-id="${id}"]`);
+                            if (row) {
+                                const item = row.closest('.satker-item');
+                                if (item && typeof Alpine !== 'undefined') {
+                                    try { Alpine.$data(item).open = true; } catch(e) {}
+                                }
+                            }
+                        });
+
+                        // 3. Cari target, Buka Paksa Induknya, lalu Scroll (Metode Fitur Search)
+                        if (targetId && action !== 'delete') {
+                            const targetRow = container.querySelector(`.satker-row[data-id="${targetId}"]`);
+                            
+                            if (targetRow) {
+                                // Rayap ke atas, temukan semua bungkus Alpine-nya, dan paksa ubah open = true
+                                let currentEl = targetRow;
+                                while(currentEl && currentEl.id !== 'mainTreeContainer') {
+                                    if (currentEl.classList.contains('satker-item') && typeof Alpine !== 'undefined') {
+                                        try { Alpine.$data(currentEl).open = true; } catch(e) {}
+                                    }
+                                    currentEl = currentEl.parentElement;
+                                }
+
+                                // Beri efek Highlight sama seperti fitur search
+                                targetRow.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                                setTimeout(() => {
+                                    targetRow.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                                }, 2500);
+
+                                // Jeda ekstra untuk memastikan animasi buka folder selesai, lalu scroll!
+                                setTimeout(() => {
+                                    const cRect = container.getBoundingClientRect();
+                                    const mRect = targetRow.getBoundingClientRect();
+                                    
+                                    container.scrollTo({
+                                        top: container.scrollTop + (mRect.top - cRect.top) - 40,
+                                        behavior: 'smooth'
+                                    });
+                                }, 250); 
+                            }
+                        }
+
+                        document.getElementById('tree_loader')?.remove();
+                    }, 200); 
+                }
+            } catch (err) {
+                console.error('AJAX Refresh Error:', err);
+                window.location.reload(); // Fallback jika gagal
+            }
+        }
+
+        // INIT AJAX FORM SUBMISSION
+        function initAjaxForm(formId, modalId, isDelete = false) {
+            const form = document.getElementById(formId);
+            if (!form) return;
+
+            // Kita harus replace event listener lama, agar tidak submit dobel
+            const newForm = form.cloneNode(true);
+            form.parentNode.replaceChild(newForm, form);
+
+            newForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Proses...';
+
+                try {
+                    const formData = new FormData(this);
+                    const response = await fetch(this.action, {
+                        method: 'POST', // Laravel menerima DELETE via method override di form
+                        body: formData,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        Toast.fire({ icon: 'success', title: result.message });
+                        toggleModal(modalId);
+                        
+                        if (!isDelete) {
+                            this.reset();
+                            if(typeof resetTambahSatkerModal === 'function' && formId === 'formTambahSatker') resetTambahSatkerModal();
+                        }
+
+                        // Panggil Refresh Data Tanpa Reload
+                        refreshSatkerTree(result.satker_id, isDelete ? 'delete' : 'save');
+
+                    } else {
+                        let errorMsg = result.message || 'Terjadi kesalahan sistem.';
+                        if (result.errors) errorMsg = Object.values(result.errors).flat().join('\n');
+                        Swal.fire('Gagal', errorMsg, 'error');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    Swal.fire('Error', 'Gagal memproses data. Cek koneksi internet.', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            });
+        }
+
+        // Terapkan script AJAX di atas pada ketiga Modal
+        document.addEventListener('DOMContentLoaded', function() {
+            initAjaxForm('formTambahSatker', 'modalTambahSatker', false);
+            initAjaxForm('formEditSatker', 'modalEditSatker', false);
+            initAjaxForm('formHapusSatker', 'modalHapusSatker', true);
+        });
     </script>
 @endpush
