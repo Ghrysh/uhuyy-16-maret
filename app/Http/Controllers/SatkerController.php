@@ -516,6 +516,10 @@ class SatkerController extends Controller
         $isNew = true;
         $lastKode = null;
         $lastNama = null;
+        $nextNum = 0;
+        $maxNum = 0;
+        $isDifferentFormula = false;
+        $isSameStart = false;
         
         // Membaca pola [INC:digit] ATAU [INC:digit, START:angka]
         if (preg_match('/\[INC:(\d+)(?:,\s*START:(\d+))?\]/', $kodeBaru, $matches)) {
@@ -584,14 +588,33 @@ class SatkerController extends Controller
                 $loopStart = $startLimit;
             }
 
-            // Hitung Gap (Nomor Bolong)
-            for ($i = $loopStart; $i < $maxNum; $i++) {
-                if (!in_array($i, $existingKeys)) { // UBAH ke $existingKeys
+            // --- PERBAIKAN FEEDBACK 1: Cari nomor terkecil yang tersedia ---
+            $nextNum = $loopStart;
+            while (in_array($nextNum, $existingKeys)) {
+                $nextNum++;
+            }
+
+            // Hitung Gap (Nomor Bolong) adalah sisa ruang kosong setelah nextNum hingga maxNum
+            for ($i = $nextNum + 1; $i < $maxNum; $i++) {
+                if (!in_array($i, $existingKeys)) {
                     $gaps[] = $prefixPattern . str_pad($i, $digit, '0', STR_PAD_LEFT);
                 }
             }
 
-            $nextNum = $maxNum + 1;
+            // PERBAIKAN: Deteksi status untuk membedakan pesan di frontend
+            if (!$isNew && $setup) {
+                $rumusName = $setup->nama_rumus ?? '';
+                // Jika nama rumus tidak ditemukan pada nama satker terakhir, anggap rumus berbeda
+                if ($rumusName && stripos($lastNama, $rumusName) === false) {
+                    $isDifferentFormula = true;
+                }
+                
+                // Jika rumus berbeda, tapi harus lompat angka (karena start_num-nya sudah terpakai)
+                if ($isDifferentFormula && $nextNum > $loopStart) {
+                    $isSameStart = true;
+                }
+            }
+
             $incStr = str_pad($nextNum, $digit, '0', STR_PAD_LEFT);
             $kodeBaru = str_replace($matches[0], $incStr, $kodeBaru);
         }
@@ -605,11 +628,15 @@ class SatkerController extends Controller
         return response()->json([
             'code' => $kodeBaru,
             'gaps' => $gaps,
-            'default_nama' => $setup->default_nama_satker ?? '',
+            'default_nama' => $setup->default_nama_satker ?? $setup->nama_rumus ?? '',
             'is_incremental' => $isIncremental,
             'is_new' => $isNew,
             'last_kode' => $lastKode,
-            'last_nama' => $lastNama
+            'last_nama' => $lastNama,
+            'next_num' => $nextNum,
+            'max_num' => $maxNum,
+            'is_different_formula' => $isDifferentFormula,
+            'is_same_start' => $isSameStart
         ]);
     }
 }

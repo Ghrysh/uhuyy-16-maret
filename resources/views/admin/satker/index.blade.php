@@ -2067,8 +2067,8 @@
                         if (value !== "") {
                             const selectedOption = this.options[value];
                             if (selectedOption && selectedOption.nama_rumus && namaSatkerInput) {
-                                namaSatkerInput.value = selectedOption.nama_rumus;
-                                namaSatkerInput.dataset.staticText = ''; 
+                                namaSatkerInput.value = selectedOption.nama_rumus + " ";
+                                namaSatkerInput.dataset.staticText = selectedOption.nama_rumus + " "; 
                             }
                         } else {
                             if(typeof handleJabatanChange === 'function') handleJabatanChange();
@@ -2089,6 +2089,25 @@
                         item: function(data, escape) {
                             if(data.id === "") return `<div class="font-bold text-slate-600">${escape(data.nama_rumus)}</div>`;
                             return `<div class="flex items-center font-semibold text-sm text-slate-800">${escape(data.nama_rumus)} <span class="font-mono text-xs ml-2 text-slate-500">(${escape(data.prefix)}<span class="text-blue-600 font-bold ml-[2px]">${escape(data.suffix)}</span>)</span></div>`;
+                        }
+                    }
+                });
+            }
+
+            // PERBAIKAN FEEDBACK 2: Kunci input nama satker untuk teks tertentu
+            const namaSatkerInputEvent = document.getElementById('nama_satker');
+            if (namaSatkerInputEvent) {
+                namaSatkerInputEvent.addEventListener('input', function(e) {
+                    const lockedPhrases = ["Madrasah Ibtidaiyah Negeri", "Wakil Rektor Bidang", "Kantor Urusan Agama"];
+                    let staticText = this.dataset.staticText || '';
+                    
+                    // Cek apakah staticText saat ini mengandung salah satu kata yang dilindungi
+                    let shouldLock = lockedPhrases.some(phrase => staticText.includes(phrase));
+                    
+                    if (shouldLock) {
+                        // Jika user mencoba menghapus kata utama, paksa kembalikan
+                        if (!this.value.startsWith(staticText)) {
+                            this.value = staticText;
                         }
                     }
                 });
@@ -2486,16 +2505,27 @@
                     infoContainer.classList.remove('hidden');
                     if (data.is_incremental) {
                         if (data.is_new) {
-                            // Jika rumus baru dipakai pertama kali
                             infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-blue-200 bg-blue-50 text-blue-700 leading-relaxed";
                             infoContainer.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Belum ada satker yang menggunakan awalan kode ini. Kode akan dimulai dari <b class="font-mono text-sm">${generatedCode}</b>.`;
                         } else {
-                            // Jika rumus sudah ada yang makai sebelumnya
-                            infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 leading-relaxed";
-                            infoContainer.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Awalan ini sudah digunakan. Terakhir dipakai oleh <b>${data.last_nama}</b> (<span class="font-mono">${data.last_kode}</span>). Sistem akan melanjutkan ke <b class="font-mono text-sm">${generatedCode}</b>.`;
+                            // LOGIKA FEEDBACK 1 & 4: KONDISI PESAN RINCI
+                            if (data.next_num < data.max_num) {
+                                infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-blue-200 bg-blue-50 text-blue-700 leading-relaxed";
+                                infoContainer.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Rumus ini belum ada yang menggunakan, di parent ini terakhir oleh <b>${data.last_nama}</b> (<span class="font-mono">${data.last_kode}</span>). Sistem akan memulai dari <b class="font-mono text-sm">${generatedCode}</b>.`;
+                            } else if (data.is_different_formula) {
+                                if (data.is_same_start) {
+                                    infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-amber-200 bg-amber-50 text-amber-700 leading-relaxed";
+                                    infoContainer.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Peringatan: Sudah ada satker dengan awalan ini. Kode saat ini akan melanjutkan ke <b class="font-mono text-sm">${generatedCode}</b>.`;
+                                } else {
+                                    infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-amber-200 bg-amber-50 text-amber-700 leading-relaxed";
+                                    infoContainer.innerHTML = `<i class="fas fa-exclamation-circle mr-1"></i> Awalan ini sudah digunakan oleh rumus lain. Terakhir dipakai oleh <b>${data.last_nama}</b> (<span class="font-mono">${data.last_kode}</span>). Sistem akan melanjutkan ke <b class="font-mono text-sm">${generatedCode}</b>.`;
+                                }
+                            } else {
+                                infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 leading-relaxed";
+                                infoContainer.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Awalan ini sudah digunakan. Terakhir dipakai oleh <b>${data.last_nama}</b> (<span class="font-mono">${data.last_kode}</span>). Sistem akan melanjutkan ke <b class="font-mono text-sm">${generatedCode}</b>.`;
+                            }
                         }
                     } else {
-                        // Jika rumusnya statis (Tidak ada [INC])
                         infoContainer.className = "mt-3 p-3 text-[11px] rounded-xl border border-slate-200 bg-slate-50 text-slate-700 leading-relaxed";
                         infoContainer.innerHTML = `<i class="fas fa-info-circle mr-1"></i> Rumus ini menghasilkan kode paten statis (tidak memiliki penambahan urutan).`;
                     }
