@@ -4,25 +4,36 @@
 
     $eselonName = $item->eselon ? $item->eselon->nama : '-';
     
-    // PERBAIKAN FEEDBACK 3: Logika Tugas Tambahan (Jika ada angka tetap 9) & Label Dinamis
-    $isTugasTambahan = false;
     if (!empty($item->kode_satker)) {
         $kode = $item->kode_satker;
         $len = strlen($kode);
+        $prefix = substr($kode, 0, 2);
         
-        // Mengecek setiap awalan sub-kode (indeks ke-2, 4, 6 dst.) untuk mencari pemisah tugas tambahan '9'
-        for ($i = 2; $i < $len; $i += 2) {
-            if (isset($kode[$i]) && $kode[$i] === '9') {
-                $isTugasTambahan = true;
-                break;
-            }
-        }
-
-        if ($isTugasTambahan) {
+        // 1. PRIORITAS UTAMA: Jika mulai dari kode 21 atau lebih (Eselon 1 & Anak-anaknya)
+        if (is_numeric($prefix) && (int)$prefix >= 21) {
             if ($len > 2) {
                 $eselonName = "Tugas Tambahan $len Digit";
             } else {
                 $eselonName = 'Tugas Tambahan';
+            }
+        } 
+        // 2. ATURAN KEDUA: Jika di bawah 21 (01, 02, dst) tapi mengandung angka tetap '9'
+        else {
+            $isTugasTambahanSembilan = false;
+            // Cek angka '9' di posisi sub-kode (indeks 2, 4, 6, dst)
+            for ($i = 2; $i < $len; $i += 2) {
+                if (isset($kode[$i]) && $kode[$i] === '9') {
+                    $isTugasTambahanSembilan = true;
+                    break;
+                }
+            }
+
+            if ($isTugasTambahanSembilan) {
+                if ($len > 2) {
+                    $eselonName = "Tugas Tambahan $len Digit";
+                } else {
+                    $eselonName = 'Tugas Tambahan';
+                }
             }
         }
     }
