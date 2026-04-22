@@ -359,6 +359,9 @@
                         </select>
                     </div>
 
+                    {{-- ANCHOR UNTUK RUMUS PTKN --}}
+                    <div id="anchor_rumus_ptkn"></div>
+
                     {{-- Tambahkan ID 'container_status_jabatan' dan class 'hidden' --}}
                     <div id="container_status_jabatan" class="hidden space-y-5">
                         <div>
@@ -370,18 +373,37 @@
                             </select>
                         </div>
 
-                        <div id="container_jabatan_fungsional" class="hidden mt-4">
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Pilih Jabatan
-                                Fungsional</label>
-                            <select name="jabatan_id" id="jabatan_id"
-                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                                <option value="">-- Pilih Jabatan --</option>
-                                @foreach ($jabatan as $j)
-                                    <option value="{{ $j->id }}" data-kode="{{ $j->kode_jabatan }}">
-                                        {{ $j->kode_jabatan }} - {{ $j->nama_jabatan }}
-                                    </option>
-                                @endforeach
-                            </select>
+                        {{-- JAWABAN POIN 1: Hierarki Jabatan Fungsional 3 & 4 Digit --}}
+                        <div id="container_jabatan_fungsional" class="hidden space-y-5 mt-4">
+                            {{-- Dropdown 1: Kategori (3 Digit) --}}
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Jabatan Fungsional</label>
+                                <select id="kategori_jabatan_fungsional" onchange="handleKategoriJabatanChange()"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                    <option value="">-- Pilih Kategori (3 Digit) --</option>
+                                    @foreach ($jabatanCategories as $cat)
+                                        <option value="{{ $cat->kode_jabatan }}">
+                                            {{ $cat->kode_jabatan }} - {{ $cat->nama_jabatan }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            {{-- Dropdown 2: Jenjang (4 Digit) - Akan muncul setelah Kategori dipilih --}}
+                            <div id="wrapper_jenjang_jabatan" class="hidden">
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenjang Jabatan</label>
+                                <select name="jabatan_id" id="jabatan_id" onchange="handleJenjangJabatanChange()"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                    <option value="">-- Pilih Jenjang (4 Digit) --</option>
+                                    @foreach ($jabatanItems as $item)
+                                        <option value="{{ $item->id }}" 
+                                                data-kode="{{ $item->kode_jabatan }}"
+                                                data-parent-kode="{{ substr($item->kode_jabatan, 0, 3) }}">
+                                            {{ $item->kode_jabatan }} - {{ $item->nama_jabatan }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -441,9 +463,9 @@
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
                                 Filter Kelompok Fungsi (Opsional)
                             </label>
-                            <select id="filter_fungsi" onchange="updateDropdownRumus()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                            <select id="filter_fungsi" onchange="handleFilterFungsiChange()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                 <option value="">-- Tampilkan Semua Rumus --</option>
-                                <option value="SPI">Satuan Pengawas Internal</option>
+                                <option value="Tata Usaha">Fungsi Tata Usaha</option> <option value="SPI">Satuan Pengawas Internal</option>
                                 <option value="Pendidikan Islam">Fungsi Pendidikan Islam</option>
                                 <option value="Bimas Islam">Fungsi Bimas Islam</option>
                                 <option value="Haji dan Umrah">Fungsi Haji dan Umrah</option>
@@ -455,15 +477,40 @@
                             </select>
                         </div>
 
-                        {{-- DROPDOWN RUMUS MANUAL (OPSIONAL) --}}
-                        <div class="mb-5">
+                        {{-- JAWABAN POIN 2: Rumpun Fakultas Khusus Eselon 2 PTKN --}}
+                        <div id="container_rumpun_fakultas" class="hidden mb-5">
                             <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
-                                Gunakan Rumus Tersimpan (Opsional)
+                                Rumpun Fakultas
                             </label>
-                            <select name="rumus_id" id="rumus_id" class="w-full">
-                                <option value="">-- Default (Sistem Otomatis) --</option>
+                            <select name="rumpun_fakultas" id="rumpun_fakultas" onchange="handleRumpunFakultasChange()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                <option value="">-- Pilih Rumpun Fakultas --</option>
+                                <option value="901">Ilmu Tarbiyah dan Keguruan</option>
+                                <option value="902">Adab dan Humaniora</option>
+                                <option value="903">Ushuluddin</option>
+                                <option value="904">Syariah dan Hukum</option>
+                                <option value="905">Dakwah dan Ilmu Komunikasi</option>
+                                <option value="906">Dirasat Islamiyah</option>
+                                <option value="907">Psikologi</option>
+                                <option value="908">Ekonomi dan Bisnis</option>
+                                <option value="909">Sains dan Teknologi</option>
+                                <option value="910">Kedokteran</option>
+                                <option value="911">Ilmu Sosial dan Ilmu Politik</option>
+                                <option value="912">Ilmu Kesehatan</option>
                             </select>
-                            <p class="text-[10px] text-slate-500 mt-1 italic">*Hanya rumus yang sesuai dengan hierarki yang akan ditampilkan.</p>
+                        </div>
+
+                        {{-- ANCHOR DEFAULT RUMUS MANUAL --}}
+                        <div id="anchor_rumus_default">
+                            {{-- DROPDOWN RUMUS MANUAL (OPSIONAL) --}}
+                            <div id="container_rumus_manual" class="mb-5 mt-4">
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
+                                    Gunakan Rumus Tersimpan (Opsional)
+                                </label>
+                                <select name="rumus_id" id="rumus_id" class="w-full">
+                                    <option value="">-- Default (Sistem Otomatis) --</option>
+                                </select>
+                                <p class="text-[10px] text-slate-500 mt-1 italic">*Hanya rumus yang sesuai dengan hierarki yang akan ditampilkan.</p>
+                            </div>
                         </div>
 
                         {{-- Picklist Khusus Jabatan Kota/Kab --}}
@@ -1889,6 +1936,22 @@
             if (rumusSelect) {
                 rumusSelect.value = "";
             }
+
+            const containerFakultas = document.getElementById('container_rumpun_fakultas');
+            if (containerFakultas) containerFakultas.classList.add('hidden');
+            const dropdownFakultas = document.getElementById('rumpun_fakultas');
+            if (dropdownFakultas) dropdownFakultas.value = "";
+
+            // reset rumus (jika ada)
+            const rumusSelect = document.getElementById('rumus_id');
+            if (rumusSelect) {
+                rumusSelect.value = "";
+            }
+
+            // Kembalikan posisi div rumus ke default saat modal ditutup
+            const containerRumus = document.getElementById('container_rumus_manual');
+            const anchorDefault = document.getElementById('anchor_rumus_default');
+            if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
         }
 
         // ==========================================
@@ -2119,12 +2182,12 @@
                 if (el) el.addEventListener('change', function() {
                     checkFungsiVisibility(); 
                     updateDropdownRumus();
-
-                    // Hapus pengecekan 'id !== jenis_satker_id' agar perubahan eselon langsung mengupdate nama
-                    if(id !== 'parent_satker_id') {
-                        const status = document.getElementById('tanpa_jabatan')?.value;
-                        if (status === 'jabatan_kotakab') updateNamaSatkerDariKabupaten();
-                        else handleJabatanChange();
+                    
+                    // PERBAIKAN: Cegah reset paksa! Jangan panggil handleJabatanChange untuk setiap dropdown
+                    if (id === 'tanpa_jabatan') {
+                        handleJabatanChange(); // Hanya reset jika Status Jabatan Induknya yang diubah
+                    } else if (id === 'kategori_kotakab' || id === 'jenis_madrasah') {
+                        updateNamaSatkerDariKabupaten();
                     }
                 });
             });
@@ -2148,6 +2211,19 @@
             const kategoriSelect = document.getElementById('kategori_wilayah');
             const wilayahContainer = document.getElementById('container_wilayah');
             const wilayahSelect = document.getElementById('wilayah_id');
+
+            // --- TAMBAHAN LOGIKA PINDAH POSISI RUMUS TERSIMPAN ---
+            const containerRumus = document.getElementById('container_rumus_manual');
+            const anchorPtkn = document.getElementById('anchor_rumus_ptkn');
+            const anchorDefault = document.getElementById('anchor_rumus_default');
+
+            // Jika PTKN (4) terpilih, pindahkan ke atas. Jika tidak, kembalikan ke bawah.
+            if (kategoriSelect.value === '4') {
+                if (anchorPtkn && containerRumus) anchorPtkn.appendChild(containerRumus);
+            } else {
+                if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
+            }
+            // -----------------------------------------------------
 
             if (kategoriSelect.value === "") {
                 wilayahContainer.classList.add('hidden');
@@ -2240,13 +2316,15 @@
         }
 
         const fungsiConfig = {
-            "2": { "SPI": ["61"] }, // Poin 1 (SPI di Eselon 2 PTKN)
+            "2": { "SPI": ["61"] },
             "3": { 
+                "Tata Usaha": ["01"],
                 "Pendidikan Islam": ["02", "03", "04", "05", "06"], "Bimas Islam": ["07", "08", "09", "10", "11"], "Haji dan Umrah": ["10", "12"],
                 "Bimas Kristen": ["21", "22", "23", "24", "25"], "Bimas Katolik": ["26", "27", "28", "29"], "Bimas Hindu": ["30", "31", "32", "33"],
                 "Bimas Buddha": ["34"], "Bimas Khonghucu": ["35"]
             },
             "4": { 
+                "Tata Usaha": ["01"],
                 "Pendidikan Islam": ["02", "03", "04", "05", "06", "07", "08", "09", "10"], "Bimas Islam": ["11", "12", "13", "14", "15", "16", "17", "18", "07", "08", "09"],
                 "Haji dan Umrah": ["19", "20", "08", "09"], "Bimas Kristen": ["21", "22", "23", "24", "25", "26", "27"], "Bimas Katolik": ["28", "29", "30", "31", "32"],
                 "Bimas Hindu": ["33", "34", "35", "36", "37"], "Bimas Buddha": ["38", "39", "40", "37"], "Bimas Khonghucu": ["41"]
@@ -2266,6 +2344,17 @@
             const isKanwil = (tingkatWilayah === '2' && statusJabatan === 'jabatan_kanwil');
             const isKabKota = (tingkatWilayah === '2' && statusJabatan === 'jabatan_kotakab') || (tingkatWilayah === '3' && statusJabatan === 'jabatan_kotakab');
             
+            // Logika Visibilitas Rumpun Fakultas
+            const containerFakultas = document.getElementById('container_rumpun_fakultas');
+            const dropdownFakultas = document.getElementById('rumpun_fakultas');
+            
+            if (jenisId === '2' && isPTKN) {
+                if (containerFakultas) containerFakultas.classList.remove('hidden');
+            } else {
+                if (containerFakultas) containerFakultas.classList.add('hidden');
+                if (dropdownFakultas) dropdownFakultas.value = "";
+            }
+
             let showFilter = false;
             if (jenisId === '2' && isPTKN) showFilter = true; // Muncul di Eselon 2 PTKN (Khusus SPI)
             if (jenisId === '3' && isKanwil) showFilter = true;
@@ -2286,6 +2375,32 @@
                 container.classList.add('hidden');
                 const filterEl = document.getElementById('filter_fungsi');
                 if (filterEl) filterEl.value = "";
+            }
+        }
+
+        function handleFilterFungsiChange() {
+            // Selalu update dropdown rumus saat filter diubah
+            updateDropdownRumus();
+            
+            const status = document.getElementById('tanpa_jabatan')?.value;
+            // Arahkan ke fungsi penamaan masing-masing agar namanya ikut berubah otomatis
+            if (status === 'jabatan_kotakab') {
+                updateNamaSatkerDariKabupaten();
+            } else if (status === 'jabatan_kanwil') {
+                handleKategoriUnitChange();
+            } else {
+                // Fallback umum jika bukan keduanya
+                const filterVal = document.getElementById('filter_fungsi').value;
+                const jenisSatkerId = document.getElementById('jenis_satker_id').value;
+                const namaSatkerInput = document.getElementById('nama_satker');
+                
+                if (filterVal === "Tata Usaha" && namaSatkerInput) {
+                    let baseName = "Tata Usaha";
+                    if (jenisSatkerId === "3") baseName = "Bagian Tata Usaha";
+                    if (jenisSatkerId === "4") baseName = "Subbagian Tata Usaha";
+                    namaSatkerInput.value = baseName;
+                    namaSatkerInput.dataset.staticText = baseName + " ";
+                }
             }
         }
 
@@ -2336,7 +2451,19 @@
                 return matchJenis && matchWilayah && matchJabatan && matchPola && matchFungsi;
             });
 
-            let optionsData = [{ id: "", nama_rumus: "-- Default (Sistem Otomatis) --", prefix: "", suffix: "", preview_text: "", is_applied: true }];
+            let calculatedOptions = [];
+            validRumus.forEach(rm => {
+                let parsed = getPrediksiKode(rm.pola || "", parentCode, currentPeriodeId);
+                calculatedOptions.push({ id: rm.id, nama_rumus: rm.nama_rumus, prefix: parsed.prefix, suffix: parsed.suffix, preview_text: parsed.prefix + parsed.suffix, is_applied: rm.is_applied });
+            });
+
+            calculatedOptions.sort((a, b) => {
+                let numA = parseInt(a.suffix) || 0;
+                let numB = parseInt(b.suffix) || 0;
+                return numA - numB;
+            });
+
+            let optionsData = [{ id: "", nama_rumus: "-- Default (Sistem Otomatis) --", prefix: "", suffix: "", preview_text: "", is_applied: true }, ...calculatedOptions];
             validRumus.forEach(rm => {
                 let parsed = getPrediksiKode(rm.pola || "", parentCode, currentPeriodeId);
                 optionsData.push({ id: rm.id, nama_rumus: rm.nama_rumus, prefix: parsed.prefix, suffix: parsed.suffix, preview_text: parsed.prefix + parsed.suffix, is_applied: rm.is_applied });
@@ -2451,10 +2578,12 @@
                 const startNumBalai = document.getElementById('start_num_balai')?.value || '';
                 const rumusId = document.getElementById('rumus_id')?.value || '';
 
+                const rumpunFakultas = document.getElementById('rumpun_fakultas')?.value || '';
+
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId, parent_id: parentId, ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId, periode_id: periodeId, start_num: startNumBalai,
-                    rumus_id: rumusId, _t: Date.now()
+                    rumus_id: rumusId, rumpun_fakultas: rumpunFakultas, _t: Date.now()
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`);
@@ -2492,9 +2621,55 @@
                     const finalInput = document.getElementById('kode_satker_full');
                     if (finalInput) finalInput.value = fullCode;
 
+                    // ==============================================================
+                    // MENGUNCI TEKS NAMA SATKER & LOGIKA NAMA BIRO (SESUAI UJUNG KODE)
+                    // ==============================================================
                     if (data.default_nama) {
                         const namaInput = document.querySelector('input[name="nama_satker"]');
-                        if (namaInput && namaInput.value.trim() === '') namaInput.value = data.default_nama;
+                        if (namaInput) {
+                            let namaRumus = data.default_nama;
+                            
+                            // Logika Khusus "Biro di PTKN"
+                            if (namaRumus === 'Biro di PTKN') {
+                                const suffix = fullCode.slice(-2); // Ambil 2 digit terakhir
+                                
+                                // Silakan sesuaikan teks di bawah ini dengan gambar Anda!
+                                const biroMap = {
+                                    '01': 'Biro Administrasi Umum dan Kepegawaian',
+                                    '02': 'Biro Administrasi Umum dan Keuangan',
+                                    '03': 'Biro Administrasi Umum, Perencanaan, dan Keuangan',
+                                    '04': 'Biro Administrasi Umum, Kepegawaian dan Keuangan',
+                                    '05': 'Biro Administrasi Umum, Akademik, dan Kemahasiswaan',
+                                    '06': 'Biro Administrasi Umum, Perencanaa, Keuangan, dan Kepegawaian',
+                                    '07': 'Biro Umum, Akademik, Perencanaan dan Keuangan',
+                                    '08': 'Biro Administrasi Akademik, Kemahasiswaan, dan Kerja Sama',
+                                    '09': 'Biro Akademik, Keuangan, dan Umum'
+                                };
+                                
+                                // Jika ujungnya 01-09, panggil dari Map. Jika 10 ke atas, kembalikan "Biro "
+                                namaRumus = biroMap[suffix] || 'Biro ';
+                            }
+
+                            const isLockedName = namaRumus.includes('Madrasah Ibtidaiyah Negeri') || 
+                                                 namaRumus.includes('Wakil Rektor Bidang') || 
+                                                 namaRumus.includes('Kantor Urusan Agama');
+
+                            if (isLockedName) {
+                                const lockedPrefix = namaRumus + ' ';
+                                namaInput.value = lockedPrefix; 
+                                namaInput.dataset.staticText = lockedPrefix; 
+                                namaInput.focus(); 
+                            } else if (namaRumus.startsWith('Biro')) {
+                                namaInput.value = namaRumus;
+                                // Kunci kata "Biro " agar tidak bisa dihapus
+                                namaInput.dataset.staticText = 'Biro '; 
+                                namaInput.focus();
+                            } else {
+                                // Default pengisian biasa
+                                namaInput.value = namaRumus;
+                                namaInput.dataset.staticText = '';
+                            }
+                        }
                     }
                     updateFullCode();
                 };
@@ -2633,20 +2808,51 @@
             const namaSatkerInput = document.getElementById('nama_satker');
             const jenisSatker = document.getElementById('jenis_satker_id').value;
 
-            const containers = ['container_kategori_unit', 'container_kategori_kotakab', 'container_kabupaten', 'container_jenis_madrasah', 'container_jabatan_fungsional'];
-            containers.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+            // Kontainer yang harus dikelola
+            const containers = [
+                'container_kategori_unit', 
+                'container_kategori_kotakab', 
+                'container_kabupaten', 
+                'container_jenis_madrasah', 
+                'container_jabatan_fungsional',
+                'container_rumpun_fakultas'
+            ];
+            
+            // Sembunyikan semua dulu
+            containers.forEach(id => { 
+                const el = document.getElementById(id); 
+                if (el) el.classList.add('hidden'); 
+            });
 
+            // Reset value elemen-elemen di dalamnya
             if(document.getElementById('kategori_unit')) document.getElementById('kategori_unit').value = "";
             if(document.getElementById('kategori_kotakab')) document.getElementById('kategori_kotakab').value = "";
             if(document.getElementById('jenis_madrasah')) document.getElementById('jenis_madrasah').value = "";
-            if(document.getElementById('jabatan_id')) document.getElementById('jabatan_id').value = "";
-
-            if (!status) {
-                namaSatkerInput.value = ''; namaSatkerInput.dataset.staticText = '';
-                updateRefJabatanId(); if(typeof resetKodeSatker === 'function') resetKodeSatker(); return;
+            if(document.getElementById('kategori_jabatan_fungsional')) document.getElementById('kategori_jabatan_fungsional').value = "";
+            if(document.getElementById('jabatan_id')) {
+                document.getElementById('jabatan_id').value = "";
+                const wrapperJenjang = document.getElementById('wrapper_jenjang_jabatan');
+                if (wrapperJenjang) wrapperJenjang.classList.add('hidden');
             }
 
-            if (status === 'jabatan_fungsional') document.getElementById('container_jabatan_fungsional').classList.remove('hidden');
+            if (!status) {
+                if (namaSatkerInput) {
+                    namaSatkerInput.value = ''; 
+                    namaSatkerInput.dataset.staticText = '';
+                }
+                updateRefJabatanId(); 
+                if(typeof resetKodeSatker === 'function') resetKodeSatker(); 
+                return;
+            }
+
+            // PERBAIKAN PENTING: Tampilkan kontainer Jafung dan pastikan BISA DIKLIK
+            if (status === 'jabatan_fungsional') {
+                const jfContainer = document.getElementById('container_jabatan_fungsional');
+                if (jfContainer) {
+                    jfContainer.classList.remove('hidden');
+                    jfContainer.style.pointerEvents = 'auto'; // Mengizinkan klik
+                }
+            }
 
             const children = refJabatan.filter(item => item.parent_id === parentUuid);
             if (children.length > 0) {
@@ -2668,12 +2874,9 @@
             if (status === 'tidak_ada') {
                 namaSatkerInput.value = 'Tidak Ada Jabatan'; namaSatkerInput.dataset.staticText = '';
             } else if (status === 'jabatan_fungsional') {
-                const fungsionalSelect = document.getElementById('jabatan_id');
-                const opt = fungsionalSelect.options[fungsionalSelect.selectedIndex];
-                if (fungsionalSelect.value && opt.value !== "") {
-                    const text = opt.text.includes(' - ') ? opt.text.split(' - ')[1] : opt.text;
-                    namaSatkerInput.value = text; namaSatkerInput.dataset.staticText = '';
-                }
+                // Di handle khusus oleh handleJenjangJabatanChange, jadi di sini cukup kosongkan saja
+                namaSatkerInput.value = ''; 
+                namaSatkerInput.dataset.staticText = '';
             } else if (status === 'jabatan_kotakab') {
                 updateNamaSatkerDariKabupaten();
             } else if (status === 'jabatan_kanwil') {
@@ -2697,31 +2900,22 @@
             const wilayahSelect = document.getElementById('kabupaten_id');
             const madrasahSelect = document.getElementById('jenis_madrasah');
             const kategoriSelect = document.getElementById('kategori_kotakab');
-            const jenisSatkerId = document.getElementById('jenis_satker_id').value; // Ambil nilai eselon
+            const jenisSatkerId = document.getElementById('jenis_satker_id').value;
+            const filterFungsi = document.getElementById('filter_fungsi'); // Ambil nilai filter fungsi
 
             let baseName = "";
             
             if (madrasahSelect && madrasahSelect.value !== "") {
                 baseName = madrasahSelect.options[madrasahSelect.selectedIndex].text;
             } 
+            // LOGIKA TATA USAHA PINDAH KESINI (Membaca dari Filter Fungsi)
+            else if (filterFungsi && filterFungsi.value === "Tata Usaha") {
+                if (jenisSatkerId === "3") baseName = "Bagian Tata Usaha";
+                else if (jenisSatkerId === "4") baseName = "Subbagian Tata Usaha";
+                else baseName = "Tata Usaha";
+            } 
             else if (kategoriSelect && kategoriSelect.value !== "" && kategoriSelect.value !== "madrasah") {
-                let selectedText = kategoriSelect.options[kategoriSelect.selectedIndex].text;
-                
-                // ============================================================
-                // LOGIKA OTOMATIS TATA USAHA BERDASARKAN ESELON
-                // ============================================================
-                if (selectedText.toLowerCase().includes("tata usaha")) {
-                    if (jenisSatkerId === "3") {
-                        baseName = "Bagian Tata Usaha";
-                    } else if (jenisSatkerId === "4") {
-                        baseName = "Subbagian Tata Usaha";
-                    } else {
-                        baseName = selectedText;
-                    }
-                } else {
-                    baseName = selectedText;
-                }
-                // ============================================================
+                baseName = kategoriSelect.options[kategoriSelect.selectedIndex].text;
             } 
             else if (wilayahSelect && wilayahSelect.value !== "") {
                 baseName = wilayahSelect.options[wilayahSelect.selectedIndex].text;
@@ -2760,15 +2954,52 @@
             updateRefJabatanId();
         }
 
+        function handleRumpunFakultasChange() {
+            const val = document.getElementById('rumpun_fakultas').value;
+            const namaInput = document.getElementById('nama_satker');
+            
+            if (val !== "") {
+                if (namaInput) {
+                    namaInput.value = "Fakultas ";
+                    namaInput.dataset.staticText = ""; 
+                    namaInput.focus();
+                }
+
+                if (typeof generateSatkerCode === 'function') {
+                    generateSatkerCode(); 
+                }
+            } else {
+                if (namaInput && namaInput.value.trim() === "Fakultas") {
+                    namaInput.value = "";
+                }
+                if (typeof resetKodeSatker === 'function') resetKodeSatker();
+            }
+            
+            if (typeof updateDropdownRumus === 'function') updateDropdownRumus();
+        }
+
         function handleKategoriUnitChange() {
             if(typeof resetKodeSatker === 'function') resetKodeSatker();
             const kategoriSelect = document.getElementById('kategori_unit');
             const namaSatkerInput = document.getElementById('nama_satker');
-            if (kategoriSelect.value !== "") {
+            const filterFungsi = document.getElementById('filter_fungsi');
+            const jenisSatkerId = document.getElementById('jenis_satker_id').value;
+
+            // LOGIKA TATA USAHA PINDAH KESINI (Membaca dari Filter Fungsi)
+            if (filterFungsi && filterFungsi.value === "Tata Usaha") {
+                let baseName = (jenisSatkerId === "3") ? "Bagian Tata Usaha" : ((jenisSatkerId === "4") ? "Subbagian Tata Usaha" : "Tata Usaha");
+                namaSatkerInput.value = baseName;
+                namaSatkerInput.dataset.staticText = baseName + " ";
+            } 
+            else if (kategoriSelect.value !== "") {
                 namaSatkerInput.value = kategoriSelect.options[kategoriSelect.selectedIndex].text;
+                namaSatkerInput.dataset.staticText = kategoriSelect.options[kategoriSelect.selectedIndex].text + " ";
             } else {
                 const statusSelect = document.getElementById('tanpa_jabatan');
-                if (statusSelect.value !== "") namaSatkerInput.value = statusSelect.options[statusSelect.selectedIndex].text;
+                if (statusSelect && statusSelect.value !== "") {
+                    namaSatkerInput.value = statusSelect.options[statusSelect.selectedIndex].text;
+                    namaSatkerInput.dataset.staticText = "";
+                }
             }
             updateRefJabatanId();
         }
@@ -2944,5 +3175,59 @@
             initAjaxForm('formEditSatker', 'modalEditSatker', false);
             initAjaxForm('formHapusSatker', 'modalHapusSatker', true);
         });
+
+        function handleKategoriJabatanChange() {
+            const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
+            const jenjangWrapper = document.getElementById('wrapper_jenjang_jabatan');
+            const jenjangSelect = document.getElementById('jabatan_id');
+            const options = jenjangSelect.querySelectorAll('option');
+
+            if (!kategoriVal) {
+                jenjangWrapper.classList.add('hidden');
+                jenjangSelect.value = "";
+                return;
+            }
+
+            jenjangWrapper.classList.remove('hidden');
+            jenjangSelect.value = "";
+
+            // Filter opsi 4 digit berdasarkan 3 digit pertama
+            options.forEach(opt => {
+                if (opt.value === "") return;
+                // Cek data-parent-kode yang kita buat di HTML tadi
+                if (opt.dataset.parentKode === kategoriVal) {
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });
+        }
+
+        function handleJenjangJabatanChange() {
+            const jenjangSelect = document.getElementById('jabatan_id');
+            const namaInput = document.getElementById('nama_satker');
+            const kodeInput = document.getElementById('kode_satker'); // Mengambil input Kode Satker Manual
+            const selectedOption = jenjangSelect.options[jenjangSelect.selectedIndex];
+
+            if (jenjangSelect.value !== "") {
+                // 1. Isi Otomatis Nama Satker
+                const text = selectedOption.text.includes(' - ') ? selectedOption.text.split(' - ')[1] : selectedOption.text;
+                if (namaInput) {
+                    namaInput.value = text;
+                    namaInput.dataset.staticText = ""; // Dikosongkan agar bebas diedit user
+                }
+                
+                // 2. Isi Otomatis Kode Satker (Berdasarkan 4 Digit Jafung)
+                if (kodeInput && selectedOption.dataset.kode) {
+                    kodeInput.value = selectedOption.dataset.kode; // Masukkan misal: 8017
+                    if(typeof updateFullCode === 'function') updateFullCode(); // Update preview final
+                }
+            }
+            
+            updateRefJabatanId();
+            if(typeof updateDropdownRumus === 'function') updateDropdownRumus();
+        }
     </script>
 @endpush

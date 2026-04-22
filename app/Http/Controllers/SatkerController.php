@@ -159,9 +159,70 @@ class SatkerController extends Controller
         $listAllSatkers = $listQuery->orderBy('kode_satker', 'asc')->get();
         $parents = $parentsQuery->get();
 
-        // Master Data lainnya
+// Master Data lainnya
         $jenisSatkers = DB::table('m_jenis_satker')->get();
-        $jabatan = Jabatan::where('periode_id', $activePeriodeId)->with('fungsional')->get();
+        
+        // ----------------------------------------------------------------------
+        // JAWABAN: LOGIKA JABATAN FUNGSIONAL BERSARANG (Ekstrak 3 Digit Otomatis)
+        // ----------------------------------------------------------------------
+        $allJabatan = Jabatan::where('periode_id', $activePeriodeId)->with('fungsional')->get();
+        
+        $jabatanCategories = collect();
+        $jabatanItems = collect();
+
+        foreach ($allJabatan as $j) {
+            $kode = trim($j->kode_jabatan);
+            
+            // Pastikan kodenya minimal 3 digit
+            if (strlen($kode) >= 3) {
+                // Ekstrak 3 digit pertama
+                $prefix = substr($kode, 0, 3); 
+                
+                // Masukkan ke kategori (Hanya unik, jika belum ada maka tambahkan)
+                if (!$jabatanCategories->has($prefix)) {
+                    // Bersihkan nama dari embel-embel jenjang agar nama kategori lebih rapi
+                    // (Menghapus kata Ahli Pertama, Ahli Muda, Pemula, Terampil, dll)
+                    $baseName = preg_replace('/\s+(Ahli Pertama|Ahli Muda|Ahli Madya|Ahli Utama|Pemula|Terampil|Mahir|Penyelia)$/i', '', $j->nama_jabatan);
+                    
+                    $jabatanCategories->put($prefix, (object)[
+                        'kode_jabatan' => $prefix,
+                        'nama_jabatan' => trim($baseName)
+                    ]);
+                }
+
+                // Masukkan data utuh ke dalam list jenjang
+                $jabatanItems->push($j);
+            }
+        }
+
+        // Urutkan berdasarkan kode
+        $jabatanCategories = $jabatanCategories->sortBy('kode_jabatan')->values();
+        $jabatanItems = $jabatanItems->sortBy('kode_jabatan')->values();
+        
+        // ----------------------------------------------------------------------
+        // PENGHAPUSAN QUERY BERAT ($pegawais = User::all()) YANG MEMBUAT LEMOT!
+        // ----------------------------------------------------------------------
+        $pegawais = collect([]); 
+        
+        $jenis_penugasans = MJenisPenugasan::all();
+        $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])->orderBy('kode_wilayah', 'asc')->get();
+        $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)->orderBy('kode_wilayah', 'asc')->get();
+        $refJabatanSatker = RefJabatanSatker::orderBy('label_jabatan', 'asc')->get();
+        $roles = MRole::whereIn('key', [
+            'admin_satker', 
+            'pejabat', 
+            'admin_jafung_pengguna', 
+            'admin_jafung_pembina'
+        ])->get();
+        
+        $rumusList = DB::table('rumus_kodes')->orderBy('id', 'asc')->get();
+
+        return view('admin.satker.index', compact(
+            'satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 
+            'jenisSatkers', 'allJabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 
+            'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList', 'activePeriodeId',
+            'jabatanCategories', 'jabatanItems' 
+        ));
         
         // ----------------------------------------------------------------------
         // PENGHAPUSAN QUERY BERAT ($pegawais = User::all()) YANG MEMBUAT LEMOT!
@@ -417,6 +478,7 @@ class SatkerController extends Controller
         $parentId = $request->filled('parent_id') && $request->parent_id !== 'null' ? $request->parent_id : null;
         $refJabatanId = $request->ref_jabatan_satker_id;
         $rumusId = $request->rumus_id; 
+        $rumpunFakultas = $request->rumpun_fakultas;
         
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
@@ -470,7 +532,13 @@ class SatkerController extends Controller
             return response()->json(['error' => 'Setup Rumus tidak ditemukan untuk kombinasi ini.'], 404);
         }
 
-        $kodeBaru = $setup->pola;
+        $kodeBaru = "";
+        // JAWABAN POIN 2: Prioritaskan Rumpun Fakultas jika terpilih
+        if ($rumpunFakultas) {
+            $kodeBaru = '[PARENT]' . $rumpunFakultas;
+        } elseif ($setup) {
+            $kodeBaru = $setup->pola;
+        }
 
         // ===============================================================================
         // 🟢 JEMBATAN KODE DASAR (FIX BUG "TIDAK ADA JABATAN 00")
