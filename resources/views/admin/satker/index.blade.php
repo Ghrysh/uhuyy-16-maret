@@ -2579,11 +2579,12 @@
                 const rumusId = document.getElementById('rumus_id')?.value || '';
 
                 const rumpunFakultas = document.getElementById('rumpun_fakultas')?.value || '';
+                const jabatanId = document.getElementById('jabatan_id')?.value || '';
 
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId, parent_id: parentId, ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId, periode_id: periodeId, start_num: startNumBalai,
-                    rumus_id: rumusId, rumpun_fakultas: rumpunFakultas, _t: Date.now()
+                    rumus_id: rumusId, rumpun_fakultas: rumpunFakultas, jabatan_id: jabatanId, _t: Date.now()
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`);
@@ -2603,9 +2604,13 @@
                     const container = document.getElementById('kode_container');
                     container.querySelectorAll('input').forEach(el => el.remove());
 
-                    if (jenisId === "1") {
-                        container.insertAdjacentHTML('afterbegin', `<input type="text" value="${fullCode}" readonly class="w-full px-3 py-2 bg-slate-200 border rounded-xl text-sm text-center generated-kode">`);
+                    const statusJabatan = document.getElementById('tanpa_jabatan')?.value;
+
+                    // JIKA ESELON 1 ATAU JABATAN FUNGSIONAL, SATUKAN DALAM 1 KOTAK PENUH
+                    if (jenisId === "1" || statusJabatan === 'jabatan_fungsional') {
+                        container.insertAdjacentHTML('afterbegin', `<input type="text" value="${fullCode}" readonly class="w-full px-3 py-2 bg-slate-200 border border-slate-300 rounded-xl text-sm text-center font-bold text-slate-800 tracking-widest shadow-inner generated-kode">`);
                     } else {
+                        // JIKA SELAIN ITU, BELAH KOTAK MENJADI DUA (PARENT + ANAK)
                         const parentSelect = document.getElementById('parent_satker_id');
                         const parentText = parentSelect?.options[parentSelect.selectedIndex]?.text || (control && control.options[parentId] ? control.options[parentId].text : '');
                         const displayParentKode = parentText.split(' - ')[0].trim();
@@ -2790,13 +2795,26 @@
             handleJabatanChange();
         }
 
-        function populateSubJabatan(parentId, targetSelect) {
-            const children = refJabatan.filter(item => item.parent_id === parentId);
-            targetSelect.innerHTML = '<option value="">-- Pilih --</option>';
-            children.forEach(item => {
-                const option = document.createElement("option");
-                option.value = item.key_jabatan; option.textContent = item.label_jabatan; option.dataset.id = item.id; option.dataset.kode = item.kode_dasar || ""; option.dataset.key = item.key_jabatan;
-                targetSelect.appendChild(option);
+        function populateSubJabatan(parentUuid, targetSelect) {
+            targetSelect.innerHTML = '<option value="">-- Pilih Kategori Unit --</option>';
+            const jenisSatkerId = document.getElementById('jenis_satker_id').value;
+
+            if (targetSelect.id === 'kategori_kotakab') {
+                targetSelect.innerHTML += '<option value="madrasah">Madrasah (MIN/MTsN/MAN)</option>';
+            }
+            
+            const children = refJabatan.filter(item => item.parent_id === parentUuid);
+            children.forEach(child => {
+                // REVISI: Jika Eselon 4, jangan tampilkan opsi yang mengandung kata "Tata Usaha"
+                const isTataUsaha = child.label_jabatan.toLowerCase().includes('tata usaha');
+                if (jenisSatkerId === '4' && isTataUsaha) {
+                    return; // Skip/Jangan masukkan ke dropdown
+                }
+
+                const opt = document.createElement('option');
+                opt.value = child.id;
+                opt.text = child.label_jabatan;
+                targetSelect.appendChild(opt);
             });
         }
 
@@ -2952,6 +2970,18 @@
                 namaSatkerInput.dataset.staticText = ""; namaSatkerInput.value = "";
             }
             updateRefJabatanId();
+        }
+
+        function handleJenisSatkerChange() {
+            const jabatanSelect = document.getElementById('tanpa_jabatan');
+            if (jabatanSelect) {
+                jabatanSelect.value = "";
+                handleJabatanChange(); 
+            }
+            
+            checkFungsiVisibility();
+            updateDropdownRumus();
+            if(typeof resetKodeSatker === 'function') resetKodeSatker();
         }
 
         function handleRumpunFakultasChange() {
@@ -3208,26 +3238,51 @@
         function handleJenjangJabatanChange() {
             const jenjangSelect = document.getElementById('jabatan_id');
             const namaInput = document.getElementById('nama_satker');
-            const kodeInput = document.getElementById('kode_satker'); // Mengambil input Kode Satker Manual
             const selectedOption = jenjangSelect.options[jenjangSelect.selectedIndex];
 
             if (jenjangSelect.value !== "") {
-                // 1. Isi Otomatis Nama Satker
                 const text = selectedOption.text.includes(' - ') ? selectedOption.text.split(' - ')[1] : selectedOption.text;
                 if (namaInput) {
                     namaInput.value = text;
-                    namaInput.dataset.staticText = ""; // Dikosongkan agar bebas diedit user
+                    namaInput.dataset.staticText = ""; // Bebaskan teks agar bisa diedit
                 }
                 
-                // 2. Isi Otomatis Kode Satker (Berdasarkan 4 Digit Jafung)
-                if (kodeInput && selectedOption.dataset.kode) {
-                    kodeInput.value = selectedOption.dataset.kode; // Masukkan misal: 8017
-                    if(typeof updateFullCode === 'function') updateFullCode(); // Update preview final
-                }
+                // JAWABAN REVISI: Otomatis memicu "Generate Kode" saat jenjang 4 digit dipilih!
+                if (typeof generateSatkerCode === 'function') generateSatkerCode();
             }
             
             updateRefJabatanId();
             if(typeof updateDropdownRumus === 'function') updateDropdownRumus();
         }
+
+        // Fungsi untuk mereset modal dan semua state input
+        window.resetTambahSatkerModal = function() {
+            const form = document.getElementById('formTambahSatker');
+            if (form) form.reset();
+
+            // Reset manual untuk elemen khusus
+            document.getElementById('kode_satker_full').value = "";
+            document.getElementById('nama_satker').dataset.staticText = "";
+            
+            // Sembunyikan semua container opsional
+            const containers = [
+                'container_kategori_unit', 'container_kategori_kotakab', 
+                'container_kabupaten', 'container_jenis_madrasah', 
+                'container_jabatan_fungsional', 'container_rumpun_fakultas',
+                'container_filter_fungsi', 'gap_container'
+            ];
+            containers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+
+            // Reset Dropdown Rumus
+            if (typeof updateDropdownRumus === 'function') updateDropdownRumus();
+            
+            // Kembalikan posisi dropdown rumus ke default (jika sebelumnya pindah karena PTKN)
+            const containerRumus = document.getElementById('container_rumus_manual');
+            const anchorDefault = document.getElementById('anchor_rumus_default');
+            if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
+        };
     </script>
 @endpush

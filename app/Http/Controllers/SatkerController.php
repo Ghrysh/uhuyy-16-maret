@@ -479,6 +479,25 @@ class SatkerController extends Controller
         $refJabatanId = $request->ref_jabatan_satker_id;
         $rumusId = $request->rumus_id; 
         $rumpunFakultas = $request->rumpun_fakultas;
+
+        if ($request->filled('jabatan_id')) {
+            $jabatan = \App\Models\Jabatan::find($request->jabatan_id);
+            if ($jabatan) {
+                // Hapus embel-embel jenjang untuk nama default
+                $baseName = preg_replace('/\s+(Ahli Pertama|Ahli Muda|Ahli Madya|Ahli Utama|Pemula|Terampil|Mahir|Penyelia)$/i', '', $jabatan->nama_jabatan);
+                
+                return response()->json([
+                    'success' => true,
+                    'code' => trim($jabatan->kode_jabatan),
+                    'gaps' => [],
+                    'default_nama' => trim($baseName),
+                    'is_incremental' => false,
+                    'is_new' => true,
+                    'last_kode' => null,
+                    'last_nama' => null
+                ]);
+            }
+        }
         
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
