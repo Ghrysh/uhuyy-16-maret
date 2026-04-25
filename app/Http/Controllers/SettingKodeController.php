@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Satker;
 use App\Models\MJenisSatker;
+use App\Models\RumusKode;
 use App\Models\RefJabatanSatker;
 use App\Models\Wilayah;
 use Illuminate\Support\Facades\DB;
@@ -45,45 +46,82 @@ class SettingKodeController extends Controller implements HasMiddleware
 
     public function storeRumus(Request $request)
     {
-        $request->validate([
-            'nama_rumus' => 'required|string',
-            'pola' => 'required|string',
-            'jenis_satker_id' => 'nullable',
-            'tingkat_wilayah_id' => 'nullable', 
-            'ref_jabatan_satker_id' => 'nullable',
+        // 1. Decode string JSON menjadi Array PHP sebelum divalidasi
+        $customMap = null;
+        if ($request->filled('custom_names_map')) {
+            $customMap = json_decode($request->custom_names_map, true);
+            // Jika hasilnya string kosong "{}", jadikan null
+            if (empty($customMap)) {
+                $customMap = null;
+            }
+        }
+
+        // Merge input request agar validasi bisa membaca array tersebut
+        $request->merge([
+            'custom_names_map_array' => $customMap
         ]);
 
-        DB::table('rumus_kodes')->insert([
+        $request->validate([
+            'nama_rumus' => 'required|string|max:255|unique:rumus_kodes,nama_rumus',
+            'pola' => 'required|string|max:255',
+            'is_auto_name' => 'nullable|boolean',
+            'base_auto_name' => 'nullable|string|max:255',
+            'is_name_locked' => 'nullable|boolean',
+            'custom_names_map_array' => 'nullable|array' // Validasi array yang sudah di-decode
+        ]);
+
+        RumusKode::create([
             'nama_rumus' => $request->nama_rumus,
             'pola' => $request->pola,
-            'jenis_satker_id' => ($request->jenis_satker_id === 'all' || empty($request->jenis_satker_id)) ? null : $request->jenis_satker_id,
-            'tingkat_wilayah_id' => ($request->tingkat_wilayah_id === 'all' || empty($request->tingkat_wilayah_id)) ? null : $request->tingkat_wilayah_id,
-            'ref_jabatan_satker_id' => empty($request->ref_jabatan_satker_id) ? null : $request->ref_jabatan_satker_id,
-            'is_applied' => 0, 
-            'created_at' => now(),
-            'updated_at' => now(),
+            // Baris 'keterangan' DIHAPUS DARI SINI
+            'is_applied' => $request->has('is_applied'),
+            'is_auto_name' => $request->has('is_auto_name'),
+            'base_auto_name' => $request->base_auto_name,
+            'is_name_locked' => $request->has('is_name_locked'),
+            'custom_names_map' => $customMap, 
         ]);
 
-        return back()->with('success', 'Rumus baru berhasil disimpan!');
+        return redirect()->route('admin.setting-kode.index')->with('success', 'Rumus berhasil ditambahkan!');
     }
 
     public function updateRumus(Request $request, $id)
     {
-        $request->validate([
-            'nama_rumus' => 'required|string',
-            'pola' => 'required|string',
+        $rumus = RumusKode::findOrFail($id);
+
+        // Decode JSON dari form Edit
+        $customMap = null;
+        if ($request->filled('custom_names_map')) {
+            $customMap = json_decode($request->custom_names_map, true);
+            if (empty($customMap)) {
+                $customMap = null;
+            }
+        }
+        
+        $request->merge([
+            'custom_names_map_array' => $customMap
         ]);
 
-        DB::table('rumus_kodes')->where('id', $id)->update([
+        $request->validate([
+            'nama_rumus' => 'required|string|max:255|unique:rumus_kodes,nama_rumus,' . $id,
+            'pola' => 'required|string|max:255',
+            'is_auto_name' => 'nullable|boolean',
+            'base_auto_name' => 'nullable|string|max:255',
+            'is_name_locked' => 'nullable|boolean',
+            'custom_names_map_array' => 'nullable|array'
+        ]);
+
+        $rumus->update([
             'nama_rumus' => $request->nama_rumus,
             'pola' => $request->pola,
-            'jenis_satker_id' => ($request->jenis_satker_id === 'all' || empty($request->jenis_satker_id)) ? null : $request->jenis_satker_id,
-            'tingkat_wilayah_id' => ($request->tingkat_wilayah_id === 'all' || empty($request->tingkat_wilayah_id)) ? null : $request->tingkat_wilayah_id,
-            'ref_jabatan_satker_id' => empty($request->ref_jabatan_satker_id) ? null : $request->ref_jabatan_satker_id,
-            'updated_at' => now(),
+            // Baris 'keterangan' DIHAPUS DARI SINI
+            'is_applied' => $request->has('is_applied'),
+            'is_auto_name' => $request->has('is_auto_name'),
+            'base_auto_name' => $request->base_auto_name,
+            'is_name_locked' => $request->has('is_name_locked'),
+            'custom_names_map' => $customMap,
         ]);
 
-        return back()->with('success', 'Rumus & Filter berhasil diperbarui!');
+        return redirect()->route('admin.setting-kode.index')->with('success', 'Rumus berhasil diperbarui!');
     }
 
     public function destroyRumus($id)

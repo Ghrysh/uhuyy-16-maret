@@ -46,25 +46,33 @@
     $canViewDetail = true; 
 @endphp
 
-<div x-data="{
-    open: false,
-    selfText: '{{ $selfText }}',
+    <div x-data="{
+        open: false,
+        selfText: '{{ $selfText }}',
 
-    get isVisible() {
-        if (search === '') return true;
-        if (this.selfText.includes(search.toLowerCase())) return true;
-        return $el.querySelectorAll('.satker-row:not([style*=\'display: none\'])').length > 0;
-    }
-}" x-show="isVisible" class="satker-item w-full">
+        get isVisible() {
+            if (search === '') return true;
+            if (this.selfText.includes(search.toLowerCase())) return true;
+            return $el.querySelectorAll('.satker-row:not([style*=\'display: none\'])').length > 0;
+        }
+    }" 
+    x-show="isVisible" 
+    @open-all-nodes.window="open = true" 
+    @close-all-nodes.window="open = false"
+    class="satker-item w-full">
 
-    {{-- KUNCI PERBAIKAN: data-id diletakkan di sini, dan duplikasi class dihapus --}}
+    {{-- KUNCI PERBAIKAN: Penggabungan class Array, Baris bisa di-klik, dan efek highlight --}}
     <div class="satker-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-3 
     bg-white hover:bg-blue-50/50 rounded-xl transition border border-slate-100 
-    sm:border-transparent sm:hover:border-blue-100 group"
+    sm:border-transparent sm:hover:border-blue-100 group cursor-pointer"
         data-id="{{ $item->id }}"
-        :class="search !== '' && selfText.includes(search.toLowerCase()) ?
-            'bg-amber-50 border-amber-200 ring-1 ring-amber-200' :
-            ''">
+        {{-- KUNCI PERBAIKAN: Tambahkan '{{ $item->jenis_satker_id }}' di akhir fungsi toggleId --}}
+        @click="($store.selection.isSelectionMode && $store.selection.clipboard.mode === '') ? $store.selection.toggleId('{{ $item->id }}', '{{ addslashes($item->nama_satker) }}', '{{ $item->jenis_satker_id }}') : null"
+        :class="[
+            search !== '' && selfText.includes(search.toLowerCase()) ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200' : '',
+            $store.selection.clipboard.ids.includes('{{ $item->id }}') && $store.selection.clipboard.mode !== '' ? 'opacity-40 grayscale bg-slate-100' : '',
+            $store.selection.selectedIds.includes('{{ $item->id }}') && $store.selection.isSelectionMode ? 'ring-2 ring-blue-500 bg-blue-50/50' : ''
+        ]">
 
         {{-- BAGIAN KIRI --}}
         <div class="flex items-start gap-3 min-w-0">
@@ -75,6 +83,17 @@
                 @else
                     <i class="fas fa-circle text-[5px] ml-1"></i>
                 @endif
+            </div>
+
+            {{-- Checkbox untuk Mode Pilih --}}
+            {{-- Logika: Muncul jika mode pilih AKTIF DAN (Belum ada yang di copy ATAU item ini adalah bagian dari yang di copy) --}}
+            <div x-show="$store.selection.isSelectionMode && ($store.selection.clipboard.mode === '' || $store.selection.selectedIds.includes('{{ $item->id }}'))" 
+                 x-transition
+                 class="flex items-center mr-2 transition-all">
+                <input type="checkbox" 
+                       :value="'{{ $item->id }}'" 
+                       x-model="$store.selection.selectedIds"
+                       class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 pointer-events-none">
             </div>
 
             <div class="hidden sm:flex w-9 h-9 rounded-lg bg-gray-50 items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-blue-500 transition">
@@ -103,11 +122,22 @@
         </div>
 
         {{-- BAGIAN KANAN --}}
-        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3" @click.stop>
             <span class="text-xs font-semibold px-3 py-1 rounded-md border w-fit {{ $item->status_aktif ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-slate-400 bg-slate-50 border-slate-200' }}">
                 {{ $item->status_aktif ? 'AKTIF' : 'NON-AKTIF' }}
             </span>
-            <div class="flex items-center gap-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
+            
+            {{-- TOMBOL PASTE KHUSUS DENGAN VALIDASI --}}
+            <template x-if="$store.selection.clipboard.mode !== '' && !$store.selection.clipboard.ids.includes('{{ $item->id }}')">
+                <button type="button" 
+                        @click.stop="$store.selection.confirmPaste('{{ $item->id }}', '{{ $item->kode_satker }}', '{{ addslashes($item->nama_satker) }}')" 
+                        class="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md animate-pulse border border-blue-700 whitespace-nowrap">
+                    <i class="fas fa-clipboard mr-1"></i> Paste ke Sini
+                </button>
+            </template>
+
+            {{-- TOMBOL AKSI NORMAL (Sembunyi otomatis saat Anda sedang Copy/Cut) --}}
+            <div x-show="$store.selection.clipboard.mode === ''" class="flex items-center gap-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
                 <button type="button" onclick="{{ $canCreate ? "openTambahSubSatker('{$item->id}', '{$item->jenis_satker_id}', '{$item->wilayah_id}', '{$item->periode_id}', true)" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menambah Satker.', 'error')" }}" class="p-2 {{ $canCreate ? 'text-emerald-600 hover:bg-emerald-50' : 'text-emerald-400 opacity-60' }} rounded-lg transition" title="Tambah"><i class="fas fa-plus text-sm"></i></button>
                 <button type="button" onclick="openDetailModal('{{ $item->kode_satker }}', '{{ addslashes($item->nama_satker) }}', '{{ $eselonName }}', '{{ $item->wilayah ? $item->wilayah->nama_wilayah : '-' }}', '{{ $item->status_aktif }}', '{{ $item->id }}')" class="p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition" title="Detail"><i class="fas fa-eye text-sm"></i></button>
                 <button type="button" onclick="{{ $canEdit ? "openEditSatkerModal('{$item->id}', '{$item->kode_satker}', '".addslashes($item->nama_satker)."', '{$item->periode_id}', '{$item->jenis_satker_id}', '{$item->parent_satker_id}', '{$item->wilayah_id}', '{$item->keterangan}', '{$item->status_aktif}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengedit Satker ini.', 'error')" }}" class="p-2 {{ $canEdit ? 'text-amber-500 hover:bg-amber-50 hover:text-amber-600' : 'text-amber-300 opacity-60' }} rounded-lg transition" title="Edit"><i class="fas fa-edit text-sm"></i></button>

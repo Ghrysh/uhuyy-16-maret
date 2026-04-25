@@ -1413,6 +1413,165 @@
                 updateFullCode();
             }
         });
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.store('selection', {
+            isSelectionMode: false,
+            selectedIds: [],
+            selectedNames: [],
+            selectedEselons: [], // TAMBAHKAN INI
+            clipboard: { mode: '', ids: [] },
+
+            toggleSelectionMode() {
+                this.isSelectionMode = !this.isSelectionMode;
+                if (!this.isSelectionMode) {
+                    this.selectedIds = [];
+                    this.selectedNames = [];
+                    this.selectedEselons = []; // RESET INI
+                    this.clearClipboard();
+                    window.dispatchEvent(new CustomEvent('close-all-nodes'));
+                } else {
+                    window.dispatchEvent(new CustomEvent('open-all-nodes'));
+                }
+            },
+
+            // UPDATE: Tambahkan parameter echelon
+            toggleId(id, name, echelon) {
+                const index = this.selectedIds.indexOf(id);
+                if (index > -1) {
+                    this.selectedIds.splice(index, 1);
+                    this.selectedNames = this.selectedNames.filter(n => n !== name);
+                    // Hapus eselon terkait (pake cara manual karena array bisa duplikat level)
+                    const escIndex = this.selectedEselons.indexOf(parseInt(echelon));
+                    if (escIndex > -1) this.selectedEselons.splice(escIndex, 1);
+                } else {
+                    this.selectedIds.push(id);
+                    this.selectedNames.push(name);
+                    this.selectedEselons.push(parseInt(echelon));
+                }
+            },
+
+            // FUNGSI CEK: Apakah boleh melakukan aksi Copy/Cut?
+            // Aturan: Jika ada Eselon 1, harus lebih dari 1 item yang dipilih.
+            canPerformAction() {
+                const hasEselon1 = this.selectedEselons.includes(1);
+                if (hasEselon1 && this.selectedIds.length === 1) {
+                    return false;
+                }
+                return true;
+            },
+
+            updateSelectedNames(name, isChecked) {
+                if (isChecked) this.selectedNames.push(name);
+                else this.selectedNames = this.selectedNames.filter(n => n !== name);
+            },
+
+            setClipboard(mode) {
+                this.clipboard.mode = mode;
+                this.clipboard.ids = [...this.selectedIds];
+                Toast.fire({ icon: 'info', title: `Siap ${mode}. Silakan klik Paste pada Parent tujuan.` });
+            },
+
+            clearClipboard() {
+                this.clipboard.mode = '';
+                this.clipboard.ids = [];
+            },
+
+            // --- TAMBAHAN BARU: FUNGSI VALIDASI KONFIRMASI PASTE ---
+            confirmPaste(targetParentId, parentCode = '', parentName = '') {
+                const count = this.clipboard.ids.length;
+                const modeText = this.clipboard.mode === 'copy' ? 'Menyalin (Copy)' : 'Memindahkan (Cut)';
+                const prefixText = parentCode ? parentCode + '...' : 'Kode Awal Mandiri';
+
+                Swal.fire({
+                    title: 'Konfirmasi Paste',
+                    html: `Anda akan ${modeText} <b>${count} Satker</b> ke dalam parent:<br><br>
+                           <span class="text-blue-700 font-bold text-lg">${parentName}</span><br><br>
+                           <span class="text-sm text-gray-500">Nantinya, kode satker akan menyesuaikan prefix hirarki: <b class="text-amber-600">${prefixText}</b></span>`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#2563eb',
+                    cancelButtonColor: '#cbd5e1',
+                    confirmButtonText: 'Ya, Paste Sekarang',
+                    cancelButtonText: 'Batal',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.executePaste(targetParentId);
+                    }
+                });
+            },
+
+            // --- PERBAIKAN EXECUTE PASTE MENCEGAH ERROR HTML ---
+            async executePaste(targetParentId, force = false) {
+                try {
+                    const res = await fetch("{{ url('admin/satker/bulk-action') }}", {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json', // INI WAJIB AGAR SERVER TAHU KITA MINTA JSON, BUKAN HTML
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            action: this.clipboard.mode,
+                            ids: this.clipboard.ids,
+                            target_parent_id: targetParentId,
+                            periode_id: '{{ $activePeriodeId }}',
+                            force: force
+                        })
+                    });
+
+                    // Cek jika server mengembalikan error 500/404/419
+                    if (!res.ok) {
+                        throw new Error(`Server merespon dengan kode ${res.status}. Pastikan Route 'bulk-action' sudah ada di web.php`);
+                    }
+
+                    const data = await res.json();
+                    if (data.duplicate) {
+                        Swal.fire({
+                            title: 'Peringatan Duplikasi',
+                            html: data.message + '<br><br><span class="text-xs text-red-500">*Melanjutkan akan menimpa kode yang sama di parent tersebut.</span>',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#d33',
+                            confirmButtonText: 'Ya, Tetap Lanjutkan',
+                            cancelButtonText: 'Batal'
+                        }).then((result) => {
+                            if (result.isConfirmed) this.executePaste(targetParentId, true);
+                        });
+                    } else if (data.success) {
+                        Swal.fire('Berhasil', data.message, 'success').then(() => location.reload());
+                    } else {
+                        Swal.fire('Gagal', data.message, 'error');
+                    }
+                } catch (error) {
+                    Swal.fire('Terjadi Kesalahan', error.message, 'error');
+                    console.error("Paste Error: ", error);
+                }
+            },
+
+            confirmBulkDelete() {
+                const listHtml = '<ul class="text-left text-sm mt-4 space-y-1 text-slate-600">' + 
+                                 this.selectedNames.map(n => `<li>• ${n}</li>`).join('') + 
+                                 '</ul>';
+                Swal.fire({
+                    title: 'Hapus Satker Terpilih?',
+                    html: `Satker berikut akan dihapus beserta anak-anaknya:<br> ${listHtml}`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#cbd5e1',
+                    confirmButtonText: 'Ya, Hapus Semua'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.clipboard.mode = 'delete';
+                        this.clipboard.ids = this.selectedIds;
+                        this.executePaste(null); 
+                    }
+                });
+            }
+        });
+    });
     </script>
 
     <script>
@@ -1946,6 +2105,60 @@
             const rumusSelect = document.getElementById('rumus_id');
             if (rumusSelect) {
                 rumusSelect.value = "";
+            }
+
+            const rumusSelect = document.getElementById('rumus_id');
+            const activeRumusId = rumusSelect ? rumusSelect.value : null;
+            const namaInput = document.getElementById('nama_satker');
+
+            if (activeRumusId && namaInput && window.rumusDatabase) {
+                const rumus = window.rumusDatabase.find(r => r.id == activeRumusId);
+                
+                // KONDISI 1: JIKA RUMUS MENGGUNAKAN NAMA OTOMATIS
+                if (rumus && (rumus.is_auto_name == 1 || rumus.is_auto_name === true)) {
+                    
+                    // 1. Ambil ujung kode (suffix) untuk dicocokkan dengan map
+                    let digitCount = parseInt(rumus.digit_auto_number) || 2;
+                    let suffix = fullCode.slice(-digitCount); // Ambil x digit dari belakang
+                    
+                    // (Khusus Jabatan Fungsional, pakai seluruh kode)
+                    const statJab = document.getElementById('tanpa_jabatan')?.value;
+                    if (statJab === 'jabatan_fungsional') suffix = fullCode;
+
+                    // 2. Siapkan nama dasar
+                    let finalName = rumus.base_auto_name || '';
+
+                    // 3. Timpa dengan nama dari Map jika ujung kodenya terdaftar
+                    if (rumus.custom_names_map) {
+                        try {
+                            let map = typeof rumus.custom_names_map === 'string' ? JSON.parse(rumus.custom_names_map) : rumus.custom_names_map;
+                            if (map && map[suffix]) {
+                                finalName = map[suffix];
+                            }
+                        } catch(e) { console.error("Map parsing error", e); }
+                    }
+
+                    // 4. Terapkan ke Input Box
+                    namaInput.value = finalName;
+                    
+                    // 5. Atur status Lock / Kunci
+                    if (rumus.is_name_locked == 1 || rumus.is_name_locked === true) {
+                        // Berikan spasi di akhir agar sistem anti-backspace bawaan Anda bekerja
+                        namaInput.dataset.staticText = finalName + (finalName.endsWith(' ') ? '' : ' ');
+                    } else {
+                        namaInput.dataset.staticText = ""; // Bebas diedit
+                    }
+
+                } 
+                // KONDISI 2: JIKA TIDAK PAKAI NAMA OTOMATIS (DEFAULT)
+                else {
+                    // Biarkan logika lama Anda (seperti Fakultas, Tata Usaha, Madrasah) tetap berjalan.
+                    // Kita hanya mengisi default dari server JIKA kotak input masih benar-benar kosong.
+                    if (data.default_nama && !namaInput.value.trim()) {
+                        namaInput.value = data.default_nama;
+                        namaInput.dataset.staticText = ""; 
+                    }
+                }
             }
 
             // Kembalikan posisi div rumus ke default saat modal ditutup
@@ -2627,55 +2840,95 @@
                     if (finalInput) finalInput.value = fullCode;
 
                     // ==============================================================
-                    // MENGUNCI TEKS NAMA SATKER & LOGIKA NAMA BIRO (SESUAI UJUNG KODE)
+                    // MENGUNCI TEKS NAMA SATKER & LOGIKA RUMUS KHUSUS (TERMASUK AUTO NAME)
                     // ==============================================================
-                    if (data.default_nama) {
-                        const namaInput = document.querySelector('input[name="nama_satker"]');
-                        if (namaInput) {
-                            let namaRumus = data.default_nama;
+                    const namaInput = document.getElementById('nama_satker');
+                    const rumusSelect = document.getElementById('rumus_id');
+                    const activeRumusId = rumusSelect ? rumusSelect.value : null;
+
+                    let isAutoNameApplied = false;
+
+                    // 1. CEK DULU APAKAH PAKAI NAMA OTOMATIS DARI DB
+                    if (activeRumusId && window.allRumusData) {
+                        const rumus = window.allRumusData.find(r => r.id == activeRumusId);
+                        
+                        if (rumus && (rumus.is_auto_name == 1 || rumus.is_auto_name === true)) {
+                            isAutoNameApplied = true;
                             
-                            // Logika Khusus "Biro di PTKN"
-                            if (namaRumus === 'Biro di PTKN') {
-                                const suffix = fullCode.slice(-2); // Ambil 2 digit terakhir
-                                
-                                // Silakan sesuaikan teks di bawah ini dengan gambar Anda!
-                                const biroMap = {
-                                    '01': 'Biro Administrasi Umum dan Kepegawaian',
-                                    '02': 'Biro Administrasi Umum dan Keuangan',
-                                    '03': 'Biro Administrasi Umum, Perencanaan, dan Keuangan',
-                                    '04': 'Biro Administrasi Umum, Kepegawaian dan Keuangan',
-                                    '05': 'Biro Administrasi Umum, Akademik, dan Kemahasiswaan',
-                                    '06': 'Biro Administrasi Umum, Perencanaa, Keuangan, dan Kepegawaian',
-                                    '07': 'Biro Umum, Akademik, Perencanaan dan Keuangan',
-                                    '08': 'Biro Administrasi Akademik, Kemahasiswaan, dan Kerja Sama',
-                                    '09': 'Biro Akademik, Keuangan, dan Umum'
-                                };
-                                
-                                // Jika ujungnya 01-09, panggil dari Map. Jika 10 ke atas, kembalikan "Biro "
-                                namaRumus = biroMap[suffix] || 'Biro ';
+                            let digitCount = parseInt(rumus.digit_auto_number) || 2;
+                            let suffix = fullCode.slice(-digitCount); 
+                            
+                            // (Khusus Jabatan Fungsional, pakai seluruh kode)
+                            const statJab = document.getElementById('tanpa_jabatan')?.value;
+                            if (statJab === 'jabatan_fungsional') suffix = fullCode;
+
+                            let finalName = rumus.base_auto_name || '';
+
+                            if (rumus.custom_names_map) {
+                                try {
+                                    let map = typeof rumus.custom_names_map === 'string' ? JSON.parse(rumus.custom_names_map) : rumus.custom_names_map;
+                                    if (map && map[suffix]) finalName = map[suffix];
+                                } catch(e) {}
                             }
 
-                            const isLockedName = namaRumus.includes('Madrasah Ibtidaiyah Negeri') || 
-                                                 namaRumus.includes('Wakil Rektor Bidang') || 
-                                                 namaRumus.includes('Kantor Urusan Agama');
-
-                            if (isLockedName) {
-                                const lockedPrefix = namaRumus + ' ';
-                                namaInput.value = lockedPrefix; 
-                                namaInput.dataset.staticText = lockedPrefix; 
-                                namaInput.focus(); 
-                            } else if (namaRumus.startsWith('Biro')) {
-                                namaInput.value = namaRumus;
-                                // Kunci kata "Biro " agar tidak bisa dihapus
-                                namaInput.dataset.staticText = 'Biro '; 
-                                namaInput.focus();
-                            } else {
-                                // Default pengisian biasa
-                                namaInput.value = namaRumus;
-                                namaInput.dataset.staticText = '';
+                            if (namaInput) {
+                                namaInput.value = finalName;
+                                if (rumus.is_name_locked == 1 || rumus.is_name_locked === true) {
+                                    namaInput.dataset.staticText = finalName + (finalName.endsWith(' ') ? '' : ' ');
+                                } else {
+                                    namaInput.dataset.staticText = ""; 
+                                }
                             }
                         }
                     }
+
+                    // 2. JIKA TIDAK PAKAI AUTO NAME, GUNAKAN LOGIKA LAMA (DEFAULT)
+                    if (!isAutoNameApplied && data.default_nama && namaInput) {
+                        let namaRumus = data.default_nama;
+                        
+                        // Logika Khusus "Biro di PTKN" (Logika Sebelumnya)
+                        if (namaRumus === 'Biro di PTKN') {
+                            const suffix = fullCode.slice(-2);
+                            const biroMap = {
+                                '01': 'Biro Administrasi Umum, Perencanaan, dan Keuangan',
+                                '02': 'Biro Administrasi Akademik, Kemahasiswaan, dan Kerja Sama',
+                                '03': 'Biro Administrasi Umum, Akademik, dan Kemahasiswaan',
+                                '04': 'Biro Perencanaan dan Keuangan',
+                                '05': 'Biro Kepegawaian',
+                                '06': 'Biro Keuangan dan BMN',
+                                '07': 'Biro Organisasi dan Tata Laksana',
+                                '08': 'Biro Hukum dan Kerjasama',
+                                '09': 'Biro Umum'
+                            };
+                            namaRumus = biroMap[suffix] || 'Biro ';
+                        }
+
+                        // Logika Khusus "Kepala MAN IC sebagai Tugas Tambahan"
+                        if (namaRumus === 'Kepala MAN IC sebagai Tugas Tambahan') {
+                            namaRumus = 'Madrasah Aliyah Negeri Insan Cendikia';
+                        }
+
+                        // Daftar kata yang akan dikunci
+                        const isLockedName = namaRumus.includes('Madrasah Ibtidaiyah Negeri') || 
+                                             namaRumus.includes('Wakil Rektor Bidang') || 
+                                             namaRumus.includes('Kantor Urusan Agama') ||
+                                             namaRumus.includes('Madrasah Aliyah Negeri Insan Cendikia');
+
+                        if (isLockedName) {
+                            const lockedPrefix = namaRumus + ' ';
+                            namaInput.value = lockedPrefix; 
+                            namaInput.dataset.staticText = lockedPrefix; 
+                            namaInput.focus(); 
+                        } else if (namaRumus.startsWith('Biro')) {
+                            namaInput.value = namaRumus;
+                            namaInput.dataset.staticText = 'Biro '; 
+                            namaInput.focus();
+                        } else {
+                            namaInput.value = namaRumus;
+                            namaInput.dataset.staticText = '';
+                        }
+                    }
+
                     updateFullCode();
                 };
 
@@ -3285,4 +3538,39 @@
             if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
         };
     </script>
+
+    <div x-data class="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-[60]">
+        <button @click="$store.selection.toggleSelectionMode()" 
+                :class="$store.selection.isSelectionMode ? 'bg-red-600' : 'bg-blue-600'"
+                class="flex items-center gap-2 px-6 py-3 text-white rounded-full shadow-2xl hover:scale-105 transition-all font-bold">
+            <i class="fas" :class="$store.selection.isSelectionMode ? 'fa-times' : 'fa-check-double'"></i>
+            <span x-text="$store.selection.isSelectionMode ? 'Batal Pilih' : 'Pilih Satker'"></span>
+        </button>
+
+        <div x-show="$store.selection.isSelectionMode && $store.selection.selectedIds.length > 0 && $store.selection.clipboard.mode === ''" 
+             x-transition class="flex gap-2 bg-white p-2 rounded-2xl shadow-xl border border-slate-200">
+            
+            <template x-if="$store.selection.canPerformAction()">
+                <div class="flex gap-2">
+                    <button @click="$store.selection.setClipboard('copy')" class="p-3 text-blue-600 hover:bg-blue-50 rounded-xl transition" title="Copy"><i class="fas fa-copy"></i></button>
+                    <button @click="$store.selection.setClipboard('move')" class="p-3 text-amber-600 hover:bg-amber-50 rounded-xl transition" title="Potong (Move)"><i class="fas fa-cut"></i></button>
+                </div>
+            </template>
+            
+            <button @click="$store.selection.confirmBulkDelete()" class="p-3 text-red-600 hover:bg-red-50 rounded-xl transition" title="Hapus Massal"><i class="fas fa-trash"></i></button>
+        </div>
+
+        <div x-show="$store.selection.clipboard.mode !== ''" x-transition 
+             class="flex flex-col items-center gap-2 bg-white p-4 rounded-2xl shadow-xl border-2 border-blue-400">
+            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Mode: <span x-text="$store.selection.clipboard.mode"></span></span>
+            <div class="flex gap-2">
+                {{-- KUNCI PERBAIKAN: Sembunyikan tombol Paste ke Root jika tidak lolos validasi Eselon 1 --}}
+                <template x-if="$store.selection.canPerformAction()">
+                    <button @click="$store.selection.confirmPaste(null, '', 'Root (Eselon 1)')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-sm">Paste ke Root (Khusus Eselon 1)</button>
+                </template>
+                <button @click="$store.selection.clearClipboard()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">Batal</button>
+            </div>
+            <p class="text-[9px] text-slate-400 mt-1">*Klik icon "Paste" biru pada Parent untuk memasukkannya ke dalam Parent tersebut.</p>
+        </div>
+    </div>
 @endpush

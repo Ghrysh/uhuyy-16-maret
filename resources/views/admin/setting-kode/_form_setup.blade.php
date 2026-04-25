@@ -32,8 +32,7 @@
         </div>
     </div>
 
-<div class="mb-5 transition-all duration-300">
-        
+    <div class="mb-5 transition-all duration-300">
         <div x-show="{{ $activeVar }} !== null" x-cloak x-transition.opacity class="p-3 bg-blue-50 border border-blue-300 rounded-lg shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div class="flex items-start">
                 <div class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -77,14 +76,10 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white p-3 border rounded shadow-sm relative z-10">
-        <div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white p-3 border rounded shadow-sm relative z-10">
+        <div class="md:col-span-2 lg:col-span-1">
             <label class="block text-xs font-bold text-gray-700">Nama Setup (Identitas)</label>
             <input type="text" name="nama_rumus" placeholder="Cth: Setup Wadir PTKN" class="mt-1 block w-full rounded p-2 border text-sm" required>
-        </div>
-        <div>
-            <label class="block text-xs font-bold text-gray-700">Naming (Default Nama)</label>
-            <input type="text" name="default_nama_satker" placeholder="Cth: Wakil Rektor Bidang" class="mt-1 block w-full rounded p-2 border text-sm">
         </div>
         <div>
             <label class="block text-xs font-bold text-gray-700">Kode Sisipan/Awalan</label>
@@ -98,7 +93,70 @@
         @endif
     </div>
 
+    {{-- FITUR BARU: NAMA SATKER OTOMATIS & MAPPING --}}
+    <div class="mt-4 p-4 border border-blue-200 rounded-xl bg-blue-50/30">
+        <div class="flex items-center gap-2 mb-3">
+            <input type="checkbox" id="is_auto_name_{{ $prefix }}" name="is_auto_name" value="1" x-model="isAutoName" class="w-4 h-4 text-blue-600 rounded border-slate-300">
+            <label for="is_auto_name_{{ $prefix }}" class="text-sm font-bold text-slate-700 cursor-pointer">Aktifkan Penamaan Satker Otomatis</label>
+        </div>
+
+        <div x-show="isAutoName" x-cloak x-transition class="space-y-4 border-t border-blue-100 pt-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Teks Nama Dasar (Misal: "Biro ", "Fakultas ")</label>
+                    <input type="text" name="base_auto_name" x-model="baseName" placeholder="Gunakan spasi di akhir jika perlu" class="w-full rounded-lg border-slate-200 text-sm">
+                </div>
+                <div class="flex items-center pt-6">
+                    <input type="checkbox" id="is_name_locked_{{ $prefix }}" name="is_name_locked" value="1" x-model="isLocked" class="w-4 h-4 text-blue-600 rounded border-slate-300">
+                    <label for="is_name_locked_{{ $prefix }}" class="ml-2 text-sm font-semibold text-slate-700 cursor-pointer">Kunci teks dasar ini? (User tidak bisa hapus)</label>
+                </div>
+            </div>
+
+            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs font-bold text-slate-700">Pemetaan per Ujung Kode (Opsional)</label>
+                    <button type="button" @click="addMapItem()" class="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded font-bold transition">
+                        + Tambah
+                    </button>
+                </div>
+                
+                <p class="text-[10px] text-slate-500 mb-3">Jika dikosongkan, semua ujung kode akan menggunakan "Teks Nama Dasar".</p>
+
+                <template x-for="(item, index) in customMaps" :key="index">
+                    <div class="flex items-center gap-2 mb-2">
+                        <input type="text" x-model="item.code" placeholder="01" class="w-20 rounded border-slate-200 text-sm py-1.5 px-2 font-mono" required>
+                        <span class="text-slate-400 text-xs"><i class="fas fa-arrow-right"></i></span>
+                        <input type="text" x-model="item.name" placeholder="Fakultas Tarbiyah" class="flex-1 rounded border-slate-200 text-sm py-1.5 px-2" required>
+                        <button type="button" @click="removeMapItem(index)" class="p-1.5 text-red-500 hover:bg-red-50 rounded"><i class="fas fa-times"></i></button>
+                    </div>
+                </template>
+                
+                <input type="hidden" name="custom_names_map" :value="getMapObject()">
+            </div>
+        </div>
+    </div>
+
     <button type="submit" class="mt-4 bg-[#112D4E] hover:bg-[#0D2440] text-white px-4 py-2 rounded-md text-sm font-bold transition shadow-sm w-full sm:w-auto">
         <i class="fas fa-save mr-1"></i> Simpan Setup
     </button>
 </form>
+
+{{-- Alpine State Khusus Form Tambah (Menggunakan Window agar kebal error timing) --}}
+<script>
+    window.autoNameFormTambah = function() {
+        return {
+            isAutoName: false,
+            baseName: '',
+            isLocked: false,
+            customMaps: [],
+
+            addMapItem() { this.customMaps.push({ code: '', name: '' }); },
+            removeMapItem(index) { this.customMaps.splice(index, 1); },
+            getMapObject() {
+                let obj = {};
+                this.customMaps.forEach(m => { if (m.code && m.name) obj[m.code] = m.name; });
+                return obj;
+            }
+        }
+    }
+</script>

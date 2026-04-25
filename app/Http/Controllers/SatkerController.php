@@ -726,4 +726,97 @@ class SatkerController extends Controller
             'is_same_start' => $isSameStart
         ]);
     }
+
+    public function bulkAction(Request $request)
+    {
+        $action = $request->action; // copy, move, delete
+        $ids = $request->ids;
+        $targetParentId = $request->target_parent_id;
+        $periodeId = $request->periode_id;
+
+        if (empty($ids)) return response()->json(['success' => false, 'message' => 'Tidak ada Satker yang dipilih.']);
+
+        // =====================================================================
+        // KUNCI PERBAIKAN 1: BLOKIR COPY & CUT KHUSUS UNTUK ESELON 1
+        // =====================================================================
+        if ($action === 'copy' || $action === 'move') {
+            $hasEselon1 = \App\Models\Satker::whereIn('id', $ids)->where('jenis_satker_id', 1)->exists();
+            if ($hasEselon1) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Tindakan Ditolak: Satker Utama (Eselon 1) tidak dapat di-Copy atau di-Potong. Aksi yang diizinkan hanya Hapus.'
+                ]);
+            }
+        }
+        // =====================================================================
+
+        DB::beginTransaction();
+        try {
+            if ($action === 'delete') {
+                $satkers = Satker::whereIn('id', $ids)->get();
+                foreach ($satkers as $s) {
+                    if ($s->children()->count() > 0) {
+                        throw new \Exception("Satker {$s->nama_satker} tidak bisa dihapus karena masih punya bawahan.");
+                    }
+                    $s->delete();
+                }
+                $msg = "Berhasil menghapus " . count($ids) . " Satker.";
+            } 
+            else {
+                // Logika Copy atau Move (Paste)
+                $targetParent = $targetParentId ? Satker::find($targetParentId) : null;
+                $targetPrefix = $targetParent ? $targetParent->kode_satker : '';
+
+                foreach ($ids as $id) {
+                    $oldSatker = Satker::find($id);
+                    if (!$oldSatker) continue;
+
+                    // Ambil angka ujungnya saja (misal 010105 jadi 05)
+                    // Kita asumsikan suffix adalah 2 digit terakhir atau sesuai panjang penambahan normal
+                    $suffix = substr($oldSatker->kode_satker, -2);
+                    $newCode = $targetPrefix . $suffix;
+
+                    // Cek duplikasi di database
+                    $exists = Satker::where('kode_satker', $newCode)->where('periode_id', $periodeId)->first();
+                    
+                    // Jika user memaksa lanjut (force) walau ada duplikat, atau jika memang belum ada
+                    if (!$exists || $request->force) {
+                        $newData = $oldSatker->replicate();
+                        $newData->id = (string) \Illuminate\Support\Str::uuid();
+                        $newData->kode_satker = $newCode;
+                        $newData->parent_satker_id = $targetParentId;
+                        $newData->save();
+
+                        if ($action === 'move') {
+                            $oldSatker->delete();
+                        }
+                    } else {
+                        return response()->json([
+                            'success' => false, 
+                            'duplicate' => true, 
+                            'code' => $newCode,
+                            'message' => "Satker dengan kode $newCode sudah ada. Lanjutkan?"
+                        ]);
+                    }
+                }
+                $msg = $action === 'copy' ? "Berhasil menyalin data." : "Berhasil memindahkan data.";
+            }
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => $msg]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollback();
+            if ($e->getCode() == 23505) { 
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Gagal: Kode Satker bentrok. Kode tersebut sudah terdaftar di database dan sistem keamanan mencegah penimpaan paksa.'
+                ]);
+            }
+            return response()->json(['success' => false, 'message' => 'Database Error: ' . $e->getMessage()]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
 }

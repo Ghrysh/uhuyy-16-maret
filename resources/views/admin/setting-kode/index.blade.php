@@ -182,6 +182,49 @@
                     </div>
                 </div>
 
+                {{-- FITUR BARU: NAMA SATKER OTOMATIS & MAPPING --}}
+                <div class="mt-4 p-4 border border-blue-200 rounded-xl bg-blue-50/30">
+                    <div class="flex items-center gap-2 mb-3">
+                        <input type="checkbox" id="is_auto_name" name="is_auto_name" value="1" x-model="isAutoName" class="w-4 h-4 text-blue-600 rounded border-slate-300">
+                        <label for="is_auto_name" class="text-sm font-bold text-slate-700 cursor-pointer">Aktifkan Penamaan Satker Otomatis</label>
+                    </div>
+
+                    <div x-show="isAutoName" x-cloak x-transition class="space-y-4 border-t border-blue-100 pt-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Teks Nama Dasar (Misal: "Biro ", "Fakultas ")</label>
+                                <input type="text" name="base_auto_name" x-model="baseName" placeholder="Gunakan spasi di akhir jika perlu" class="w-full rounded-lg border-slate-200 text-sm">
+                            </div>
+                            <div class="flex items-center pt-6">
+                                <input type="checkbox" id="is_name_locked" name="is_name_locked" value="1" x-model="isLocked" class="w-4 h-4 text-blue-600 rounded border-slate-300">
+                                <label for="is_name_locked" class="ml-2 text-sm font-semibold text-slate-700 cursor-pointer">Kunci teks dasar ini? (User tidak bisa hapus)</label>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-xs font-bold text-slate-700">Pemetaan per Ujung Kode (Opsional)</label>
+                                <button type="button" @click="addMapItem()" class="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded font-bold transition">
+                                    + Tambah
+                                </button>
+                            </div>
+                            
+                            <p class="text-[10px] text-slate-500 mb-3">Jika dikosongkan, semua ujung kode akan menggunakan "Teks Nama Dasar".</p>
+
+                            <template x-for="(item, index) in customMaps" :key="index">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <input type="text" x-model="item.code" placeholder="01" class="w-20 rounded border-slate-200 text-sm py-1.5 px-2 font-mono" required>
+                                    <span class="text-slate-400 text-xs"><i class="fas fa-arrow-right"></i></span>
+                                    <input type="text" x-model="item.name" placeholder="Fakultas Tarbiyah" class="flex-1 rounded border-slate-200 text-sm py-1.5 px-2" required>
+                                    <button type="button" @click="removeMapItem(index)" class="p-1.5 text-red-500 hover:bg-red-50 rounded"><i class="fas fa-times"></i></button>
+                                </div>
+                            </template>
+                            
+                            <input type="hidden" name="custom_names_map" :value="getMapObject()">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-4 flex justify-end">
                     <button type="submit" 
                         :disabled="!isWorkspaceEnabled || formulaInput.trim() === ''"
@@ -593,7 +636,50 @@
                             </div>
                         </div>
                     </div>
-                    
+
+                    {{-- FITUR BARU: NAMA SATKER OTOMATIS & MAPPING PADA EDIT --}}
+                    <div class="px-6 pb-5"> {{-- KUNCI PERBAIKAN: Bungkus dengan margin px-6 yang sama --}}
+                        <div class="mt-2 p-4 border border-amber-200 rounded-xl bg-amber-50/30">
+                            <div class="flex items-center gap-2 mb-3">
+                                <input type="checkbox" id="edit_is_auto_name" name="is_auto_name" value="1" x-model="editData.is_auto_name" class="w-4 h-4 text-amber-600 rounded border-slate-300">
+                                <label for="edit_is_auto_name" class="text-sm font-bold text-slate-700 cursor-pointer">Aktifkan Penamaan Satker Otomatis</label>
+                            </div>
+
+                            <div x-show="editData.is_auto_name" x-cloak x-transition class="space-y-4 border-t border-amber-100 pt-3">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Teks Nama Dasar</label>
+                                        <input type="text" name="base_auto_name" x-model="editData.base_auto_name" class="w-full rounded-lg border-slate-200 text-sm">
+                                    </div>
+                                    <div class="flex items-center pt-6">
+                                        <input type="checkbox" id="edit_is_name_locked" name="is_name_locked" value="1" x-model="editData.is_name_locked" class="w-4 h-4 text-amber-600 rounded border-slate-300">
+                                        <label for="edit_is_name_locked" class="ml-2 text-sm font-semibold text-slate-700 cursor-pointer">Kunci teks dasar ini?</label>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-xs font-bold text-slate-700">Pemetaan per Ujung Kode</label>
+                                        <button type="button" @click="addEditMapItem()" class="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded font-bold transition">
+                                            + Tambah
+                                        </button>
+                                    </div>
+
+                                    <template x-for="(item, index) in editData.custom_names_map" :key="index">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <input type="text" x-model="item.code" placeholder="01" class="w-16 rounded border-slate-200 text-sm py-1.5 px-2 font-mono" required>
+                                            <span class="text-slate-400 text-xs"><i class="fas fa-arrow-right"></i></span>
+                                            <input type="text" x-model="item.name" placeholder="Nama Satker" class="flex-1 rounded border-slate-200 text-sm py-1.5 px-2" required>
+                                            <button type="button" @click="removeEditMapItem(index)" class="p-1.5 text-red-500 hover:bg-red-50 rounded"><i class="fas fa-times"></i></button>
+                                        </div>
+                                    </template>
+                                    
+                                    <input type="hidden" name="custom_names_map" :value="getEditMapObject()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
                         <button type="button" @click="editModalOpen = false" class="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50">Batal</button>
                         <button type="submit" class="px-5 py-2 bg-[#112D4E] hover:bg-blue-900 text-white rounded-lg text-sm font-bold shadow">Update Formula</button>
@@ -685,7 +771,7 @@
 @push('scripts')
 <script>
     document.addEventListener('alpine:init', () => {
-Alpine.data('formulaBuilder', () => ({
+    Alpine.data('formulaBuilder', () => ({
             tab: 'builder',
             formulaInput: '',
             
@@ -694,6 +780,26 @@ Alpine.data('formulaBuilder', () => ({
             selectedLevel: '',
             selectedWilayahId: '',
             selectedJabatan: '',
+            // Variabel Penampung Form
+            namaRumus: '',
+            selectedLevel: '',
+            selectedWilayahId: '',
+            selectedJabatan: '',
+
+            // --- TAMBAHAN BARU UNTUK FITUR NAMA OTOMATIS (FORM TAMBAH) ---
+            isAutoName: false,
+            baseName: '',
+            isLocked: false,
+            customMaps: [],
+
+            addMapItem() { this.customMaps.push({ code: '', name: '' }); },
+            removeMapItem(index) { this.customMaps.splice(index, 1); },
+            getMapObject() {
+                let obj = {};
+                this.customMaps.forEach(m => { if (m.code && m.name) obj[m.code] = m.name; });
+                return JSON.stringify(obj); // Langsung ubah ke string untuk dikirim
+            },
+            // -----------------------------------------------------------
             
             // Variabel Fitur Live Search VS Code Style
             activePeriode: '{{ $periodes->first()->id ?? '' }}',
@@ -1065,7 +1171,11 @@ Alpine.data('formulaBuilder', () => ({
             // LOGIKA MODAL EDIT RUMUS & FILTER
             // ==========================================
             editModalOpen: false,
-            editData: { id: '', nama_rumus: '', pola: '', jenis_satker_id: '', tingkat_wilayah_id: '', ref_jabatan_satker_id: '' },
+            editData: { 
+                id: '', nama_rumus: '', pola: '', jenis_satker_id: '', tingkat_wilayah_id: '', ref_jabatan_satker_id: '',
+                is_auto_name: false, base_auto_name: '', is_name_locked: false, custom_names_map: [] 
+            },
+            filteredEditJabatans: [],
             filteredEditJabatans: [],
 
             getUpdateRoute(id) { return '{{ url("admin/setting-kode/rumus") }}/' + id; },
@@ -1107,12 +1217,36 @@ Alpine.data('formulaBuilder', () => ({
                 this.editData.nama_rumus = rumus.nama_rumus;
                 this.editData.jenis_satker_id = rumus.jenis_satker_id || 'all';
                 this.editData.tingkat_wilayah_id = rumus.tingkat_wilayah_id || 'all';
-                
-                this.runEditJabatanFilter(); // Filter jabatan dropdown
-                
+                this.runEditJabatanFilter(); 
                 this.editData.ref_jabatan_satker_id = rumus.ref_jabatan_satker_id || '';
                 this.editData.pola = rumus.pola;
+
+                // --- LOAD DATA AUTO NAME ---
+                this.editData.is_auto_name = rumus.is_auto_name == 1 || rumus.is_auto_name === true;
+                this.editData.base_auto_name = rumus.base_auto_name || '';
+                this.editData.is_name_locked = rumus.is_name_locked == 1 || rumus.is_name_locked === true;
+                
+                this.editData.custom_names_map = [];
+                if (rumus.custom_names_map) {
+                    try {
+                        const parsedMap = typeof rumus.custom_names_map === 'string' ? JSON.parse(rumus.custom_names_map) : rumus.custom_names_map;
+                        if (parsedMap && typeof parsedMap === 'object') {
+                            Object.keys(parsedMap).forEach(key => {
+                                this.editData.custom_names_map.push({ code: key, name: parsedMap[key] });
+                            });
+                        }
+                    } catch (e) { console.error("Gagal parse custom maps", e); }
+                }
+
                 this.editModalOpen = true;
+            },
+
+            addEditMapItem() { this.editData.custom_names_map.push({ code: '', name: '' }); },
+            removeEditMapItem(index) { this.editData.custom_names_map.splice(index, 1); },
+            getEditMapObject() {
+                let obj = {};
+                this.editData.custom_names_map.forEach(m => { if (m.code && m.name) obj[m.code] = m.name; });
+                return JSON.stringify(obj);
             },
 
             getEditPreview() {
@@ -1265,6 +1399,15 @@ Alpine.data('formulaBuilder', () => ({
 </script>
 
 <script>
+    @if($errors->any())
+        Swal.fire({
+            title: 'Validasi Gagal!',
+            html: '<ul class="text-left text-sm text-red-600 mt-2">@foreach($errors->all() as $error)<li>• {{ $error }}</li>@endforeach</ul>',
+            icon: 'error',
+            confirmButtonColor: '#112D4E'
+        });
+    @endif
+
     @if(session('success'))
         Swal.fire({ title: 'Berhasil!', text: '{{ session("success") }}', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
     @endif
