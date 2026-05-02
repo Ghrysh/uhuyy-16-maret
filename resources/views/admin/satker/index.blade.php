@@ -1546,7 +1546,24 @@
                             if (result.isConfirmed) this.executePaste(targetParentId, true);
                         });
                     } else if (data.success) {
-                        Swal.fire('Berhasil', data.message, 'success').then(() => location.reload());
+                        Swal.fire({
+                            icon: 'success', 
+                            title: 'Berhasil', 
+                            text: data.message, 
+                            timer: 2000, 
+                            showConfirmButton: false
+                        });
+                        
+                        // Keluar dari mode selection agar UI rapi kembali
+                        this.toggleSelectionMode();
+                        
+                        // Jalankan Refresh DOM tanpa load page!
+                        if (typeof refreshSatkerTree === 'function') {
+                            refreshSatkerTree(targetParentId, this.clipboard.mode);
+                        } else {
+                            window.location.reload();
+                        }
+                        // =========================================================================
                     } else {
                         Swal.fire('Gagal', data.message, 'error');
                     }
@@ -1572,6 +1589,7 @@
                     if (result.isConfirmed) {
                         this.clipboard.mode = 'delete';
                         this.clipboard.ids = this.selectedIds;
+                        // Parameter null karena kita tidak mem-paste ke parent mana pun
                         this.executePaste(null); 
                     }
                 });
