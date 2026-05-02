@@ -42,6 +42,17 @@
         }
     }
 
+    // =========================================================================
+    // JAWABAN FEEDBACK: OVERRIDE NAMA JIKA STATUSNYA "JABATAN FUNGSIONAL"
+    // =========================================================================
+    if ($item->ref_jabatan_satker_id) {
+        $refJabatan = \App\Models\RefJabatanSatker::find($item->ref_jabatan_satker_id);
+        if ($refJabatan && $refJabatan->key_jabatan === 'jabatan_fungsional') {
+            $eselonName = 'Jabatan Fungsional';
+        }
+    }
+    // =========================================================================
+
     $actions = $perm['actions'] ?? [];
     $canCreate = $perm['is_super'] || $perm['all_access'] || in_array('create', $actions);
     $canEdit   = $perm['is_super'] || $perm['all_access'] || in_array('edit', $actions);
@@ -134,9 +145,11 @@
             {{-- TOMBOL PASTE KHUSUS DENGAN VALIDASI --}}
             <template x-if="$store.selection.clipboard.mode !== '' && !$store.selection.clipboard.ids.includes('{{ $item->id }}')">
                 <button type="button" 
-                        @click.stop="$store.selection.confirmPaste('{{ $item->id }}', '{{ $item->kode_satker }}', '{{ addslashes($item->nama_satker) }}')" 
-                        class="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 shadow-md animate-pulse border border-blue-700 whitespace-nowrap">
-                    <i class="fas fa-clipboard mr-1"></i> Paste ke Sini
+                    x-show="$store.selection.clipboard.mode !== '' && ! $store.selection.clipboard.ids.includes('{{ $item->id }}')" 
+                    @click.stop="$store.selection.confirmPaste('{{ $item->id }}', '{{ $item->kode_satker }}', '{{ addslashes($item->nama_satker) }}')"
+                    class="bg-blue-100 hover:bg-blue-600 text-blue-600 hover:text-white rounded-md w-7 h-7 flex items-center justify-center transition shadow-sm ml-2 hover:scale-110" 
+                    title="Paste di dalam Satker ini">
+                    <i class="fas fa-paste text-xs"></i>
                 </button>
             </template>
 

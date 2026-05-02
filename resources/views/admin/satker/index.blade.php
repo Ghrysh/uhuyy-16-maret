@@ -258,7 +258,7 @@
         {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}      
         <div x-show="search && matches.length > 0" x-transition.opacity x-cloak
              {{-- KUNCI PERBAIKAN: Ubah right-8 menjadi left-1/2 dan -translate-x-1/2 agar posisinya di tengah bawah --}}
-             class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-[55]">
+             class="fixed bottom-24 md:bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-[55]">
             
             {{-- Indikator Angka (contoh: 1 dari 5) --}}
             <div class="text-xs font-bold text-slate-600 tracking-wide">
@@ -397,10 +397,15 @@
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Pilih Jenjang (4 Digit) --</option>
                                     @foreach ($jabatanItems as $item)
+                                        @php
+                                            // Gabungkan nama jabatan dasar dengan nama jenjang dari relasi fungsional
+                                            $namaJenjang = $item->fungsional ? $item->fungsional->name : '';
+                                            $displayFull = trim($item->nama_jabatan . ' ' . $namaJenjang);
+                                        @endphp
                                         <option value="{{ $item->id }}" 
                                                 data-kode="{{ $item->kode_jabatan }}"
                                                 data-parent-kode="{{ substr($item->kode_jabatan, 0, 3) }}">
-                                            {{ $item->kode_jabatan }} - {{ $item->nama_jabatan }}
+                                            {{ $item->kode_jabatan }} - {{ $displayFull }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -2859,15 +2864,26 @@
 
                     let isAutoNameApplied = false;
 
-                    // 1. CEK DULU APAKAH PAKAI NAMA OTOMATIS DARI DB
                     if (activeRumusId && window.allRumusData) {
                         const rumus = window.allRumusData.find(r => r.id == activeRumusId);
                         
                         if (rumus && (rumus.is_auto_name == 1 || rumus.is_auto_name === true)) {
                             isAutoNameApplied = true;
                             
-                            let digitCount = parseInt(rumus.digit_auto_number) || 2;
+                            // =========================================================
+                            // PERBAIKAN: Deteksi digit INC secara dinamis dari Pola Rumus!
+                            // =========================================================
+                            let digitCount = 2; // Default bawaan
+                            if (rumus.pola) {
+                                // Ekstrak angka dari teks [INC:1], [INC:3], dll
+                                let match = rumus.pola.match(/\[INC:(\d+)/);
+                                if (match && match[1]) {
+                                    digitCount = parseInt(match[1]);
+                                }
+                            }
+                            
                             let suffix = fullCode.slice(-digitCount); 
+                            // =========================================================
                             
                             // (Khusus Jabatan Fungsional, pakai seluruh kode)
                             const statJab = document.getElementById('tanpa_jabatan')?.value;
@@ -2919,11 +2935,14 @@
                             namaRumus = 'Madrasah Aliyah Negeri Insan Cendikia';
                         }
 
+                        const statJab = document.getElementById('tanpa_jabatan')?.value;
+
                         // Daftar kata yang akan dikunci
                         const isLockedName = namaRumus.includes('Madrasah Ibtidaiyah Negeri') || 
                                              namaRumus.includes('Wakil Rektor Bidang') || 
                                              namaRumus.includes('Kantor Urusan Agama') ||
                                              namaRumus.includes('Madrasah Aliyah Negeri Insan Cendikia');
+                                             (statJab === 'jabatan_fungsional');
 
                         if (isLockedName) {
                             const lockedPrefix = namaRumus + ' ';
@@ -3505,13 +3524,17 @@
             const selectedOption = jenjangSelect.options[jenjangSelect.selectedIndex];
 
             if (jenjangSelect.value !== "") {
-                const text = selectedOption.text.includes(' - ') ? selectedOption.text.split(' - ')[1] : selectedOption.text;
+                // Ambil teks setelah tanda " - " agar bersih dari kode
+                const fullDisplayText = selectedOption.text;
+                const namePart = fullDisplayText.includes(' - ') ? fullDisplayText.split(' - ')[1] : fullDisplayText;
+                
                 if (namaInput) {
-                    namaInput.value = text;
-                    namaInput.dataset.staticText = ""; // Bebaskan teks agar bisa diedit
+                    namaInput.value = namePart.trim();
+                    // KUNCI: Set dataset staticText agar user tidak bisa sembarangan hapus (fitur anti-backspace Anda)
+                    namaInput.dataset.staticText = namePart.trim() + " "; 
                 }
                 
-                // JAWABAN REVISI: Otomatis memicu "Generate Kode" saat jenjang 4 digit dipilih!
+                // Picu generate kode (agar parent + 4 digit jafung menyatu)
                 if (typeof generateSatkerCode === 'function') generateSatkerCode();
             }
             
@@ -3550,7 +3573,7 @@
         };
     </script>
 
-    <div x-data class="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-[60]">
+    <div x-data class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-[60]">
         <button @click="$store.selection.toggleSelectionMode()" 
                 :class="$store.selection.isSelectionMode ? 'bg-red-600' : 'bg-blue-600'"
                 class="flex items-center gap-2 px-6 py-3 text-white rounded-full shadow-2xl hover:scale-105 transition-all font-bold">

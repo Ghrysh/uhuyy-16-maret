@@ -369,27 +369,20 @@ class SatkerController extends Controller
     {
         $satker = Satker::findOrFail($id);
         
-        if($satker->children()->count() > 0) {
-            if (request()->ajax() || request()->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Tidak dapat menghapus Satker yang memiliki unit bawahan'], 422);
-            }
-            return redirect()->back()->withErrors(['error' => 'Tidak dapat menghapus Satker yang memiliki unit bawahan']);
-        }
-
         LogSistem::create([
             'aksi' => 'DELETE',
             'nama_tabel' => 'satker',
             'data_id' => $satker->id,
-            'perubahan' => 'Menghapus satker: ' . $satker->nama_satker,
+            'perubahan' => 'Menghapus satker beserta seluruh bawahannya: ' . $satker->nama_satker,
             'user_id' => auth()->id(),
         ]);
 
-        $satker->delete();
+        $this->deleteSatkerRecursive($satker);
 
         if (request()->ajax() || request()->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Satuan Kerja berhasil dihapus']);
+            return response()->json(['success' => true, 'message' => 'Satuan Kerja beserta unit bawahannya berhasil dihapus']);
         }
-        return redirect()->back()->with('success', 'Satuan Kerja berhasil dihapus');
+        return redirect()->back()->with('success', 'Satuan Kerja beserta unit bawahannya berhasil dihapus');
     }
 
     public function getUsersBySatker($id)
@@ -481,16 +474,27 @@ class SatkerController extends Controller
         $rumpunFakultas = $request->rumpun_fakultas;
 
         if ($request->filled('jabatan_id')) {
-            $jabatan = \App\Models\Jabatan::find($request->jabatan_id);
+            $jabatan = \App\Models\Jabatan::with('fungsional')->find($request->jabatan_id);
             if ($jabatan) {
-                // Hapus embel-embel jenjang untuk nama default
-                $baseName = preg_replace('/\s+(Ahli Pertama|Ahli Muda|Ahli Madya|Ahli Utama|Pemula|Terampil|Mahir|Penyelia)$/i', '', $jabatan->nama_jabatan);
+                // Gabungkan nama jabatan dengan nama jenjang (Ahli Pertama, dsb)
+                $namaJenjang = $jabatan->fungsional ? $jabatan->fungsional->name : '';
+                $fullName = trim($jabatan->nama_jabatan . ' ' . $namaJenjang);
+                
+                // Ambil kode parent
+                $parentCode = '';
+                if ($parentId) {
+                    $parent = \App\Models\Satker::find($parentId);
+                    $parentCode = $parent ? trim($parent->kode_satker) : '';
+                }
+                
+                // Hasil final: Kode Parent + 4 Digit Jabatan
+                $finalCode = $parentCode . trim($jabatan->kode_jabatan);
                 
                 return response()->json([
                     'success' => true,
-                    'code' => trim($jabatan->kode_jabatan),
+                    'code' => $finalCode,
                     'gaps' => [],
-                    'default_nama' => trim($baseName),
+                    'default_nama' => $fullName, // Kirim nama lengkap ke UI
                     'is_incremental' => false,
                     'is_new' => true,
                     'last_kode' => null,
@@ -736,9 +740,7 @@ class SatkerController extends Controller
 
         if (empty($ids)) return response()->json(['success' => false, 'message' => 'Tidak ada Satker yang dipilih.']);
 
-        // =====================================================================
-        // KUNCI PERBAIKAN 1: BLOKIR COPY & CUT KHUSUS UNTUK ESELON 1
-        // =====================================================================
+        // Blokir Eselon 1 dari Copy/Cut
         if ($action === 'copy' || $action === 'move') {
             $hasEselon1 = \App\Models\Satker::whereIn('id', $ids)->where('jenis_satker_id', 1)->exists();
             if ($hasEselon1) {
@@ -748,75 +750,125 @@ class SatkerController extends Controller
                 ]);
             }
         }
-        // =====================================================================
 
         DB::beginTransaction();
         try {
             if ($action === 'delete') {
                 $satkers = Satker::whereIn('id', $ids)->get();
                 foreach ($satkers as $s) {
-                    if ($s->children()->count() > 0) {
-                        throw new \Exception("Satker {$s->nama_satker} tidak bisa dihapus karena masih punya bawahan.");
+                    $currentSatker = Satker::find($s->id);
+                    if ($currentSatker) {
+                        $this->deleteSatkerRecursive($currentSatker);
                     }
-                    $s->delete();
                 }
-                $msg = "Berhasil menghapus " . count($ids) . " Satker.";
-            } 
+                $msg = "Berhasil menghapus Satker terpilih beserta seluruh unit bawahannya.";
+            }
             else {
-                // Logika Copy atau Move (Paste)
                 $targetParent = $targetParentId ? Satker::find($targetParentId) : null;
                 $targetPrefix = $targetParent ? $targetParent->kode_satker : '';
 
+                // KUNCI HIERARKI: Hanya ambil Satker teratas dari yang di-select agar tidak dobel
+                $topLevelIds = [];
                 foreach ($ids as $id) {
-                    $oldSatker = Satker::find($id);
-                    if (!$oldSatker) continue;
-
-                    // Ambil angka ujungnya saja (misal 010105 jadi 05)
-                    // Kita asumsikan suffix adalah 2 digit terakhir atau sesuai panjang penambahan normal
-                    $suffix = substr($oldSatker->kode_satker, -2);
-                    $newCode = $targetPrefix . $suffix;
-
-                    // Cek duplikasi di database
-                    $exists = Satker::where('kode_satker', $newCode)->where('periode_id', $periodeId)->first();
-                    
-                    // Jika user memaksa lanjut (force) walau ada duplikat, atau jika memang belum ada
-                    if (!$exists || $request->force) {
-                        $newData = $oldSatker->replicate();
-                        $newData->id = (string) \Illuminate\Support\Str::uuid();
-                        $newData->kode_satker = $newCode;
-                        $newData->parent_satker_id = $targetParentId;
-                        $newData->save();
-
-                        if ($action === 'move') {
-                            $oldSatker->delete();
-                        }
-                    } else {
-                        return response()->json([
-                            'success' => false, 
-                            'duplicate' => true, 
-                            'code' => $newCode,
-                            'message' => "Satker dengan kode $newCode sudah ada. Lanjutkan?"
-                        ]);
+                    $satker = Satker::find($id);
+                    if (!$satker) continue;
+                    if (!in_array($satker->parent_satker_id, $ids)) {
+                        $topLevelIds[] = $id;
                     }
                 }
-                $msg = $action === 'copy' ? "Berhasil menyalin data." : "Berhasil memindahkan data.";
+
+                // Eksekusi Copy/Cut untuk Parent Teratas (anak-anaknya akan otomatis ikut)
+                foreach ($topLevelIds as $id) {
+                    $this->processCopyMove(Satker::find($id), $targetParentId, $targetPrefix, $periodeId, $action);
+                }
+
+                $msg = $action === 'copy' ? "Berhasil menyalin data beserta seluruh unit bawahannya." : "Berhasil memindahkan data beserta seluruh unit bawahannya.";
             }
 
             DB::commit();
             return response()->json(['success' => true, 'message' => $msg]);
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollback();
-            if ($e->getCode() == 23505) { 
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Gagal: Kode Satker bentrok. Kode tersebut sudah terdaftar di database dan sistem keamanan mencegah penimpaan paksa.'
-                ]);
-            }
-            return response()->json(['success' => false, 'message' => 'Database Error: ' . $e->getMessage()]);
-            
+
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            $errorMsg = $e->getMessage();
+            
+            // Tangkap pesan khusus bentrok dan tampilkan nama satkernya
+            if (str_starts_with($errorMsg, 'KODE_BENTROK:')) {
+                $parts = explode(':', $errorMsg);
+                $kode = $parts[1] ?? '';
+                $nama = $parts[2] ?? '';
+                return response()->json([
+                    'success' => false, 
+                    'message' => "GAGAL: Kode {$kode} sudah dipakai oleh satker \"{$nama}\" di tujuan tersebut. Sistem mencegah penimpaan data secara paksa. Silakan hapus atau ubah nama satker tujuan terlebih dahulu."
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => 'Gagal memproses data: ' . $errorMsg]);
         }
+    }
+
+    /**
+     * Fungsi Rekursif untuk Duplikasi/Memindahkan Tree Satker
+     */
+    private function processCopyMove($satker, $targetParentId, $targetPrefix, $periodeId, $action) {
+        $oldParent = Satker::find($satker->parent_satker_id);
+        $oldParentCode = $oldParent ? $oldParent->kode_satker : '';
+        
+        // Ekstrak akhiran kode dengan cerdas (tidak kaku 2 digit lagi)
+        $suffix = '';
+        if ($oldParentCode && str_starts_with($satker->kode_satker, $oldParentCode)) {
+            $suffix = substr($satker->kode_satker, strlen($oldParentCode));
+        } else {
+            // Fallback aman
+            $suffix = (strlen($satker->kode_satker) > 2) ? substr($satker->kode_satker, -2) : $satker->kode_satker;
+        }
+
+        $newCode = $targetPrefix . $suffix;
+
+        // Cek secara proaktif apakah di tujuan sudah ada kode yang sama
+        $exists = Satker::where('kode_satker', $newCode)->where('periode_id', $periodeId)->first();
+        if ($exists) {
+            // Lempar error khusus agar ditangkap oleh blok Try-Catch di atas
+            throw new \Exception("KODE_BENTROK:{$newCode}:{$exists->nama_satker}");
+        }
+
+        if ($action === 'copy') {
+            $newData = $satker->replicate();
+            $newData->id = (string) \Illuminate\Support\Str::uuid();
+            $newData->kode_satker = $newCode;
+            $newData->parent_satker_id = $targetParentId;
+            $newData->save();
+
+            // COPY ANAK-ANAKNYA SECARA OTOMATIS
+            $children = Satker::where('parent_satker_id', $satker->id)->get();
+            foreach ($children as $child) {
+                $this->processCopyMove($child, $newData->id, $newCode, $periodeId, 'copy');
+            }
+
+        } else if ($action === 'move') {
+            $oldKode = $satker->kode_satker;
+            $satker->update([
+                'kode_satker' => $newCode,
+                'parent_satker_id' => $targetParentId
+            ]);
+            // Jika memindahkan, cukup update prefix anak-anaknya menggunakan fungsi cascade bawaan
+            $this->cascadeUpdateKode($satker->id, $oldKode, $newCode);
+        }
+    }
+
+    private function deleteSatkerRecursive($satker)
+    {
+        // Cari semua anak langsung
+        $children = Satker::where('parent_satker_id', $satker->id)->get();
+        foreach ($children as $child) {
+            $this->deleteSatkerRecursive($child);
+        }
+        
+        // Ubah kode agar tidak bentrok dengan Unique Constraint saat menambah data baru nanti
+        $satker->update([
+            'kode_satker' => $satker->kode_satker . '-DEL-' . substr(uniqid(), -5)
+        ]);
+        
+        $satker->delete();
     }
 }
