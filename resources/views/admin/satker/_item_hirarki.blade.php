@@ -3,6 +3,10 @@
     $selfText = strtolower($item->nama_satker . ' ' . $item->kode_satker);
 
     $eselonName = $item->eselon ? $item->eselon->nama : '-';
+
+    if ($item->jenis_satker_id == 6) {
+        $eselonName = 'Tugas Tambahan';
+    }
     
     if (!empty($item->kode_satker)) {
         $kode = $item->kode_satker;

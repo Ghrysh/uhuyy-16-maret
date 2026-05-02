@@ -14,7 +14,10 @@ class RumusKode extends Model
         'is_auto_name',
         'base_auto_name',
         'is_name_locked',
-        'custom_names_map'
+        'custom_names_map',
+        'jenis_satker_id',
+        'tingkat_wilayah_id',
+        'ref_jabatan_satker_id'
     ];
 
     protected $casts = [

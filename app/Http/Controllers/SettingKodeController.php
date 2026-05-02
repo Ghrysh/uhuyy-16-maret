@@ -46,20 +46,13 @@ class SettingKodeController extends Controller implements HasMiddleware
 
     public function storeRumus(Request $request)
     {
-        // 1. Decode string JSON menjadi Array PHP sebelum divalidasi
         $customMap = null;
         if ($request->filled('custom_names_map')) {
             $customMap = json_decode($request->custom_names_map, true);
-            // Jika hasilnya string kosong "{}", jadikan null
-            if (empty($customMap)) {
-                $customMap = null;
-            }
+            if (empty($customMap)) $customMap = null;
         }
 
-        // Merge input request agar validasi bisa membaca array tersebut
-        $request->merge([
-            'custom_names_map_array' => $customMap
-        ]);
+        $request->merge(['custom_names_map_array' => $customMap]);
 
         $request->validate([
             'nama_rumus' => 'required|string|max:255|unique:rumus_kodes,nama_rumus',
@@ -67,14 +60,21 @@ class SettingKodeController extends Controller implements HasMiddleware
             'is_auto_name' => 'nullable|boolean',
             'base_auto_name' => 'nullable|string|max:255',
             'is_name_locked' => 'nullable|boolean',
-            'custom_names_map_array' => 'nullable|array' // Validasi array yang sudah di-decode
+            'custom_names_map_array' => 'nullable|array' 
         ]);
+
+        // KUNCI PERBAIKAN: Saring string kosong, 'all', atau 'null' bawaan JavaScript
+        $jenisId = in_array($request->jenis_satker_id, ['all', 'null', '']) ? null : $request->jenis_satker_id;
+        $wilayahId = in_array($request->tingkat_wilayah_id, ['all', 'null', '']) ? null : $request->tingkat_wilayah_id;
+        $jabatanId = in_array($request->ref_jabatan_satker_id, ['all', 'null', '']) ? null : $request->ref_jabatan_satker_id;
 
         RumusKode::create([
             'nama_rumus' => $request->nama_rumus,
             'pola' => $request->pola,
-            // Baris 'keterangan' DIHAPUS DARI SINI
             'is_applied' => $request->has('is_applied'),
+            'jenis_satker_id' => $jenisId,
+            'tingkat_wilayah_id' => $wilayahId,
+            'ref_jabatan_satker_id' => $jabatanId,
             'is_auto_name' => $request->has('is_auto_name'),
             'base_auto_name' => $request->base_auto_name,
             'is_name_locked' => $request->has('is_name_locked'),
@@ -87,34 +87,31 @@ class SettingKodeController extends Controller implements HasMiddleware
     public function updateRumus(Request $request, $id)
     {
         $rumus = RumusKode::findOrFail($id);
-
-        // Decode JSON dari form Edit
         $customMap = null;
         if ($request->filled('custom_names_map')) {
             $customMap = json_decode($request->custom_names_map, true);
-            if (empty($customMap)) {
-                $customMap = null;
-            }
+            if (empty($customMap)) $customMap = null;
         }
         
-        $request->merge([
-            'custom_names_map_array' => $customMap
-        ]);
+        $request->merge(['custom_names_map_array' => $customMap]);
 
         $request->validate([
             'nama_rumus' => 'required|string|max:255|unique:rumus_kodes,nama_rumus,' . $id,
             'pola' => 'required|string|max:255',
-            'is_auto_name' => 'nullable|boolean',
-            'base_auto_name' => 'nullable|string|max:255',
-            'is_name_locked' => 'nullable|boolean',
-            'custom_names_map_array' => 'nullable|array'
         ]);
+
+        // KUNCI PERBAIKAN: Saring string kosong, 'all', atau 'null' bawaan JavaScript
+        $jenisId = in_array($request->jenis_satker_id, ['all', 'null', '']) ? null : $request->jenis_satker_id;
+        $wilayahId = in_array($request->tingkat_wilayah_id, ['all', 'null', '']) ? null : $request->tingkat_wilayah_id;
+        $jabatanId = in_array($request->ref_jabatan_satker_id, ['all', 'null', '']) ? null : $request->ref_jabatan_satker_id;
 
         $rumus->update([
             'nama_rumus' => $request->nama_rumus,
             'pola' => $request->pola,
-            // Baris 'keterangan' DIHAPUS DARI SINI
             'is_applied' => $request->has('is_applied'),
+            'jenis_satker_id' => $jenisId,
+            'tingkat_wilayah_id' => $wilayahId,
+            'ref_jabatan_satker_id' => $jabatanId,
             'is_auto_name' => $request->has('is_auto_name'),
             'base_auto_name' => $request->base_auto_name,
             'is_name_locked' => $request->has('is_name_locked'),

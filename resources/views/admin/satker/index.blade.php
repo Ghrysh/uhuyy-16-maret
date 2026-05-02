@@ -255,9 +255,10 @@
 
             </div>
 
-        {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}
+        {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}      
         <div x-show="search && matches.length > 0" x-transition.opacity x-cloak
-             class="fixed bottom-8 right-8 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-40">
+             {{-- KUNCI PERBAIKAN: Ubah right-8 menjadi left-1/2 dan -translate-x-1/2 agar posisinya di tengah bawah --}}
+             class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-[55]">
             
             {{-- Indikator Angka (contoh: 1 dari 5) --}}
             <div class="text-xs font-bold text-slate-600 tracking-wide">
@@ -1947,18 +1948,17 @@
             userRoles.includes('pejabat');
 
 
-        // Tambahkan parameter periodeId di sini
-        function openTambahSubSatker(parentId, parentJenisId, wilayahId, periodeId, lockParent = false) {
-
+        // Fungsi Tambah Sub Satker (Ditempel ke window agar terbaca global oleh tombol HTML)
+        window.openTambahSubSatker = function(parentId, parentJenisId, wilayahId, periodeId, lockParent = false) {
             const form = document.querySelector('#modalTambahSatker form');
-            form.reset();
+            if (form) form.reset();
 
             toggleModal('modalTambahSatker');
 
             const wilayahSelect = document.getElementById('wilayah_id');
             if (wilayahSelect) {
                 wilayahSelect.value = wilayahId;
-                handleWilayahChange();
+                if (typeof handleWilayahChange === 'function') handleWilayahChange();
             }
 
             const periodeSelect = document.getElementById('periode_id');
@@ -1966,7 +1966,6 @@
 
             if (periodeSelect) {
                 periodeSelect.value = periodeId;
-
                 if (periodeId && periodeContainer) {
                     periodeContainer.classList.add('hidden');
                     periodeSelect.removeAttribute('required');
@@ -1978,20 +1977,22 @@
 
             const jenisSelect = document.getElementById('jenis_satker_id');
             const parentSelect = document.getElementById('parent_satker_id');
-            const nextLevel = parseInt(parentJenisId) + 1;
+            
+            // JAWABAN FEEDBACK: Jika parent eselon 5 atau sudah Tugas Tambahan (6), anak otomatis jadi level 6
+            let nextLevel = parseInt(parentJenisId) + 1;
+            if (nextLevel > 6) nextLevel = 6; 
 
-            // set level
-            if (jenisSelect.querySelector(`option[value="${nextLevel}"]`)) {
+            // Set select level UI
+            if (jenisSelect && jenisSelect.querySelector(`option[value="${nextLevel}"]`)) {
                 jenisSelect.value = nextLevel;
             }
 
-            filterParent();
+            if (typeof filterParent === 'function') filterParent();
 
             setTimeout(() => {
-
-                if (control) {
+                if (typeof control !== 'undefined' && control) {
                     control.setValue(parentId, true);
-                } else {
+                } else if (parentSelect) {
                     parentSelect.value = parentId;
                 }
 
@@ -2000,32 +2001,42 @@
                 // =========================
                 if (lockParent) {
                     // 1. Lock visual Select
-                    jenisSelect.value = nextLevel;
-                    jenisSelect.disabled = true;
+                    if (jenisSelect) {
+                        jenisSelect.value = nextLevel;
+                        jenisSelect.disabled = true;
+                    }
 
-                    // 2. Set dan Aktifkan Hidden Input agar terkirim ke server
+                    // 2. Set dan Aktifkan Hidden Input agar terkirim ke server (Controller)
                     const hiddenJenis = document.getElementById('hidden_jenis_satker_id');
-                    hiddenJenis.value = nextLevel;
-                    hiddenJenis.disabled = false; // Aktifkan agar terkirim
+                    if (hiddenJenis) {
+                        hiddenJenis.value = nextLevel;
+                        hiddenJenis.disabled = false; 
+                    }
 
                     // 3. Hal yang sama untuk Parent ID
                     const hiddenParent = document.getElementById('hidden_parent_satker_id');
-                    hiddenParent.value = parentId;
-                    hiddenParent.disabled = false;
+                    if (hiddenParent) {
+                        hiddenParent.value = parentId;
+                        hiddenParent.disabled = false;
+                    }
 
-                    if (control) {
+                    if (typeof control !== 'undefined' && control) {
                         control.disable();
-                    } else {
+                    } else if (parentSelect) {
                         parentSelect.disabled = true;
                     }
                 } else {
                     // Normal state: Matikan hidden input agar tidak bentrok dengan select utama
-                    jenisSelect.disabled = false;
-                    document.getElementById('hidden_jenis_satker_id').disabled = true;
-                    document.getElementById('hidden_parent_satker_id').disabled = true;
+                    if (jenisSelect) jenisSelect.disabled = false;
+                    
+                    const hiddenJenis = document.getElementById('hidden_jenis_satker_id');
+                    if (hiddenJenis) hiddenJenis.disabled = true;
+                    
+                    const hiddenParent = document.getElementById('hidden_parent_satker_id');
+                    if (hiddenParent) hiddenParent.disabled = true;
 
-                    if (control) control.enable();
-                    else parentSelect.disabled = false;
+                    if (typeof control !== 'undefined' && control) control.enable();
+                    else if (parentSelect) parentSelect.disabled = false;
                 }
 
                 if (typeof updateFullCode === "function") {
@@ -2033,7 +2044,7 @@
                 }
 
             }, 50);
-        }
+        };
     </script>
     <script>
         function resetTambahSatkerModal() {
