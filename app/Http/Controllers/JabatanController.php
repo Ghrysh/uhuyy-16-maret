@@ -10,6 +10,7 @@ use App\Models\Satker;
 use App\Models\DistribusiKuota;
 use App\Models\Periode;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class JabatanController extends Controller
 {
@@ -61,50 +62,122 @@ class JabatanController extends Controller
         if (!$perm['can_view']) abort(403, 'Akses ditolak. Anda tidak memiliki izin melihat Jabatan Fungsional.');
 
         $search = $request->input('search');
-        $sortField = $request->input('sort', 'kode_jabatan');
-        $sortDirection = $request->input('direction', 'asc');
 
         $periodes = Periode::orderBy('created_at', 'asc')->get();
-        
         $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
-        $jabatans = Jabatan::with(['jenis', 'jenisSatker', 'fungsional'])
-            ->where('periode_id', $activePeriodeId)
-            ->when($search, function ($query, $search) {
+        // =========================================================================
+        // JAWABAN FEEDBACK: MENGELOMPOKKAN DATA MENJADI PARENT & ANAK JENJANG
+        // =========================================================================
+        $rawJabatansQuery = Jabatan::with(['fungsional'])
+            ->where('periode_id', $activePeriodeId);
+            
+        if ($search) {
+            $rawJabatansQuery->where(function($q) use ($search) {
+                $q->where('nama_jabatan', 'like', "%{$search}%")
+                  ->orWhere('kode_jabatan', 'like', "%{$search}%");
+            });
+        }
+        
+        $rawJabatans = $rawJabatansQuery->orderBy('kode_jabatan', 'asc')->get();
+        $groupedData = [];
 
-                return $query->where(function($q) use ($search) {
-                    $q->where('nama_jabatan', 'like', "%{$search}%")
-                      ->orWhere('kode_jabatan', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy($sortField, $sortDirection)
-            ->paginate(10)
-            ->withQueryString();
+        foreach ($rawJabatans as $j) {
+            $kodeUtuh = trim($j->kode_jabatan);
+            $namaUtuh = trim($j->nama_jabatan);
+            
+            // Ekstrak kode dasar dan jenjang
+            if (strlen($kodeUtuh) >= 4) {
+                $prefix = substr($kodeUtuh, 0, 3);
+                $suffix = substr($kodeUtuh, 3);
+
+                // Nama dasar untuk parent group (tanpa embel-embel jenjang)
+                $baseName = preg_replace('/\s+(Pemula|Terampil|Mahir|Penyelia|Ahli Pertama|Ahli Muda|Ahli Madya|Ahli Utama)$/i', '', $namaUtuh);
+
+                if (!isset($groupedData[$prefix])) {
+                    $groupedData[$prefix] = [
+                        'kode' => $prefix,
+                        'nama_jabatan' => trim($baseName),
+                        'b_pertama' => $j->b_pertama ?? 0,
+                        'b_muda' => $j->b_muda ?? 0,
+                        'b_madya' => $j->b_madya ?? 0,
+                        'b_utama' => $j->b_utama ?? 0,
+                        'jenjangs' => []
+                    ];
+                }
+
+                $groupedData[$prefix]['jenjangs'][] = [
+                    'id' => $j->id,
+                    'kode' => $kodeUtuh,
+                    'nama_lengkap' => $namaUtuh,
+                    'kode_ujung' => $suffix,
+                    'baseline' => $j->baseline ?? 0 // Tambahkan variabel baseline ini!
+                ];
+            } else {
+                // Fallback untuk data yang tidak standar (< 4 digit)
+                $groupedData[$kodeUtuh] = [
+                    'kode' => $kodeUtuh,
+                    'nama_jabatan' => $namaUtuh,
+                    'jenjangs' => [[
+                        'id' => $j->id,
+                        'kode' => $kodeUtuh,
+                        'nama_lengkap' => $namaUtuh,
+                        'kode_ujung' => '-',
+                        'baseline' => $j->baseline ?? 0 // Tambahkan ini!
+                    ]]
+                ];
+            }
+        }
+
+        // Paginasi manual untuk Array hasil grouping
+        $jabatansCollection = collect(array_values($groupedData));
+        $perPage = 10;
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage();
+        $currentPageItems = $jabatansCollection->slice(($currentPage - 1) * $perPage, $perPage)->all();
+        $jabatans = new \Illuminate\Pagination\LengthAwarePaginator($currentPageItems, count($jabatansCollection), $perPage, $currentPage, [
+            'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()
+        ]);
+        // =========================================================================
 
         $jenis_jabatans = MJenisJabatan::all();
-        $eselons = MJenisSatker::all();
-        $fungsionals = \App\Models\JabatanFungsional::orderBy('name', 'asc')->get();
         $idFungsional = $jenis_jabatans->where('nama', 'Fungsional')->first()->id ?? '';
 
-        // Pastikan generate kode selanjutnya mengacu pada periode yang sama
         $lastJabatan = Jabatan::where('periode_id', $activePeriodeId)
-                            ->selectRaw('MAX(SUBSTRING(kode_jabatan, 1, 3)) as base_last')
+                            ->selectRaw('MAX(CAST(SUBSTRING(kode_jabatan, 1, 3) AS INTEGER)) as base_last')
                             ->first();
-        
+
         $nextBaseCode = $lastJabatan && $lastJabatan->base_last ? (int)$lastJabatan->base_last + 1 : 801;
 
-        // 3. DROPDOWN SANGAT RINGAN (Hanya panggil kolom yang butuh)
-        $dropdownJabatans = Jabatan::with('fungsional:id,kode,name')
-            ->select('id', 'nama_jabatan', 'kode_jabatan', 'jabatan_fungsional_id')
-            ->where('periode_id', $activePeriodeId)
+        $rawDropdown = Jabatan::where('periode_id', $activePeriodeId)
             ->orderBy('kode_jabatan', 'asc')
             ->get();
 
+        $dropdownGroups = [];
+        foreach ($rawDropdown as $j) {
+            $kodeUtuh = trim($j->kode_jabatan);
+            if (strlen($kodeUtuh) >= 4) {
+                $prefix = substr($kodeUtuh, 0, 3);
+                $suffix = substr($kodeUtuh, 3);
+                // Bersihkan nama dari embel-embel jenjang
+                $baseName = preg_replace('/\s+(Pemula|Terampil|Mahir|Penyelia|Ahli Pertama|Ahli Muda|Ahli Madya|Ahli Utama)$/i', '', $j->nama_jabatan);
+
+                if (!isset($dropdownGroups[$prefix])) {
+                    $dropdownGroups[$prefix] = [
+                        'id' => $j->id, // ID Jenjang pertama sebagai perwakilan grup
+                        'nama' => trim($baseName),
+                        'kode' => $prefix,
+                        'kategori' => (int)$suffix <= 4 ? 'Keterampilan' : 'Keahlian'
+                    ];
+                }
+            }
+        }
+        $dropdownJabatans = array_values($dropdownGroups);
+
         if ($request->ajax()) {
-            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'))->render();
+            return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'))->render();
         }
 
-        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'eselons', 'fungsionals', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'));
+        return view('admin.jabatan.index', compact('jabatans', 'jenis_jabatans', 'idFungsional', 'nextBaseCode', 'dropdownJabatans', 'periodes', 'activePeriodeId', 'perm'));
     }
 
     public function store(Request $request)
@@ -115,63 +188,83 @@ class JabatanController extends Controller
         }
 
         $request->validate([
-            'periode_id'            => 'required|exists:periodes,id', // Tambahan validasi periode
-            'kode_jabatan'          => 'required', 
-            'nama_jabatan'          => 'required',
-            'baseline'              => 'required|numeric|min:0', // Tambahan validasi baseline
-            'jenis_jabatan_id'      => 'required|exists:m_jenis_jabatan,id',
-            'jenis_satker_id'       => 'nullable|exists:m_jenis_satker,id',
-            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id',
+            'periode_id'       => 'required|exists:periodes,id',
+            'kode_jabatan'     => 'required|string|max:10', // Max digit aman
+            'nama_jabatan'     => 'required|string|max:255',
+            'kategori_jenjang' => 'required|in:keterampilan,keahlian', // Validasi dari radio button
         ]);
 
+        $baseKode = $request->kode_jabatan;
+        $baseName = $request->nama_jabatan;
+        $kategori = $request->kategori_jenjang;
+        $periodeId = $request->periode_id;
+
+        // Ambil ID fungsional jika diperlukan dari tabel jenis (opsional)
+        $jenis_jabatans = MJenisJabatan::all();
+        $idFungsional = $jenis_jabatans->where('nama', 'Fungsional')->first()->id ?? null;
+
+        $b_pertama = $request->input('b_pertama', 0);
+        $b_muda    = $request->input('b_muda', 0);
+        $b_madya   = $request->input('b_madya', 0);
+        $b_utama   = $request->input('b_utama', 0);
+
+        // =========================================================================
+        // JAWABAN FEEDBACK: GENERATE 4 DATA SEKALIGUS BESERTA BASELINE-NYA
+        // =========================================================================
+        $jenjangData = [];
+        if ($kategori === 'keterampilan') {
+            $jenjangData = [
+                ['kode_ujung' => '1', 'jenjang_name' => 'Pemula', 'base_val' => $b_pertama],
+                ['kode_ujung' => '2', 'jenjang_name' => 'Terampil', 'base_val' => $b_muda],
+                ['kode_ujung' => '3', 'jenjang_name' => 'Mahir', 'base_val' => $b_madya],
+                ['kode_ujung' => '4', 'jenjang_name' => 'Penyelia', 'base_val' => $b_utama],
+            ];
+        } else if ($kategori === 'keahlian') {
+            $jenjangData = [
+                ['kode_ujung' => '5', 'jenjang_name' => 'Ahli Pertama', 'base_val' => $b_pertama],
+                ['kode_ujung' => '6', 'jenjang_name' => 'Ahli Muda', 'base_val' => $b_muda],
+                ['kode_ujung' => '7', 'jenjang_name' => 'Ahli Madya', 'base_val' => $b_madya],
+                ['kode_ujung' => '8', 'jenjang_name' => 'Ahli Utama', 'base_val' => $b_utama],
+            ];
+        }
+
+        DB::beginTransaction();
         try {
-            $jabatan = Jabatan::create($request->all());
+            foreach ($jenjangData as $j) {
+                $fullCode = $baseKode . $j['kode_ujung'];
+                $fullName = $baseName . ' ' . $j['jenjang_name'];
+
+                $exists = Jabatan::where('kode_jabatan', $fullCode)->where('periode_id', $periodeId)->exists();
+                
+                if (!$exists) {
+                    Jabatan::create([
+                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                        'periode_id' => $periodeId,
+                        'kode_jabatan' => $fullCode,
+                        'nama_jabatan' => $fullName,
+                        'jenis_jabatan_id' => $idFungsional,
+                        'baseline' => $j['base_val'], // <-- Menyimpan Baseline Spesifik
+                        'b_pertama' => $b_pertama,
+                        'b_muda' => $b_muda,
+                        'b_madya' => $b_madya,
+                        'b_utama' => $b_utama,
+                    ]);
+                }
+            }
 
             LogSistem::create([
                 'aksi'       => 'CREATE',
                 'nama_tabel' => 'jabatan',
-                'data_id'    => $jabatan->id, 
-                'perubahan'  => 'Menambahkan jabatan: ' . $jabatan->nama_jabatan . ' (Kode: ' . $jabatan->kode_jabatan . ') dengan Baseline: ' . $jabatan->baseline,
+                'data_id'    => $baseKode, 
+                'perubahan'  => 'MENG-GENERATE massal jabatan fungsional: ' . $baseName . ' (Kategori: ' . $kategori . ') untuk 4 jenjang sekaligus.',
                 'user_id'    => auth()->id(),
             ]);
 
-            return redirect()->back()->with('success', 'Jabatan berhasil ditambahkan');
+            DB::commit();
+            return redirect()->back()->with('success', '4 Jenjang Jabatan Fungsional berhasil di-generate secara otomatis!');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Gagal menambah data: ' . $e->getMessage());
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        $perm = $this->getPermissions();
-        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('edit', $perm['actions'])) {
-            return redirect()->back()->with('error', 'Akses Ditolak: Anda tidak memiliki izin untuk mengubah data.');
-        }
-
-        $request->validate([
-            'nama_jabatan'          => 'required',
-            'baseline'              => 'required|numeric|min:0', // Tambahan validasi baseline
-            'jenis_jabatan_id'      => 'required|exists:m_jenis_jabatan,id',
-            'jenis_satker_id'       => 'nullable|exists:m_jenis_satker,id',
-            'jabatan_fungsional_id' => 'nullable|exists:jabatan_fungsionals,id',
-        ]);
-
-        try {
-            $jabatan = Jabatan::findOrFail($id);
-            
-            $jabatan->update($request->all());
-
-            LogSistem::create([
-                'aksi'       => 'UPDATE',
-                'nama_tabel' => 'jabatan',
-                'data_id'    => $jabatan->id,
-                'perubahan'  => 'Memperbarui jabatan: ' . $jabatan->nama_jabatan . ' (Baseline: ' . $jabatan->baseline . ')',
-                'user_id'    => auth()->id(),
-            ]);
-
-            return redirect()->back()->with('success', 'Jabatan berhasil diperbarui');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal men-generate data: ' . $e->getMessage());
         }
     }
 
@@ -223,7 +316,6 @@ class JabatanController extends Controller
                 $satkers->push($userSatker);
             }
         } else {
-            // TARIK SEMUA SATKER SECARA BERURUTAN (Otomatis membentuk pohon hierarki Eselon 1-5 dengan sangat cepat)
             $satkers = \App\Models\Satker::where('periode_id', $jabatan->periode_id)
                         ->orderBy('kode_satker', 'asc')
                         ->get();
@@ -231,8 +323,39 @@ class JabatanController extends Controller
 
         $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
         $parentIds = $satkers->pluck('parent_satker_id')->filter()->unique()->toArray();
-        
-        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $parentIds) {
+
+        // =========================================================
+        // TAMBAHAN FEEDBACK: Hitung data Pegawai Eksisting (Real)
+        // =========================================================
+        $prefix = substr($jabatan->kode_jabatan, 0, 3);
+        $groupJabatans = Jabatan::where('periode_id', $jabatan->periode_id)
+            ->where('kode_jabatan', 'like', $prefix . '%')
+            ->get();
+            
+        $mapJabatanIds = [];
+        foreach($groupJabatans as $gj) {
+            if (strlen(trim($gj->kode_jabatan)) >= 4) {
+                $mapJabatanIds[substr(trim($gj->kode_jabatan), 3)] = $gj->id;
+            }
+        }
+
+        $penugasanCounts = \Illuminate\Support\Facades\DB::table('penugasan')
+            ->select('satker_id', 'jabatan_id', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+            ->where('status_aktif', 1)
+            ->whereIn('jabatan_id', array_values($mapJabatanIds))
+            ->groupBy('satker_id', 'jabatan_id')
+            ->get();
+            
+        $eksMap = []; 
+        foreach($penugasanCounts as $pc) {
+            $suffix = array_search($pc->jabatan_id, $mapJabatanIds);
+            if ($suffix !== false) {
+                $eksMap[$pc->satker_id][$suffix] = $pc->total;
+            }
+        }
+        // =========================================================
+
+        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $parentIds, $eksMap) {
             $kuota = $kuotas->get($satker->id);
             
             if ($isAdminJafung) {
@@ -251,6 +374,11 @@ class JabatanController extends Controller
                 'kuota_muda'    => $kuota ? $kuota->kuota_muda : 0,
                 'kuota_madya'   => $kuota ? $kuota->kuota_madya : 0,
                 'kuota_utama'   => $kuota ? $kuota->kuota_utama : 0,
+                // Inject jumlah real (eksisting)
+                'eks_pertama'   => max($eksMap[$satker->id]['1'] ?? 0, $eksMap[$satker->id]['5'] ?? 0),
+                'eks_muda'      => max($eksMap[$satker->id]['2'] ?? 0, $eksMap[$satker->id]['6'] ?? 0),
+                'eks_madya'     => max($eksMap[$satker->id]['3'] ?? 0, $eksMap[$satker->id]['7'] ?? 0),
+                'eks_utama'     => max($eksMap[$satker->id]['4'] ?? 0, $eksMap[$satker->id]['8'] ?? 0),
             ];
         })->values();
 
@@ -316,5 +444,61 @@ class JabatanController extends Controller
         );
 
         return response()->json(['status' => 'success', 'message' => 'Kuota berhasil disimpan']);
+    }
+
+    public function updateGlobal(Request $request)
+    {
+        $request->validate([
+            'periode_id'   => 'required|exists:periodes,id',
+            'kode_dasar'   => 'required|string|max:3',
+            'nama_jabatan' => 'required|string|max:255',
+            'b_pertama'    => 'required|numeric|min:0',
+            'b_muda'       => 'required|numeric|min:0',
+            'b_madya'      => 'required|numeric|min:0',
+            'b_utama'      => 'required|numeric|min:0',
+        ]);
+
+        $prefix = $request->kode_dasar;
+        $periodeId = $request->periode_id;
+        $baseName = $request->nama_jabatan;
+
+        DB::beginTransaction();
+        try {
+            $records = Jabatan::where('periode_id', $periodeId)
+                ->where('kode_jabatan', 'like', $prefix . '%')
+                ->get();
+
+            foreach ($records as $record) {
+                $suffix = substr($record->kode_jabatan, 3);
+                $jenjangName = '';
+                $specificBaseline = 0;
+                
+                switch ($suffix) {
+                    case '1': $jenjangName = 'Pemula'; $specificBaseline = $request->b_pertama; break;
+                    case '2': $jenjangName = 'Terampil'; $specificBaseline = $request->b_muda; break;
+                    case '3': $jenjangName = 'Mahir'; $specificBaseline = $request->b_madya; break;
+                    case '4': $jenjangName = 'Penyelia'; $specificBaseline = $request->b_utama; break;
+                    case '5': $jenjangName = 'Ahli Pertama'; $specificBaseline = $request->b_pertama; break;
+                    case '6': $jenjangName = 'Ahli Muda'; $specificBaseline = $request->b_muda; break;
+                    case '7': $jenjangName = 'Ahli Madya'; $specificBaseline = $request->b_madya; break;
+                    case '8': $jenjangName = 'Ahli Utama'; $specificBaseline = $request->b_utama; break;
+                }
+
+                $record->update([
+                    'nama_jabatan' => $baseName . ' ' . $jenjangName,
+                    'baseline'     => $specificBaseline,
+                    'b_pertama'    => $request->b_pertama,
+                    'b_muda'       => $request->b_muda,
+                    'b_madya'      => $request->b_madya,
+                    'b_utama'      => $request->b_utama,
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with('success', 'Grup Jabatan berhasil diperbarui!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
+        }
     }
 }

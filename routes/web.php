@@ -48,6 +48,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/jabatan/matriks', [App\Http\Controllers\JabatanController::class, 'getMatriks'])->name('admin.jabatan.matriks');
     Route::post('/jabatan/matriks/save', [App\Http\Controllers\JabatanController::class, 'saveMatriks'])->name('admin.jabatan.matriks.save');
     Route::post('/jabatan/matriks/save-baseline', [App\Http\Controllers\JabatanController::class, 'saveBaselineJenjang'])->name('admin.jabatan.matriks.save-baseline');
+    Route::put('/jabatan/update-global', [JabatanController::class, 'updateGlobal'])->name('jabatan.update_global');
 
     Route::get('/pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
 

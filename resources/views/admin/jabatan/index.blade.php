@@ -60,65 +60,80 @@
                             <th class="px-6 py-4 font-bold">Kode</th>
                             <th class="px-6 py-4 font-bold">Nama Jabatan</th>
                             <th class="px-6 py-4 font-bold text-center">Baseline per Jenjang</th>
-                            <th class="px-6 py-4 font-bold text-center">Jenis</th>
+                            <th class="px-6 py-4 font-bold text-center">Jenjang</th>
                             <th class="px-6 py-4 font-bold text-right">Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="jabatanTable" class="divide-y divide-gray-100">
-                        @forelse($jabatans as $item)
-                            <tr class="hover:bg-blue-50/30 transition group">
-                                <td class="px-6 py-4 text-sm text-slate-600 font-medium">{{ $item->kode_jabatan }}</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mr-3 text-blue-600">
-                                            <i class="fas fa-briefcase text-xs"></i>
+                        @forelse($jabatans as $group)
+                            {{-- Baris Induk (Group) --}}
+                            <tr class="bg-slate-50/80 border-t-2 border-slate-200">
+                                <td colspan="5" class="px-6 py-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-lg bg-[#112D4E] flex items-center justify-center text-white shadow-sm">
+                                                <i class="fas fa-briefcase text-xs"></i>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-sm font-bold text-[#112D4E]">{{ $group['nama_jabatan'] }}</h4>
+                                                <span class="text-xs font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">Kode Dasar: {{ $group['kode'] }}</span>
+                                            </div>
                                         </div>
-                                        <span class="text-sm text-slate-700 font-semibold">{{ $item->nama_jabatan }}</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 text-center">
-                                    <div class="flex gap-1 justify-center text-[10px] font-mono font-bold">
-                                        <span class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200" title="Jenjang 1">{{ $item->b_pertama ?? 0 }}</span>
-                                        <span class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200" title="Jenjang 2">{{ $item->b_muda ?? 0 }}</span>
-                                        <span class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200" title="Jenjang 3">{{ $item->b_madya ?? 0 }}</span>
-                                        <span class="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200" title="Jenjang 4">{{ $item->b_utama ?? 0 }}</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 text-center">
-                                    @if ($item->fungsional)
-                                        <div class="flex flex-col items-center gap-1">
-                                            <span class="text-sm text-slate-700 font-medium">{{ $item->fungsional->name }}</span>
-                                            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold">ID: {{ $item->fungsional->kode }}</span>
+                                        <div class="flex items-center gap-2">
+                                            @php $canEdit = $perm['is_super'] || $perm['all_access'] || in_array('edit', $perm['actions'] ?? []); @endphp
+                                            <button type="button" 
+                                                onclick="{{ $canEdit ? "openEditModalGlobal(" . json_encode($group) . ")" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin.', 'error')" }}"
+                                                class="{{ $canEdit ? 'text-blue-600 hover:text-white hover:bg-blue-600' : 'text-slate-300' }} w-8 h-8 rounded-lg flex items-center justify-center transition shadow-sm border border-slate-200 bg-white" title="Edit Grup Jabatan">
+                                                <i class="fas fa-edit text-xs"></i>
+                                            </button>
                                         </div>
-                                    @else
-                                        <span class="text-xs text-slate-400 italic">Tanpa Jenjang</span>
-                                    @endif
-                                </td>
-                                <td class="px-6 py-4 text-right space-x-3">
-                                    @php 
-                                        $canEdit = $perm['is_super'] || $perm['all_access'] || in_array('edit', $perm['actions'] ?? []); 
-                                        $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $perm['actions'] ?? []); 
-                                    @endphp
-
-                                    <button type="button"
-                                        onclick="{{ $canEdit ? "openEditModal('{$item->id}', '{$item->kode_jabatan}', '{$item->nama_jabatan}', '{$item->jenis_jabatan_id}', '{$item->jabatan_fungsional_id}', '{$item->b_pertama}', '{$item->b_muda}', '{$item->b_madya}', '{$item->b_utama}', '{$item->baseline}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengedit Jabatan.', 'error')" }}"
-                                        class="{{ $canEdit ? 'text-slate-400 hover:text-blue-600' : 'text-slate-300 opacity-50' }} transition" title="Edit">
-                                        <i class="fas fa-pen-to-square"></i>
-                                    </button>
-                                    
-                                    <button type="button"
-                                        onclick="{{ $canDelete ? "confirmDelete('{$item->id}', '{$item->nama_jabatan}')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus Jabatan.', 'error')" }}"
-                                        class="{{ $canDelete ? 'text-slate-400 hover:text-red-600' : 'text-slate-300 opacity-50' }} transition" title="Hapus">
-                                        <i class="fas fa-trash-can"></i>
-                                    </button>
-                                    
-                                    @if($canDelete)
-                                    <form id="delete-form-{{ $item->id }}" action="{{ route('admin.jabatan.destroy', $item->id) }}" method="POST" class="hidden">
-                                        @csrf @method('DELETE')
-                                    </form>
-                                    @endif
+                                    </div>
                                 </td>
                             </tr>
+                            
+                            {{-- Baris Anak-anak Jenjang --}}
+                            @foreach($group['jenjangs'] as $j)
+                                @php
+                                    $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $perm['actions'] ?? []); 
+                                @endphp
+                                <tr class="hover:bg-blue-50/30 transition group/row bg-white">
+                                    <td class="px-6 py-3 text-sm text-slate-600 font-mono font-bold pl-12"><i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 text-xs"></i>{{ $j['kode'] }}</td>
+                                    <td class="px-6 py-3 text-sm text-slate-700 font-medium">{{ $j['nama_lengkap'] }}</td>
+                                    <td class="px-6 py-3 text-center">
+                                        <span class="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-1 rounded shadow-sm border border-amber-200">Baseline: {{ $j['baseline'] ?? 0 }}</span>
+                                    </td>
+                                    <td class="px-6 py-3 text-center">
+                                        @php
+                                            $jenjangLabel = 'Tidak Ada Jenjang';
+                                            switch($j['kode_ujung']) {
+                                                case '1': $jenjangLabel = 'Pemula'; break;
+                                                case '2': $jenjangLabel = 'Terampil'; break;
+                                                case '3': $jenjangLabel = 'Mahir'; break;
+                                                case '4': $jenjangLabel = 'Penyelia'; break;
+                                                case '5': $jenjangLabel = 'Ahli Pertama'; break;
+                                                case '6': $jenjangLabel = 'Ahli Muda'; break;
+                                                case '7': $jenjangLabel = 'Ahli Madya'; break;
+                                                case '8': $jenjangLabel = 'Ahli Utama'; break;
+                                            }
+                                        @endphp
+                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">{{ $jenjangLabel }}</span>
+                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">ID: {{ $j['kode_ujung'] }}</span>
+                                    </td>
+                                    <td class="px-6 py-3 text-right">
+                                        <button type="button"
+                                            onclick="{{ $canDelete ? "confirmDelete('{$j['id']}', '" . addslashes($j['nama_lengkap']) . "')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus.', 'error')" }}"
+                                            class="{{ $canDelete ? 'text-slate-400 hover:text-red-600' : 'text-slate-300 opacity-50' }} transition" title="Hapus">
+                                            <i class="fas fa-trash-can"></i>
+                                        </button>
+                                        
+                                        @if($canDelete)
+                                        <form id="delete-form-{{ $j['id'] }}" action="{{ route('admin.jabatan.destroy', $j['id']) }}" method="POST" class="hidden">
+                                            @csrf @method('DELETE')
+                                        </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
                         @empty
                             <tr id="noDataRow"><td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">Belum ada data jabatan.</td></tr>
                         @endforelse
@@ -151,7 +166,7 @@
                         </button>
                     </div>
                     <input type="hidden" id="filter_fungsional_distribusi">
-                    <input type="hidden" id="filter_kode_fungsional">
+                    <input type="hidden" id="filter_kategori_fungsional">
                     <ul id="jabatan_dropdown_list" class="absolute z-50 w-full bg-white border border-gray-100 rounded-xl shadow-xl mt-2 hidden max-h-64 overflow-y-auto divide-y divide-gray-50"></ul>
                 </div>
                 <button type="button" onclick="loadMatriks()" class="bg-[#112D4E] text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-900 transition flex items-center">
@@ -160,14 +175,109 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-            <div class="p-4 bg-blue-50/50 border-b border-blue-100 flex justify-between items-center">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative"
+             x-data="{
+                searchMatriks: '',
+                matchesMatriks: [],
+                currentMatchMatriksIndex: 0,
+                scrollTimeoutMatriks: null,
+
+                init() {
+                    this.$watch('searchMatriks', (val) => {
+                        if (val && val.trim().length > 0) {
+                            clearTimeout(this.scrollTimeoutMatriks);
+                            
+                            this.scrollTimeoutMatriks = setTimeout(() => {
+                                const container = document.getElementById('matriksTableContainer');
+                                if (!container) return;
+
+                                const term = val.toLowerCase().trim();
+                                const rows = container.querySelectorAll('.matriks-row');
+                                
+                                // Bersihkan highlight lama secara manual
+                                document.querySelectorAll('.matriks-row.ring-2').forEach(el => {
+                                    el.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                                });
+                                
+                                let foundMatches = [];
+                                rows.forEach(row => {
+                                    const nameSpan = row.querySelector('.satker-name');
+                                    // Gunakan textContent agar aman dari style tersembunyi
+                                    if (nameSpan && nameSpan.textContent.toLowerCase().includes(term)) {
+                                        // KUNCI: Hanya simpan ID-nya saja, bukan elemen utuh!
+                                        if (row.id) foundMatches.push(row.id);
+                                    }
+                                });
+
+                                this.matchesMatriks = foundMatches;
+                                this.currentMatchMatriksIndex = 0;
+
+                                if (this.matchesMatriks.length > 0) {
+                                    this.scrollToMatchMatriks(0);
+                                }
+                            }, 300);
+                        } else {
+                            document.querySelectorAll('.matriks-row.ring-2').forEach(el => {
+                                el.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                            });
+                            this.matchesMatriks = [];
+                        }
+                    });
+                },
+
+                scrollToMatchMatriks(index) {
+                    if (this.matchesMatriks.length === 0) return;
+                    
+                    document.querySelectorAll('.matriks-row.ring-2').forEach(el => {
+                        el.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                    });
+                    
+                    if (index < 0) index = this.matchesMatriks.length - 1;
+                    if (index >= this.matchesMatriks.length) index = 0;
+                    
+                    this.currentMatchMatriksIndex = index;
+                    
+                    // Ambil target elemen berdasarkan ID yang tersimpan
+                    const targetId = this.matchesMatriks[this.currentMatchMatriksIndex];
+                    const target = document.getElementById(targetId);
+                    
+                    if(target) {
+                        target.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+
+                        const container = document.getElementById('matriksTableContainer');
+                        const cRect = container.getBoundingClientRect();
+                        const mRect = target.getBoundingClientRect();
+                        
+                        container.scrollTo({
+                            top: container.scrollTop + (mRect.top - cRect.top) - 40,
+                            behavior: 'smooth'
+                        });
+                    }
+                },
+                
+                nextMatchMatriks() { this.scrollToMatchMatriks(this.currentMatchMatriksIndex + 1); },
+                prevMatchMatriks() { this.scrollToMatchMatriks(this.currentMatchMatriksIndex - 1); }
+             }">
+
+            <div class="p-4 bg-blue-50/50 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-3">
                 <h3 class="font-bold text-blue-900 text-sm">Matriks Alokasi Kuota Satker</h3>
+                
+                {{-- KUNCI PERBAIKAN: Input Search Live --}}
+                <div id="matriksSearchContainer" class="relative w-full sm:w-64 hidden">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i class="fas fa-search text-blue-400 text-xs"></i>
+                    </span>
+                    <input type="text" x-model.debounce.300ms="searchMatriks" 
+                        @keydown.enter.prevent="if($event.shiftKey) prevMatchMatriks(); else nextMatchMatriks();"
+                        placeholder="Cari satker (Enter utk Next)"
+                        class="w-full pl-9 pr-4 py-2 bg-white border border-blue-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-sm placeholder-blue-300 text-blue-800 font-medium">
+                </div>
             </div>
             
             <div id="panel_setup_baseline" class="hidden bg-amber-50 border-b-2 border-amber-200 p-4"></div>
 
-            <div class="overflow-x-auto">
+            {{-- KUNCI PERBAIKAN: Tambahkan ID scroll container --}}
+            <div id="matriksTableContainer" class="overflow-x-auto max-h-[60vh] overflow-y-auto scroll-smooth">
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-gray-50">
                         <tr>
@@ -188,9 +298,31 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
 
+            {{-- KUNCI PERBAIKAN: Navigator DIPINDAHKAN KE DALAM X-DATA --}}
+            {{-- FLOATING SEARCH NAVIGATOR (VSCode Style) --}}      
+            <div x-show="searchMatriks && matchesMatriks.length > 0" x-transition.opacity x-cloak
+                 class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-blue-900 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.3)] border border-blue-800 rounded-full px-5 py-2 flex items-center gap-4 z-[99]">
+                
+                <div class="text-xs font-bold text-blue-100 tracking-wide">
+                    <span x-text="currentMatchMatriksIndex + 1" class="text-white"></span> 
+                    <span class="text-blue-300 mx-1">dari</span> 
+                    <span x-text="matchesMatriks.length"></span>
+                </div>
+                
+                <div class="w-[1px] h-4 bg-blue-700"></div>
+                
+                <div class="flex items-center gap-2">
+                    <button @click="prevMatchMatriks()" class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-800 text-blue-200 hover:bg-white hover:text-blue-900 transition" title="Sebelumnya (Shift + Enter)">
+                        <i class="fas fa-chevron-up text-[10px]"></i>
+                    </button>
+                    <button @click="nextMatchMatriks()" class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-800 text-blue-200 hover:bg-white hover:text-blue-900 transition" title="Selanjutnya (Enter)">
+                        <i class="fas fa-chevron-down text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div> </div> {{-- MODAL TAMBAH --}}
 
     {{-- MODAL TAMBAH --}}
     <div id="modalTambahJabatan" class="fixed inset-0 z-50 hidden overflow-y-auto">
@@ -201,144 +333,127 @@
                     <h3 class="text-lg font-bold text-slate-800">Tambah Jabatan</h3>
                     <button onclick="toggleModal('modalTambahJabatan')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
                 </div>
-                <form action="{{ route('admin.jabatan.store') }}" method="POST" id="formAddJabatan" onsubmit="hitungTotalBaseline('tambah', event)">
+                <form action="{{ route('admin.jabatan.store') }}" method="POST" id="formAddJabatan">
                     @csrf
                     <input type="hidden" name="periode_id" value="{{ $activePeriodeId }}">
-                    <input type="hidden" name="baseline" id="tambah_baseline" value="0">
 
-                    <div class="px-6 py-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    <div class="px-6 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kode Urut Jabatan</label>
-                            <input type="text" id="tambah_kode_urut" value="{{ $nextBaseCode }}" oninput="updateKodeJabatan()"
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kelompok Jabatan</label>
-                            <input type="text" name="nama_jabatan" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20">
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kode Dasar Jabatan (3 Digit)</label>
+                            <input type="text" name="kode_jabatan" id="tambah_kode_urut" value="{{ $nextBaseCode }}" 
+                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 font-mono tracking-widest text-blue-800" maxlength="3" required placeholder="Cth: 801">
                         </div>
 
-                        <input type="hidden" name="jenis_jabatan_id" id="tambah_jenis" value="{{ $idFungsional }}">
-                        
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Jenjang Fungsional</label>
-                            <select name="jabatan_fungsional_id" id="tambah_fungsional_id" required onchange="updateJenjangLabels('tambah_fungsional_id', 'lbl_tambah_j'); updateKodeJabatan();"
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20">
-                                <option value="">Pilih Jenjang</option>
-                                @foreach ($fungsionals as $f)
-                                    <option value="{{ $f->id }}" data-kode="{{ $f->kode }}">{{ $f->name }} ({{ $f->kode }})</option>
-                                @endforeach
-                            </select>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nama Jabatan Fungsional</label>
+                            <input type="text" name="nama_jabatan" required placeholder="Cth: Penyuluh Agama Islam"
+                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold">
                         </div>
 
-                        <div id="container_baseline_tambah" class="hidden bg-amber-50 p-4 rounded-xl border border-amber-200">
-                            <label class="block text-xs font-bold text-amber-900 uppercase mb-3">Baseline per Jenjang</label>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Jenjang</label>
+                            <div class="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <label class="flex items-center gap-3 cursor-pointer group hover:bg-blue-50 p-2 rounded-lg transition-colors">
+                                    <input type="radio" name="kategori_jenjang" value="keterampilan" onchange="updateJenjangLabels(this.value)" class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300" required>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-slate-700 group-hover:text-blue-700">Keterampilan</span>
+                                        <span class="text-[10px] text-slate-500 uppercase tracking-wider">Pemula - Terampil - Mahir - Penyelia (Kode Ujung: 1, 2, 3, 4)</span>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group hover:bg-amber-50 p-2 rounded-lg transition-colors">
+                                    <input type="radio" name="kategori_jenjang" value="keahlian" onchange="updateJenjangLabels(this.value)" class="w-4 h-4 text-amber-600 focus:ring-amber-500 border-gray-300" required>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-slate-700 group-hover:text-amber-700">Keahlian</span>
+                                        <span class="text-[10px] text-slate-500 uppercase tracking-wider">Ahli Pertama - Ahli Muda - Ahli Madya - Ahli Utama (Kode Ujung: 5, 6, 7, 8)</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="container_baseline_tambah" class="hidden bg-amber-50 p-4 rounded-xl border border-amber-200 mt-2">
+                            <label class="block text-xs font-bold text-amber-900 uppercase mb-3">Setup Baseline Kuota per Jenjang</label>
                             <div class="grid grid-cols-4 gap-2">
                                 <div>
                                     <label id="lbl_tambah_j1" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 1</label>
-                                    <input type="number" name="b_pertama" id="tambah_b_pertama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_pertama" id="tambah_b_pertama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_tambah_j2" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 2</label>
-                                    <input type="number" name="b_muda" id="tambah_b_muda" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_muda" id="tambah_b_muda" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_tambah_j3" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 3</label>
-                                    <input type="number" name="b_madya" id="tambah_b_madya" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_madya" id="tambah_b_madya" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_tambah_j4" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 4</label>
-                                    <input type="number" name="b_utama" id="tambah_b_utama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_utama" id="tambah_b_utama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                             </div>
                         </div>
 
-                        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                            <label class="block text-xs font-bold text-blue-700 uppercase mb-1">Pratinjau Kode Jabatan Final</label>
-                            <input type="text" name="kode_jabatan" id="tambah_kode_jabatan" value="{{ $nextBaseCode }}" readonly class="w-full bg-transparent text-lg font-bold text-blue-800 outline-none font-mono">
+                        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+                            <i class="fas fa-info-circle text-blue-500 mt-1"></i>
+                            <p class="text-xs text-blue-800 leading-relaxed">
+                                Sistem akan otomatis meng-generate <strong>4 baris jabatan baru</strong> beserta jenjang dan kodenya sesuai kategori yang Anda pilih di atas. Anda tidak perlu menginputnya satu per satu.
+                            </p>
                         </div>
                     </div>
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 border-t border-gray-100">
                         <button type="button" onclick="toggleModal('modalTambahJabatan')" class="px-4 py-2 text-sm font-semibold text-slate-600">Batal</button>
-                        <button type="submit" class="px-6 py-2 bg-[#112D4E] text-white text-sm font-bold rounded-lg shadow-md">Simpan Jabatan</button>
+                        <button type="submit" class="px-6 py-2 bg-[#112D4E] text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-900 transition-colors">Generate Jabatan</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    {{-- MODAL EDIT --}}
-    <div id="modalEditJabatan" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    {{-- MODAL EDIT GLOBAL --}}
+    <div id="modalEditJabatanGlobal" class="fixed inset-0 z-50 hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="toggleModal('modalEditJabatan')"></div>
+            <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="toggleModal('modalEditJabatanGlobal')"></div>
             <div class="relative bg-white rounded-2xl shadow-xl sm:max-w-lg w-full overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white">
-                    <h3 class="text-lg font-bold text-slate-800">Edit Jabatan</h3>
-                    <button onclick="toggleModal('modalEditJabatan')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                    <h3 class="text-lg font-bold text-slate-800">Edit Grup Jabatan</h3>
+                    <button onclick="toggleModal('modalEditJabatanGlobal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
                 </div>
-
-                <form id="formEditJabatan" method="POST" onsubmit="hitungTotalBaseline('edit', event)">
+                <form action="" method="POST" id="formEditJabatanGlobal">
                     @csrf
                     @method('PUT')
-                    
-                    <input type="hidden" name="baseline" id="edit_baseline" value="0">
+                    <input type="hidden" name="periode_id" value="{{ $activePeriodeId }}">
+                    <input type="hidden" name="kode_dasar" id="edit_global_kode_dasar">
 
-                    <div class="px-6 py-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                        <input type="hidden" name="jenis_jabatan_id" id="edit_jenis_jabatan_id">
-
+                    <div class="px-6 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kode Urut Jabatan</label>
-                            <input type="text" id="edit_kode_urut" oninput="updateKodeJabatanEdit()"
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kelompok Jabatan</label>
-                            <input type="text" name="nama_jabatan" id="edit_nama" required
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20">
+                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nama Jabatan Fungsional</label>
+                            <input type="text" name="nama_jabatan" id="edit_global_nama" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold">
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Jenjang Fungsional</label>
-                            <select name="jabatan_fungsional_id" id="edit_jabatan_fungsional_id" required
-                                onchange="updateJenjangLabels('edit_jabatan_fungsional_id', 'lbl_edit_j'); updateKodeJabatanEdit();"
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20">
-                                <option value="">Pilih Jenjang</option>
-                                @foreach ($fungsionals as $f)
-                                    <option value="{{ $f->id }}" data-kode="{{ $f->kode }}">{{ $f->name }} ({{ $f->kode }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div id="container_baseline_edit" class="hidden bg-amber-50 p-4 rounded-xl border border-amber-200">
-                            <label class="block text-xs font-bold text-amber-900 uppercase mb-3">Baseline per Jenjang</label>
+                        <div id="container_baseline_edit" class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                            <label class="block text-xs font-bold text-amber-900 uppercase mb-3">Update Baseline Kuota per Jenjang</label>
                             <div class="grid grid-cols-4 gap-2">
                                 <div>
                                     <label id="lbl_edit_j1" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 1</label>
-                                    <input type="number" name="b_pertama" id="edit_b_pertama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_pertama" id="edit_b_pertama" min="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_edit_j2" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 2</label>
-                                    <input type="number" name="b_muda" id="edit_b_muda" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_muda" id="edit_b_muda" min="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_edit_j3" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 3</label>
-                                    <input type="number" name="b_madya" id="edit_b_madya" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_madya" id="edit_b_madya" min="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                                 <div>
                                     <label id="lbl_edit_j4" class="block text-[10px] font-bold text-amber-800 uppercase text-center mb-1">Jenjang 4</label>
-                                    <input type="number" name="b_utama" id="edit_b_utama" min="0" value="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none">
+                                    <input type="number" name="b_utama" id="edit_b_utama" min="0" class="w-full px-2 py-2 bg-white border border-amber-300 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-amber-500">
                                 </div>
                             </div>
                         </div>
-
-                        <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                            <label class="block text-xs font-bold text-amber-700 uppercase mb-1">Kode Jabatan Final</label>
-                            <input type="text" name="kode_jabatan" id="edit_kode_final" readonly class="w-full bg-transparent text-lg font-bold text-amber-800 outline-none font-mono">
-                        </div>
                     </div>
-
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 border-t border-gray-100">
-                        <button type="button" onclick="toggleModal('modalEditJabatan')" class="px-4 py-2 text-sm font-semibold text-slate-600">Batal</button>
-                        <button type="submit" class="px-6 py-2 bg-[#112D4E] text-white text-sm font-bold rounded-lg shadow-md">Simpan Perubahan</button>
+                        <button type="button" onclick="toggleModal('modalEditJabatanGlobal')" class="px-4 py-2 text-sm font-semibold text-slate-600">Batal</button>
+                        <button type="submit" class="px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors">Simpan Perubahan</button>
                     </div>
                 </form>
             </div>
@@ -449,112 +564,71 @@
             else notFoundRow.classList.add('hidden');
         }
 
-        // ==========================================
-        // FIX BUG: Hitung Ulang Total Sebelum Submit
-        // ==========================================
-        function hitungTotalBaseline(type, event) {
-            const bp = parseInt(document.getElementById(`${type}_b_pertama`).value) || 0;
-            const bmu = parseInt(document.getElementById(`${type}_b_muda`).value) || 0;
-            const bma = parseInt(document.getElementById(`${type}_b_madya`).value) || 0;
-            const bu = parseInt(document.getElementById(`${type}_b_utama`).value) || 0;
-            
-            const total = bp + bmu + bma + bu;
-            document.getElementById(`${type}_baseline`).value = total;
-        }
-
-        function updateJenjangLabels(selectId, labelPrefix) {
-            const select = document.getElementById(selectId);
-            const containerId = selectId === 'tambah_fungsional_id' ? 'container_baseline_tambah' : 'container_baseline_edit';
-            const container = document.getElementById(containerId);
-            
-            if (!select.value) {
-                container.classList.add('hidden');
-                return;
-            }
-            
-            const option = select.options[select.selectedIndex];
-            const kode = parseInt(option.getAttribute('data-kode'));
-            
-            container.classList.remove('hidden');
-            
-            const lbl1 = document.getElementById(labelPrefix + '1');
-            const lbl2 = document.getElementById(labelPrefix + '2');
-            const lbl3 = document.getElementById(labelPrefix + '3');
-            const lbl4 = document.getElementById(labelPrefix + '4');
-            
-            if (kode >= 1 && kode <= 4) { // Keterampilan
-                lbl1.innerText = "Pemula"; lbl2.innerText = "Terampil"; lbl3.innerText = "Mahir"; lbl4.innerText = "Penyelia";
-            } else if (kode >= 5 && kode <= 8) { // Keahlian
-                lbl1.innerText = "Ahli Pertama"; lbl2.innerText = "Ahli Muda"; lbl3.innerText = "Ahli Madya"; lbl4.innerText = "Ahli Utama";
-            } else {
-                lbl1.innerText = "Jenjang 1"; lbl2.innerText = "Jenjang 2"; lbl3.innerText = "Jenjang 3"; lbl4.innerText = "Jenjang 4";
-            }
-        }
-
-        function updateKodeJabatan() {
-            const kodeUrut = document.getElementById('tambah_kode_urut').value;
-            const selectFungsional = document.getElementById('tambah_fungsional_id');
-            const inputFinal = document.getElementById('tambah_kode_jabatan');
-            const selectedOption = selectFungsional.options[selectFungsional.selectedIndex];
-            const kodeJenjang = selectedOption ? (selectedOption.getAttribute('data-kode') || "") : "";
-            if (kodeUrut) inputFinal.value = kodeUrut + kodeJenjang;
-            else inputFinal.value = "";
-        }
-
         function openTambahJabatan() {
-            document.getElementById('tambah_fungsional_id').value = "";
-            document.getElementById('tambah_kode_jabatan').value = "{{ $nextBaseCode }}";
-            document.getElementById('tambah_b_pertama').value = '0';
-            document.getElementById('tambah_b_muda').value = '0';
-            document.getElementById('tambah_b_madya').value = '0';
-            document.getElementById('tambah_b_utama').value = '0';
-            document.getElementById('container_baseline_tambah').classList.add('hidden');
+            document.getElementById('tambah_kode_urut').value = "{{ $nextBaseCode }}";
+            const radio = document.querySelector('input[name="kategori_jenjang"]:checked');
+            if(radio) radio.checked = false;
+            if(document.getElementById('container_baseline_tambah')) {
+                document.getElementById('container_baseline_tambah').classList.add('hidden');
+            }
             toggleModal('modalTambahJabatan');
         }
 
-        function updateKodeJabatanEdit() {
-            const kodeUrut = document.getElementById('edit_kode_urut').value;
-            const selectFungsional = document.getElementById('edit_jabatan_fungsional_id');
-            const inputFinal = document.getElementById('edit_kode_final');
-            const selectedOption = selectFungsional.options[selectFungsional.selectedIndex];
-            const kodeJenjang = selectedOption ? (selectedOption.getAttribute('data-kode') || "") : "";
-            if (kodeUrut) inputFinal.value = kodeUrut + kodeJenjang;
-            else inputFinal.value = "";
+        function updateJenjangLabels(kategori) {
+            const container = document.getElementById('container_baseline_tambah');
+            container.classList.remove('hidden');
+
+            const lbl1 = document.getElementById('lbl_tambah_j1');
+            const lbl2 = document.getElementById('lbl_tambah_j2');
+            const lbl3 = document.getElementById('lbl_tambah_j3');
+            const lbl4 = document.getElementById('lbl_tambah_j4');
+
+            if (kategori === 'keterampilan') {
+                lbl1.innerText = "Pemula";
+                lbl2.innerText = "Terampil";
+                lbl3.innerText = "Mahir";
+                lbl4.innerText = "Penyelia";
+            } else if (kategori === 'keahlian') {
+                lbl1.innerText = "Ahli Pertama";
+                lbl2.innerText = "Ahli Muda";
+                lbl3.innerText = "Ahli Madya";
+                lbl4.innerText = "Ahli Utama";
+            }
         }
 
-        function openEditModal(id, kodeFull, nama, jenis, fungsional_id, bp, bmu, bma, bu, base) {
-            const form = document.getElementById('formEditJabatan');
-            const baseUrl = "{{ route('admin.jabatan.index') }}";
-            form.action = `${baseUrl}/${id}`;
+        // function openEditModal(id, kodeFull, nama, jenis, fungsional_id, bp, bmu, bma, bu, base) {
+        //     const form = document.getElementById('formEditJabatan');
+        //     const baseUrl = "{{ route('admin.jabatan.index') }}";
+        //     form.action = `${baseUrl}/${id}`;
 
-            document.getElementById('edit_nama').value = nama;
-            document.getElementById('edit_jenis_jabatan_id').value = jenis;
-            document.getElementById('edit_jabatan_fungsional_id').value = fungsional_id || "";
-            document.getElementById('edit_baseline').value = base || 0;
+        //     document.getElementById('edit_nama').value = nama;
+        //     document.getElementById('edit_jenis_jabatan_id').value = jenis;
+        //     document.getElementById('edit_jabatan_fungsional_id').value = fungsional_id || "";
+        //     document.getElementById('edit_baseline').value = base || 0;
             
-            document.getElementById('edit_b_pertama').value = bp || 0;
-            document.getElementById('edit_b_muda').value = bmu || 0;
-            document.getElementById('edit_b_madya').value = bma || 0;
-            document.getElementById('edit_b_utama').value = bu || 0;
+        //     document.getElementById('edit_b_pertama').value = bp || 0;
+        //     document.getElementById('edit_b_muda').value = bmu || 0;
+        //     document.getElementById('edit_b_madya').value = bma || 0;
+        //     document.getElementById('edit_b_utama').value = bu || 0;
 
-            const kodeUrut = kodeFull.substring(0, 3);
-            document.getElementById('edit_kode_urut').value = kodeUrut;
-            document.getElementById('edit_kode_final').value = kodeFull;
+        //     const kodeUrut = kodeFull.substring(0, 3);
+        //     document.getElementById('edit_kode_urut').value = kodeUrut;
+        //     document.getElementById('edit_kode_final').value = kodeFull;
             
-            updateJenjangLabels('edit_jabatan_fungsional_id', 'lbl_edit_j');
+        //     updateJenjangLabels('edit_jabatan_fungsional_id', 'lbl_edit_j');
 
-            toggleModal('modalEditJabatan');
-        }
+        //     toggleModal('modalEditJabatan');
+        // }
 
         // ==========================================
         // AJAX LOAD MATRIKS (ANTI-FREEZE DENGAN CHUNKING)
         // ==========================================
         async function loadMatriks() {
             const fungsionalId = document.getElementById('filter_fungsional_distribusi').value;
-            const fungsionalKode = document.getElementById('filter_kode_fungsional').value;
+            const kategori = document.getElementById('filter_kategori_fungsional').value;
 
             if (!fungsionalId) {
-                Swal.fire({icon: 'warning', title: 'Pilih Jabatan', text: 'Silakan pilih Jabatan Fungsional terlebih dahulu!', confirmButtonColor: '#112D4E'});
+                Swal.fire({icon: 'warning', title: 'Pilih Jabatan', text: 'Silakan pilih Kelompok Jabatan terlebih dahulu!', confirmButtonColor: '#112D4E'});
                 return;
             }
 
@@ -566,8 +640,10 @@
             });
 
             try {
-                const kodeF = parseInt(fungsionalKode);
-                if (kodeF >= 1 && kodeF <= 4) {
+                // Gunakan perbandingan string kategori
+                const isKeterampilan = (kategori === 'Keterampilan');
+
+                if (isKeterampilan) {
                     document.getElementById('th_jenjang_1').innerText = "Pemula";
                     document.getElementById('th_jenjang_2').innerText = "Terampil";
                     document.getElementById('th_jenjang_3').innerText = "Mahir";
@@ -583,23 +659,26 @@
                 const dataJSON = await response.json();
                 const data = dataJSON.satkers || [];
                 
-                const bp = dataJSON.b_pertama == 0 ? 0 : dataJSON.b_pertama;
-                const bmu = dataJSON.b_muda == 0 ? 0 : dataJSON.b_muda;
-                const bma = dataJSON.b_madya == 0 ? 0 : dataJSON.b_madya;
-                const bu = dataJSON.b_utama == 0 ? 0 : dataJSON.b_utama;
+                const bp = parseInt(dataJSON.b_pertama) || 0;
+                const bmu = parseInt(dataJSON.b_muda) || 0;
+                const bma = parseInt(dataJSON.b_madya) || 0;
+                const bu = parseInt(dataJSON.b_utama) || 0;
 
-                const lbl1 = (kodeF >= 1 && kodeF <= 4) ? "Pemula" : "Ahli Pertama";
-                const lbl2 = (kodeF >= 1 && kodeF <= 4) ? "Terampil" : "Ahli Muda";
-                const lbl3 = (kodeF >= 1 && kodeF <= 4) ? "Mahir" : "Ahli Madya";
-                const lbl4 = (kodeF >= 1 && kodeF <= 4) ? "Penyelia" : "Ahli Utama";
+                const grandTotal = bp + bmu + bma + bu;
+
+                const lbl1 = isKeterampilan ? "Pemula" : "Ahli Pertama";
+                const lbl2 = isKeterampilan ? "Terampil" : "Ahli Muda";
+                const lbl3 = isKeterampilan ? "Mahir" : "Ahli Madya";
+                const lbl4 = isKeterampilan ? "Penyelia" : "Ahli Utama";
 
                 const panelBaseline = document.getElementById('panel_setup_baseline');
                 panelBaseline.classList.remove('hidden');
+                document.getElementById('matriksSearchContainer').classList.remove('hidden');
                 panelBaseline.innerHTML = `
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div>
-                            <p class="text-xs text-amber-700 font-bold uppercase mb-1">Total Keseluruhan</p>
-                            <span class="text-2xl font-black text-amber-900 bg-amber-200/50 px-4 py-1 rounded-lg">${dataJSON.baseline}</span>
+                            <p class="text-xs text-amber-700 font-bold uppercase mb-1">TOTAL FORMASI MENPAN RB</p>
+                            <span class="text-2xl font-black text-amber-900 bg-amber-200/50 px-4 py-1 rounded-lg">${grandTotal}</span>
                         </div>
                         <div class="flex-1 flex gap-3 items-end justify-end">
                             <div class="text-center w-24"><p class="text-[10px] font-bold text-amber-800 uppercase mb-1">${lbl1}</p><div id="display_base_p" class="px-4 py-2 bg-white border border-amber-300 rounded font-black text-sm text-amber-900 shadow-sm">${bp}</div></div>
@@ -610,15 +689,26 @@
                     </div>
                 `;
 
-                function createInputHTML(val, id, type, parentId) {
+                function createInputHTML(val, id, type, parentId, eks, isAhliPertama) {
                     const v = (val == 0 || val == null) ? '' : val;
                     const safeParentId = parentId ? parentId : 'root';
+                    
+                    const kuotaNum = parseInt(val) || 0;
+                    const sisa = kuotaNum - eks;
+                    const isMinus = sisa < 0;
+                    
+                    let sisaColor = 'text-emerald-600';
+                    if (isMinus) {
+                        sisaColor = isAhliPertama ? 'text-amber-500' : 'text-red-500';
+                    }
+
                     return `
                     <div class="relative w-full pt-1 pb-3">
-                        <div id="tooltip_${type}_${id}" class="absolute bottom-[85%] left-1/2 transform -translate-x-1/2 mb-1 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-xl hidden z-20 whitespace-nowrap transition-opacity duration-200 opacity-0 pointer-events-none">
-                            Sisa Kuota: <span id="sisa_val_${type}_${id}" class="font-bold text-amber-300"></span>
+                        <div id="tooltip_${type}_${id}" class="absolute bottom-[95%] left-1/2 transform -translate-x-1/2 mb-1 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-xl hidden z-20 whitespace-nowrap transition-opacity duration-200 opacity-0 pointer-events-none">
+                            Sisa Baseline: <span id="sisa_val_${type}_${id}" class="font-bold text-amber-300"></span>
                             <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
                         </div>
+
                         <input type="number" min="0"
                             id="${type}_${id}"
                             data-type="${type}"
@@ -629,7 +719,8 @@
                             onblur="handleBlur(this, '${id}', '${type}')"
                             oninput="handleInput(this, '${id}', '${type}', '${safeParentId}')"
                             class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-center text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
-                        <p id="err_${type}_${id}" class="absolute bottom-0 left-0 right-0 text-center text-[9px] text-red-500 font-bold hidden leading-none tracking-tight">Lebih <span id="err_val_${type}_${id}"></span></p>
+                        
+                        <p id="err_${type}_${id}" class="absolute bottom-[-2px] left-0 right-0 text-center text-[9px] text-red-500 font-bold hidden leading-none tracking-tight">Lebih <span id="err_val_${type}_${id}"></span></p>
                     </div>
                     `;
                 }
@@ -676,18 +767,27 @@
                         const kma = item.kuota_madya == 0 ? '' : item.kuota_madya;
                         const ku = item.kuota_utama == 0 ? '' : item.kuota_utama;
 
+                        // Tarik Data Eksisting Baru
+                        const eks1 = item.eks_pertama || 0;
+                        const eks2 = item.eks_muda || 0;
+                        const eks3 = item.eks_madya || 0;
+                        const eks4 = item.eks_utama || 0;
+                        
+                        // Deteksi Pengecualian Ahli Pertama (Bukan Keterampilan)
+                        const isAP = !isKeterampilan;
+
                         html += `
-                            <tr class="transition border-b border-gray-100 ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}">
+                            <tr class="transition border-b border-gray-100 ${bgClass} matriks-row" id="row-${item.id}" data-parent="${item.parent_id || 'root'}">
                                 <td class="py-4 pr-6 align-middle" style="${padStyle}">
                                     <div class="flex items-center ${textClass}">
                                         ${iconHtml}
-                                        <span class="text-sm tracking-tight leading-snug">${item.nama_satker}</span>
+                                        <span class="text-sm tracking-tight leading-snug satker-name">${item.nama_satker}</span>
                                     </div>
                                 </td>
-                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kp, item.id, 'kp', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kp === '' ? '0' : kp}</div>`}</td>
-                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kmu, item.id, 'kmu', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kmu === '' ? '0' : kmu}</div>`}</td>
-                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kma, item.id, 'kma', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kma === '' ? '0' : kma}</div>`}</td>
-                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(ku, item.id, 'ku', item.parent_id) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${ku === '' ? '0' : ku}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kp, item.id, 'kp', item.parent_id, eks1, isAP) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kp === '' ? '0' : kp}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kmu, item.id, 'kmu', item.parent_id, eks2, false) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kmu === '' ? '0' : kmu}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(kma, item.id, 'kma', item.parent_id, eks3, false) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${kma === '' ? '0' : kma}</div>`}</td>
+                                <td class="px-2 py-1 align-top">${permMatriksEditKuota ? createInputHTML(ku, item.id, 'ku', item.parent_id, eks4, false) : `<div class="text-center font-bold text-slate-500 bg-slate-100 py-1.5 rounded border border-slate-200">${ku === '' ? '0' : ku}</div>`}</td>
                                 <td class="px-4 py-3 align-middle text-center font-bold text-emerald-600" id="total_${item.id}">${totalRow}</td>
                                 <td class="px-4 py-3 align-middle text-center">
                                     ${isParent 
@@ -731,34 +831,32 @@
             return { 'kp': 'display_base_p', 'kmu': 'display_base_mu', 'kma': 'display_base_ma', 'ku': 'display_base_u' }[type];
         }
 
-        function getLimitAndSisa(input, type, parentId) {
-            let limit = 0; let otherSum = 0;
-            const val = parseInt(input.value) || 0;
-
-            if (parentId === 'root') {
-                limit = parseInt(document.getElementById(getBaseId(type)).innerText) || 0;
-            } else {
-                const parentEl = document.getElementById(`${type}_${parentId}`);
-                limit = parentEl ? (parseInt(parentEl.value) || 0) : 0;
-            }
-
-            const siblings = document.querySelectorAll(`input[data-type="${type}"][data-parent="${parentId}"]`);
-            siblings.forEach(el => {
+        // FUNGSI BARU: Hitung Sisa Langsung dari Grand Total Menpan RB
+        function getLimitAndSisa(input, type) {
+            // 1. Ambil Limit dari Grand Total
+            const limit = parseInt(document.getElementById(getBaseId(type))?.innerText) || 0;
+            
+            // 2. Jumlahkan semua input di kolom yang sama (Kecuali kotak yang sedang diketik ini)
+            let otherSum = 0;
+            document.querySelectorAll(`input[data-type="${type}"]`).forEach(el => {
                 if (el.id !== input.id) otherSum += parseInt(el.value) || 0;
             });
 
+            // 3. Sisa yang tersedia untuk kotak ini
             const sisa = limit - otherSum;
+            const val = parseInt(input.value) || 0;
+            
             return { limit, otherSum, sisa, isExceeding: val > sisa, excessAmount: val - sisa };
         }
 
-        function handleFocus(input, id, type, parentId) {
+        function handleFocus(input, id, type) {
             input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
             input.classList.add('focus:ring-blue-500', 'border-gray-300');
             
             const errEl = document.getElementById(`err_${type}_${id}`);
             if(errEl) errEl.classList.add('hidden');
 
-            const { sisa } = getLimitAndSisa(input, type, parentId);
+            const { sisa } = getLimitAndSisa(input, type);
             const sisaValEl = document.getElementById(`sisa_val_${type}_${id}`);
             if(sisaValEl) sisaValEl.innerText = sisa;
             
@@ -775,10 +873,10 @@
                 tooltip.classList.add('opacity-0');
                 setTimeout(() => tooltip.classList.add('hidden'), 200);
             }
-            validateInput(input, id, type, input.getAttribute('data-parent'));
+            validateAllHierarchies(); // Validasi ulang semua saat kotak ditinggalkan
         }
 
-        function handleInput(input, id, type, parentId) {
+        function handleInput(input, id, type) {
             const kp = parseInt(document.getElementById(`kp_${id}`)?.value) || 0;
             const kmu = parseInt(document.getElementById(`kmu_${id}`)?.value) || 0;
             const kma = parseInt(document.getElementById(`kma_${id}`)?.value) || 0;
@@ -787,226 +885,63 @@
             const totalEl = document.getElementById(`total_${id}`);
             if(totalEl) totalEl.innerText = kp + kmu + kma + ku;
 
-            if (parentId === 'root') {
-                document.querySelectorAll(`input[data-type="${type}"][data-parent="${id}"]`).forEach(childInput => {
-                    const childId = childInput.id.split('_')[1];
-                    validateInput(childInput, childId, type, id);
-                });
-            }
+            // Validasi Real-Time ke seluruh baris saat mengetik
+            validateAllHierarchies();
         }
 
-        function validateInput(input, id, type, parentId) {
-            const { isExceeding, excessAmount } = getLimitAndSisa(input, type, parentId);
-            const errEl = document.getElementById(`err_${type}_${id}`);
-            
-            if (isExceeding && document.activeElement !== input) {
-                input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.remove('border-gray-300');
-                
-                const errValEl = document.getElementById(`err_val_${type}_${id}`);
-                if(errValEl) errValEl.innerText = excessAmount;
-                if(errEl) errEl.classList.remove('hidden');
-            } else if (!isExceeding) {
-                input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.add('border-gray-300');
-                if(errEl) errEl.classList.add('hidden');
-            }
-        }
-
-        // ==========================================
-        // OPTIMASI TOTAL O(N) PADA VALIDASI 
-        // Agar DOM tidak thrashing saat di-load
-        // ==========================================
+        // OPTIMASI TOTAL: Memeriksa semua baris terhadap Grand Total secara Real-Time
         function validateAllHierarchies() {
-            let sums = { kp: {}, kmu: {}, kma: {}, ku: {} };
+            let sums = { kp: 0, kmu: 0, kma: 0, ku: 0 };
             const inputs = document.querySelectorAll('#matriksTableBody input[data-type]');
             
-            let inputMap = {};
-            let errMap = {};
-            let errValMap = {};
+            // Deteksi apakah ini Kategori Keahlian (Ahli Pertama)
+            const kategoriFungsional = document.getElementById('filter_kategori_fungsional')?.value || '';
+            const isAhliPertama = (kategoriFungsional === 'Keahlian' || kategoriFungsional === 'keahlian');
 
-            // 1. Kumpulkan semua nilai (Hanya membaca)
-            for (let i = 0; i < inputs.length; i++) {
-                const input = inputs[i];
-                const idAttr = input.id;
-                inputMap[idAttr] = input;
-                
-                const errEl = document.getElementById('err_' + idAttr);
-                if (errEl) {
-                    errMap[idAttr] = errEl;
-                    errValMap[idAttr] = document.getElementById('err_val_' + idAttr);
-                }
-
+            // 1. Kumpulkan total seluruh input per kolom
+            inputs.forEach(input => {
                 const type = input.dataset.type;
-                const parentId = input.dataset.parent;
-                if (!sums[type][parentId]) sums[type][parentId] = 0;
-                sums[type][parentId] += (parseInt(input.value) || 0);
-            }
+                sums[type] += (parseInt(input.value) || 0);
+            });
 
-            // 2. Ambil nilai dasar dari header
-            const rootLimits = {
+            // 2. Ambil limit Grand Total Menpan
+            const limits = {
                 kp: parseInt(document.getElementById('display_base_p')?.innerText) || 0,
                 kmu: parseInt(document.getElementById('display_base_mu')?.innerText) || 0,
                 kma: parseInt(document.getElementById('display_base_ma')?.innerText) || 0,
                 ku: parseInt(document.getElementById('display_base_u')?.innerText) || 0,
             };
 
-            // 3. Terapkan validasi secara mandiri dari Memori (Tanpa mencari DOM berkali-kali)
-            for (let i = 0; i < inputs.length; i++) {
-                const input = inputs[i];
-                const type = input.dataset.type;
-                const parentId = input.dataset.parent;
-                const idAttr = input.id;
-                const val = parseInt(input.value) || 0;
-
-                let limit = 0;
-                if (parentId === 'root') {
-                    limit = rootLimits[type];
-                } else {
-                    const parentInput = inputMap[`${type}_${parentId}`];
-                    limit = parentInput ? (parseInt(parentInput.value) || 0) : 0;
-                }
-
-                const otherSum = sums[type][parentId] - val;
-                const sisa = limit - otherSum;
-                const isExceeding = val > sisa;
-
-                const errEl = errMap[idAttr];
-                const errValEl = errValMap[idAttr];
-
-                if (isExceeding && document.activeElement !== input) {
-                    if (!input.classList.contains('border-red-500')) {
-                        input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
-                        input.classList.remove('border-gray-300');
-                        if (errEl) errEl.classList.remove('hidden');
-                    }
-                    if (errValEl) errValEl.innerText = val - sisa;
-                } else if (!isExceeding) {
-                    if (input.classList.contains('border-red-500')) {
-                        input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
-                        input.classList.add('border-gray-300');
-                        if (errEl) errEl.classList.add('hidden');
-                    }
-                }
-            }
-        }
-
-        // ==========================================
-        // LOGIKA INTERAKTIF (TOOLTIP, SISA, & MERAH)
-        // ==========================================
-        function getBaseId(type) {
-            return { 'kp': 'display_base_p', 'kmu': 'display_base_mu', 'kma': 'display_base_ma', 'ku': 'display_base_u' }[type];
-        }
-
-        function getLimitAndSisa(input, type, parentId) {
-            let limit = 0; let otherSum = 0;
-            const val = parseInt(input.value) || 0;
-
-            if (parentId === 'root') {
-                limit = parseInt(document.getElementById(getBaseId(type)).innerText) || 0;
-            } else {
-                const parentEl = document.getElementById(`${type}_${parentId}`);
-                limit = parentEl ? (parseInt(parentEl.value) || 0) : 0;
-            }
-
-            const siblings = document.querySelectorAll(`input[data-type="${type}"][data-parent="${parentId}"]`);
-            siblings.forEach(el => {
-                if (el.id !== input.id) otherSum += parseInt(el.value) || 0;
-            });
-
-            const sisa = limit - otherSum;
-            return { limit, otherSum, sisa, isExceeding: val > sisa, excessAmount: val - sisa };
-        }
-
-        function handleFocus(input, id, type, parentId) {
-            input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
-            input.classList.add('focus:ring-blue-500', 'border-gray-300');
-            document.getElementById(`err_${type}_${id}`).classList.add('hidden');
-
-            const { sisa } = getLimitAndSisa(input, type, parentId);
-            document.getElementById(`sisa_val_${type}_${id}`).innerText = sisa;
-            const tooltip = document.getElementById(`tooltip_${type}_${id}`);
-            tooltip.classList.remove('hidden');
-            setTimeout(() => tooltip.classList.remove('opacity-0'), 10);
-        }
-
-        function handleBlur(input, id, type) {
-            const tooltip = document.getElementById(`tooltip_${type}_${id}`);
-            tooltip.classList.add('opacity-0');
-            setTimeout(() => tooltip.classList.add('hidden'), 200);
-            validateInput(input, id, type, input.getAttribute('data-parent'));
-        }
-
-        function handleInput(input, id, type, parentId) {
-            const kp = parseInt(document.getElementById(`kp_${id}`).value) || 0;
-            const kmu = parseInt(document.getElementById(`kmu_${id}`).value) || 0;
-            const kma = parseInt(document.getElementById(`kma_${id}`).value) || 0;
-            const ku = parseInt(document.getElementById(`ku_${id}`).value) || 0;
-            document.getElementById(`total_${id}`).innerText = kp + kmu + kma + ku;
-
-            if (parentId === 'root') {
-                document.querySelectorAll(`input[data-type="${type}"][data-parent="${id}"]`).forEach(childInput => {
-                    validateInput(childInput, childInput.id.split('_')[1], type, id);
-                });
-            }
-        }
-
-        function validateInput(input, id, type, parentId) {
-            const { isExceeding, excessAmount } = getLimitAndSisa(input, type, parentId);
-            const errEl = document.getElementById(`err_${type}_${id}`);
-            
-            if (isExceeding && document.activeElement !== input) {
-                input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.remove('border-gray-300');
-                document.getElementById(`err_val_${type}_${id}`).innerText = excessAmount;
-                errEl.classList.remove('hidden');
-            } else if (!isExceeding) {
-                input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.add('border-gray-300');
-                errEl.classList.add('hidden');
-            }
-        }
-
-        // OPTIMASI TOTAL: Algoritma Linear O(N). Tidak ada lagi lag/browser freeze!
-        function validateAllHierarchies() {
-            let sums = { kp: {}, kmu: {}, kma: {}, ku: {} };
-            const inputs = document.querySelectorAll('#matriksTableBody input[data-type]');
-            
+            // 3. Terapkan warna merah jika ada yang menyebabkan jebol
             inputs.forEach(input => {
                 const type = input.dataset.type;
-                const parentId = input.dataset.parent;
-                if (!sums[type][parentId]) sums[type][parentId] = 0;
-                sums[type][parentId] += (parseInt(input.value) || 0);
-            });
-
-            inputs.forEach(input => {
-                const type = input.dataset.type;
-                const parentId = input.dataset.parent;
                 const id = input.id.split('_')[1];
                 const val = parseInt(input.value) || 0;
                 
-                let limit = 0;
-                if (parentId === 'root') {
-                    limit = parseInt(document.getElementById(getBaseId(type)).innerText) || 0;
-                } else {
-                    const parentInput = document.getElementById(`${type}_${parentId}`);
-                    limit = parentInput ? (parseInt(parentInput.value) || 0) : 0;
+                const limit = limits[type];
+                const otherSum = sums[type] - val;
+                const sisa = limit - otherSum;
+                let isExceeding = val > sisa;
+
+                // ========================================================
+                // KUNCI: PENGECUALIAN KHUSUS AHLI PERTAMA (KEBAL LIMIT)
+                // ========================================================
+                if (isAhliPertama && type === 'kp') {
+                    isExceeding = false; // Paksa jadi false, abaikan error limit
                 }
 
-                const otherSum = sums[type][parentId] - val;
-                const sisa = limit - otherSum;
-                const isExceeding = val > sisa;
-
                 const errEl = document.getElementById(`err_${type}_${id}`);
-                if (isExceeding && document.activeElement !== input) {
+                const errValEl = document.getElementById(`err_val_${type}_${id}`);
+
+                if (isExceeding) {
                     input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
                     input.classList.remove('border-gray-300');
-                    document.getElementById(`err_val_${type}_${id}`).innerText = val - sisa;
-                    errEl.classList.remove('hidden');
-                } else if (!isExceeding) {
+                    if (errValEl) errValEl.innerText = val - sisa;
+                    if (errEl) errEl.classList.remove('hidden');
+                } else {
                     input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
                     input.classList.add('border-gray-300');
-                    errEl.classList.add('hidden');
+                    if (errEl) errEl.classList.add('hidden');
                 }
             });
         }
@@ -1085,16 +1020,15 @@
         const daftarJabatan = rawData.map(j => {
             return {
                 id: j.id,
-                nama: j.nama_jabatan,
-                kode: j.kode_jabatan,
-                jenjang: j.fungsional ? j.fungsional.name : null,
-                kode_fungsional: j.fungsional ? parseInt(j.fungsional.kode) : null
+                nama: j.nama,
+                kode: j.kode,
+                kategori: j.kategori
             };
         });
 
         const searchInputJabatan = document.getElementById('search_jabatan_input');
         const hiddenInputJabatan = document.getElementById('filter_fungsional_distribusi');
-        const hiddenKodeFungsional = document.getElementById('filter_kode_fungsional');
+        const hiddenKategoriJabatan = document.getElementById('filter_kategori_fungsional');
         const dropdownListJabatan = document.getElementById('jabatan_dropdown_list');
         const clearBtn = document.getElementById('clear_search_btn');
         let currentFocus = -1;
@@ -1102,7 +1036,7 @@
         function renderDropdownList(data) {
             dropdownListJabatan.innerHTML = '';
             if (data.length === 0) {
-                dropdownListJabatan.innerHTML = '<li class="px-4 py-3 text-sm text-slate-500 text-center italic">Tidak ada jabatan yang cocok</li>';
+                dropdownListJabatan.innerHTML = '<li class="px-4 py-3 text-sm text-slate-500 text-center italic">Tidak ada kelompok jabatan yang cocok</li>';
             } else {
                 data.forEach((item, index) => {
                     const li = document.createElement('li');
@@ -1110,15 +1044,12 @@
                     li.dataset.id = item.id;
                     li.dataset.index = index;
                     
-                    let jenjangHtml = '';
-                    if (item.jenjang) {
-                        jenjangHtml = `<span class="px-2 py-1 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md whitespace-nowrap ml-2 shadow-sm border border-amber-200 uppercase tracking-wider">${item.jenjang}</span>`;
-                    }
+                    let jenjangHtml = `<span class="px-2 py-1 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md whitespace-nowrap ml-2 shadow-sm border border-amber-200 uppercase tracking-wider">${item.kategori}</span>`;
 
                     li.innerHTML = `
                         <div class="flex flex-col">
                             <span class="text-sm font-semibold text-slate-800 group-hover:text-[#112D4E]">${item.nama}</span>
-                            <span class="text-xs text-slate-500 font-mono mt-0.5">Kode: ${item.kode}</span>
+                            <span class="text-xs text-slate-500 font-mono mt-0.5">Kode Dasar: ${item.kode}</span>
                         </div>
                         ${jenjangHtml}
                     `;
@@ -1131,13 +1062,10 @@
         }
 
         function selectJabatan(item) {
-            if (item.jenjang) {
-                searchInputJabatan.value = `${item.nama} — [ ${item.jenjang.toUpperCase()} ] (${item.kode})`;
-            } else {
-                searchInputJabatan.value = `${item.nama} (${item.kode})`;
-            }
+            searchInputJabatan.value = `${item.nama} (${item.kode})`; 
+            
             hiddenInputJabatan.value = item.id;
-            hiddenKodeFungsional.value = item.kode_fungsional || '';
+            hiddenKategoriJabatan.value = item.kategori;
             dropdownListJabatan.classList.add('hidden');
             clearBtn.classList.remove('hidden');
         }
@@ -1190,11 +1118,12 @@
         clearBtn.addEventListener('click', function() {
             searchInputJabatan.value = '';
             hiddenInputJabatan.value = '';
-            hiddenKodeFungsional.value = '';
+            document.getElementById('filter_kategori_fungsional').value = '';
             this.classList.add('hidden');
             dropdownListJabatan.classList.add('hidden');
             
             document.getElementById('panel_setup_baseline').classList.add('hidden');
+            document.getElementById('matriksSearchContainer').classList.add('hidden'); // Sembunyikan Input Search kembali
             document.getElementById('matriksTableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm"><i class="fas fa-sitemap mb-3 text-2xl text-slate-300 block"></i>Pilih Jabatan Fungsional dan klik "Tampilkan Matriks" untuk melihat sebaran kuota.</td></tr>';
             
             document.getElementById('th_jenjang_1').innerText = "Jenjang 1";
@@ -1202,5 +1131,36 @@
             document.getElementById('th_jenjang_3').innerText = "Jenjang 3";
             document.getElementById('th_jenjang_4').innerText = "Jenjang 4";
         });
+
+        function openEditModalGlobal(group) {
+            const form = document.getElementById('formEditJabatanGlobal');
+            form.action = "{{ route('admin.jabatan.update_global') }}";
+            
+            document.getElementById('edit_global_kode_dasar').value = group.kode;
+            document.getElementById('edit_global_nama').value = group.nama_jabatan;
+            
+            const category = (parseInt(group.jenjangs[0].kode_ujung) <= 4) ? 'keterampilan' : 'keahlian';
+            updateJenjangLabelsEdit(category);
+            
+            document.getElementById('edit_b_pertama').value = group.b_pertama;
+            document.getElementById('edit_b_muda').value    = group.b_muda;
+            document.getElementById('edit_b_madya').value   = group.b_madya;
+            document.getElementById('edit_b_utama').value   = group.b_utama;
+
+            toggleModal('modalEditJabatanGlobal');
+        }
+
+        function updateJenjangLabelsEdit(kategori) {
+            const lbl1 = document.getElementById('lbl_edit_j1');
+            const lbl2 = document.getElementById('lbl_edit_j2');
+            const lbl3 = document.getElementById('lbl_edit_j3');
+            const lbl4 = document.getElementById('lbl_edit_j4');
+
+            if (kategori === 'keterampilan') {
+                lbl1.innerText = "Pemula"; lbl2.innerText = "Terampil"; lbl3.innerText = "Mahir"; lbl4.innerText = "Penyelia";
+            } else {
+                lbl1.innerText = "Ahli Pertama"; lbl2.innerText = "Ahli Muda"; lbl3.innerText = "Ahli Madya"; lbl4.innerText = "Ahli Utama";
+            }
+        }
     </script>
 @endpush

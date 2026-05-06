@@ -587,6 +587,62 @@ class PenugasanController extends Controller
                 }
 
                 // ==============================================================================
+                // NEW ENGINE 3: HARD BLOCK SALDO JABATAN FUNGSIONAL
+                // ==============================================================================
+                if ($request->filled('jabatan_id')) {
+                    $jabatanTujuan = \App\Models\Jabatan::find($request->jabatan_id);
+                    
+                    // Pastikan ini adalah jabatan fungsional
+                    if ($jabatanTujuan && $jabatanTujuan->jabatan_fungsional_id) {
+                        $kodeJab = trim($jabatanTujuan->kode_jabatan);
+                        if (strlen($kodeJab) >= 4) {
+                            $prefix = substr($kodeJab, 0, 3);
+                            $suffix = substr($kodeJab, 3); 
+
+                            // Cari ID perwakilan grup (untuk ngambil kuota di tabel DistribusiKuota)
+                            $repJabatan = \App\Models\Jabatan::where('periode_id', $jabatanTujuan->periode_id)
+                                ->where('kode_jabatan', 'like', $prefix.'%')
+                                ->orderBy('kode_jabatan', 'asc')
+                                ->first();
+
+                            if ($repJabatan) {
+                                $kuotaRow = \App\Models\DistribusiKuota::where('satker_id', $request->satker_id)
+                                    ->where('jabatan_id', $repJabatan->id)
+                                    ->first();
+
+                                $kuota = 0;
+                                $namaJenjang = '';
+                                switch($suffix) {
+                                    case '1': $kuota = $kuotaRow->kuota_pertama ?? 0; $namaJenjang = 'Pemula'; break;
+                                    case '2': $kuota = $kuotaRow->kuota_muda ?? 0; $namaJenjang = 'Terampil'; break;
+                                    case '3': $kuota = $kuotaRow->kuota_madya ?? 0; $namaJenjang = 'Mahir'; break;
+                                    case '4': $kuota = $kuotaRow->kuota_utama ?? 0; $namaJenjang = 'Penyelia'; break;
+                                    case '5': $kuota = $kuotaRow->kuota_pertama ?? 0; $namaJenjang = 'Ahli Pertama'; break;
+                                    case '6': $kuota = $kuotaRow->kuota_muda ?? 0; $namaJenjang = 'Ahli Muda'; break;
+                                    case '7': $kuota = $kuotaRow->kuota_madya ?? 0; $namaJenjang = 'Ahli Madya'; break;
+                                    case '8': $kuota = $kuotaRow->kuota_utama ?? 0; $namaJenjang = 'Ahli Utama'; break;
+                                }
+
+                                // Hitung yang sedang eksisting (Aktif)
+                                $existingCount = \App\Models\Penugasan::where('satker_id', $request->satker_id)
+                                    ->where('jabatan_id', $jabatanTujuan->id)
+                                    ->where('status_aktif', 1)
+                                    ->count();
+
+                                $sisa = $kuota - $existingCount;
+
+                                // HARD BLOCK JIKA SISA <= 0
+                                // Pengecualian khusus: JIKA SUFFIX BUKAN '5' (Ahli Pertama) maka ditolak/diblokir
+                                if ($sisa <= 0 && $suffix !== '5') {
+                                    $msg = "Validasi Formasi: Kuota '{$namaJenjang}' Sudah Penuh! (Kuota: {$kuota} | Terisi: {$existingCount}).";
+                                    return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 400) : redirect()->back()->with('error', $msg);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ==============================================================================
                 // 3. LOGIKA HIERARKI STRUKTURAL: KONFIRMASI DEFINITIF VS PLT/PLH
                 // ==============================================================================
                 $messageForSuccess = 'Data penugasan berhasil ditambah!';
