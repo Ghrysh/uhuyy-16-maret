@@ -53,116 +53,115 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50/50">
-                        <tr class="text-slate-500 text-[11px] uppercase tracking-widest border-b border-gray-100">
-                            <th class="px-6 py-4 font-bold">Kode</th>
-                            <th class="px-6 py-4 font-bold">Nama Jabatan</th>
-                            <th class="px-6 py-4 font-bold text-center">Baseline per Jenjang</th>
-                            <th class="px-6 py-4 font-bold text-center">Jenjang</th>
-                            <th class="px-6 py-4 font-bold text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="jabatanTable" class="divide-y divide-gray-100">
-                        @forelse($jabatans as $group)
-                            {{-- Baris Induk (Group) --}}
-                            <tr class="bg-slate-50/80 border-t-2 border-slate-200 row-jabatan" data-search="{{ strtolower($group['kode'] . ' ' . $group['nama_jabatan']) }}">
-                                <td colspan="5" class="px-6 py-3">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-lg bg-[#112D4E] flex items-center justify-center text-white shadow-sm">
-                                                <i class="fas fa-briefcase text-xs"></i>
-                                            </div>
-                                            <div>
-                                                <h4 class="text-sm font-bold text-[#112D4E]">{{ $group['nama_jabatan'] }}</h4>
-                                                <span class="text-xs font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">Kode Dasar: {{ $group['kode'] }}</span>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            @php $canEdit = $perm['is_super'] || $perm['all_access'] || in_array('edit', $perm['actions'] ?? []); @endphp
-                                            <button type="button" 
-                                                onclick="{{ $canEdit ? "openEditModalGlobal(" . json_encode($group) . ")" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin.', 'error')" }}"
-                                                class="{{ $canEdit ? 'text-blue-600 hover:text-white hover:bg-blue-600' : 'text-slate-300' }} w-8 h-8 rounded-lg flex items-center justify-center transition shadow-sm border border-slate-200 bg-white" title="Edit Grup Jabatan">
-                                                <i class="fas fa-edit text-xs"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </td>
+                <div class="w-full max-h-[600px] overflow-y-auto relative border border-gray-100 rounded-xl shadow-inner">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50/50">
+                            <tr class="text-slate-500 text-[11px] uppercase tracking-widest border-b border-gray-100">
+                                <th class="px-6 py-4 font-bold">Kode</th>
+                                <th class="px-6 py-4 font-bold">Nama Jabatan</th>
+                                <th class="px-6 py-4 font-bold text-center">Baseline per Jenjang</th>
+                                <th class="px-6 py-4 font-bold text-center">Jenjang</th>
+                                <th class="px-6 py-4 font-bold text-right">Aksi</th>
                             </tr>
-                            
-                            {{-- Baris Anak-anak Jenjang --}}
-                            @foreach($group['jenjangs'] as $j)
-                                @php
-                                    $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $perm['actions'] ?? []); 
-                                @endphp
-                                <tr class="hover:bg-blue-50/30 transition group/row bg-white row-jabatan" data-search="{{ strtolower($j['kode'] . ' ' . $j['nama_lengkap']) }}">
-                                    <td class="px-6 py-3 text-sm text-slate-600 font-mono font-bold pl-12"><i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 text-xs"></i>{{ $j['kode'] }}</td>
-                                    <td class="px-6 py-3 text-sm text-slate-700 font-medium">{{ $j['nama_lengkap'] }}</td>
-                                    <td class="px-6 py-3 text-center">
-                                        @php
-                                            // Tentukan apakah grup ini "Semua Jenjang" (memiliki 8 baris)
-                                            $isSemua = count($group['jenjangs']) > 4;
-                                            $valBaseline = 0;
-
-                                            switch($j['kode_ujung']) {
-                                                case '1': $valBaseline = $j['b_pertama_menpan'] ?? 0; break;
-                                                case '2': $valBaseline = $j['b_muda_menpan'] ?? 0; break;
-                                                case '3': $valBaseline = $j['b_madya_menpan'] ?? 0; break;
-                                                case '4': $valBaseline = $j['b_utama_menpan'] ?? 0; break;
-                                                
-                                                // Jika Semua Jenjang, ambil dari kolom lima-delapan. 
-                                                // Jika kategori Keahlian biasa, tetap ambil dari pertama-utama.
-                                                case '5': $valBaseline = $isSemua ? ($j['b_lima_menpan'] ?? 0) : ($j['b_pertama_menpan'] ?? 0); break;
-                                                case '6': $valBaseline = $isSemua ? ($j['b_enam_menpan'] ?? 0) : ($j['b_muda_menpan'] ?? 0); break;
-                                                case '7': $valBaseline = $isSemua ? ($j['b_tujuh_menpan'] ?? 0) : ($j['b_madya_menpan'] ?? 0); break;
-                                                case '8': $valBaseline = $isSemua ? ($j['b_delapan_menpan'] ?? 0) : ($j['b_utama_menpan'] ?? 0); break;
-                                            }
-                                        @endphp
-                                        <span class="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-1 rounded shadow-sm border border-amber-200">
-                                            Baseline: {{ $valBaseline }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-3 text-center">
-                                        @php
-                                            $jenjangLabel = 'Tidak Ada Jenjang';
-                                            switch($j['kode_ujung']) {
-                                                case '1': $jenjangLabel = 'Pemula'; break;
-                                                case '2': $jenjangLabel = 'Terampil'; break;
-                                                case '3': $jenjangLabel = 'Mahir'; break;
-                                                case '4': $jenjangLabel = 'Penyelia'; break;
-                                                case '5': $jenjangLabel = 'Ahli Pertama'; break;
-                                                case '6': $jenjangLabel = 'Ahli Muda'; break;
-                                                case '7': $jenjangLabel = 'Ahli Madya'; break;
-                                                case '8': $jenjangLabel = 'Ahli Utama'; break;
-                                            }
-                                        @endphp
-                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">{{ $jenjangLabel }}</span>
-                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">ID: {{ $j['kode_ujung'] }}</span>
-                                    </td>
-                                    <td class="px-6 py-3 text-right">
-                                        <button type="button"
-                                            onclick="{{ $canDelete ? "confirmDelete('{$j['id']}', '" . addslashes($j['nama_lengkap']) . "')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus.', 'error')" }}"
-                                            class="{{ $canDelete ? 'text-slate-400 hover:text-red-600' : 'text-slate-300 opacity-50' }} transition" title="Hapus">
-                                            <i class="fas fa-trash-can"></i>
-                                        </button>
-                                        
-                                        @if($canDelete)
-                                        <form id="delete-form-{{ $j['id'] }}" action="{{ route('admin.jabatan.destroy', $j['id']) }}" method="POST" class="hidden">
-                                            @csrf @method('DELETE')
-                                        </form>
-                                        @endif
+                        </thead>
+                        <tbody id="jabatanTable" class="divide-y divide-gray-100">
+                            @forelse($jabatans as $group)
+                                {{-- Baris Induk (Group) --}}
+                                <tr class="bg-slate-50/80 border-t-2 border-slate-200 row-jabatan" data-search="{{ strtolower($group['kode'] . ' ' . $group['nama_jabatan']) }}">
+                                    <td colspan="5" class="px-6 py-3">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-8 h-8 rounded-lg bg-[#112D4E] flex items-center justify-center text-white shadow-sm">
+                                                    <i class="fas fa-briefcase text-xs"></i>
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-sm font-bold text-[#112D4E]">{{ $group['nama_jabatan'] }}</h4>
+                                                    <span class="text-xs font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">Kode Dasar: {{ $group['kode'] }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                @php $canEdit = $perm['is_super'] || $perm['all_access'] || in_array('edit', $perm['actions'] ?? []); @endphp
+                                                <button type="button" 
+                                                    onclick="{{ $canEdit ? "openEditModalGlobal(" . json_encode($group) . ")" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin.', 'error')" }}"
+                                                    class="{{ $canEdit ? 'text-blue-600 hover:text-white hover:bg-blue-600' : 'text-slate-300' }} w-8 h-8 rounded-lg flex items-center justify-center transition shadow-sm border border-slate-200 bg-white" title="Edit Grup Jabatan">
+                                                    <i class="fas fa-edit text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
-                            @endforeach
-                        @empty
-                            <tr id="noDataRow"><td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">Belum ada data jabatan.</td></tr>
-                        @endforelse
-                        <tr id="notFoundRow" class="hidden"><td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">Data tidak ditemukan.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="mt-4 px-6 py-4 border-t border-gray-100">
-                {{ $jabatans->withPath(route('admin.jabatan.index'))->appends(request()->query())->links() }}
+                                
+                                {{-- Baris Anak-anak Jenjang --}}
+                                @foreach($group['jenjangs'] as $j)
+                                    @php
+                                        $canDelete = $perm['is_super'] || $perm['all_access'] || in_array('delete', $perm['actions'] ?? []); 
+                                    @endphp
+                                    <tr class="hover:bg-blue-50/30 transition group/row bg-white row-jabatan" data-search="{{ strtolower($j['kode'] . ' ' . $j['nama_lengkap']) }}">
+                                        <td class="px-6 py-3 text-sm text-slate-600 font-mono font-bold pl-12"><i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 text-xs"></i>{{ $j['kode'] }}</td>
+                                        <td class="px-6 py-3 text-sm text-slate-700 font-medium">{{ $j['nama_lengkap'] }}</td>
+                                        <td class="px-6 py-3 text-center">
+                                            @php
+                                                // Tentukan apakah grup ini "Semua Jenjang" (memiliki 8 baris)
+                                                $isSemua = count($group['jenjangs']) > 4;
+                                                $valBaseline = 0;
+
+                                                switch($j['kode_ujung']) {
+                                                    case '1': $valBaseline = $j['b_pertama_menpan'] ?? 0; break;
+                                                    case '2': $valBaseline = $j['b_muda_menpan'] ?? 0; break;
+                                                    case '3': $valBaseline = $j['b_madya_menpan'] ?? 0; break;
+                                                    case '4': $valBaseline = $j['b_utama_menpan'] ?? 0; break;
+                                                    
+                                                    // Jika Semua Jenjang, ambil dari kolom lima-delapan. 
+                                                    // Jika kategori Keahlian biasa, tetap ambil dari pertama-utama.
+                                                    case '5': $valBaseline = $isSemua ? ($j['b_lima_menpan'] ?? 0) : ($j['b_pertama_menpan'] ?? 0); break;
+                                                    case '6': $valBaseline = $isSemua ? ($j['b_enam_menpan'] ?? 0) : ($j['b_muda_menpan'] ?? 0); break;
+                                                    case '7': $valBaseline = $isSemua ? ($j['b_tujuh_menpan'] ?? 0) : ($j['b_madya_menpan'] ?? 0); break;
+                                                    case '8': $valBaseline = $isSemua ? ($j['b_delapan_menpan'] ?? 0) : ($j['b_utama_menpan'] ?? 0); break;
+                                                }
+                                            @endphp
+                                            <span class="bg-amber-100 text-amber-800 text-[10px] font-black px-2 py-1 rounded shadow-sm border border-amber-200">
+                                                Baseline: {{ $valBaseline }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-3 text-center">
+                                            @php
+                                                $jenjangLabel = 'Tidak Ada Jenjang';
+                                                switch($j['kode_ujung']) {
+                                                    case '1': $jenjangLabel = 'Pemula'; break;
+                                                    case '2': $jenjangLabel = 'Terampil'; break;
+                                                    case '3': $jenjangLabel = 'Mahir'; break;
+                                                    case '4': $jenjangLabel = 'Penyelia'; break;
+                                                    case '5': $jenjangLabel = 'Ahli Pertama'; break;
+                                                    case '6': $jenjangLabel = 'Ahli Muda'; break;
+                                                    case '7': $jenjangLabel = 'Ahli Madya'; break;
+                                                    case '8': $jenjangLabel = 'Ahli Utama'; break;
+                                                }
+                                            @endphp
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">{{ $jenjangLabel }}</span>
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md uppercase tracking-wider">ID: {{ $j['kode_ujung'] }}</span>
+                                        </td>
+                                        <td class="px-6 py-3 text-right">
+                                            <button type="button"
+                                                onclick="{{ $canDelete ? "confirmDelete('{$j['id']}', '" . addslashes($j['nama_lengkap']) . "')" : "Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Menghapus.', 'error')" }}"
+                                                class="{{ $canDelete ? 'text-slate-400 hover:text-red-600' : 'text-slate-300 opacity-50' }} transition" title="Hapus">
+                                                <i class="fas fa-trash-can"></i>
+                                            </button>
+                                            
+                                            @if($canDelete)
+                                            <form id="delete-form-{{ $j['id'] }}" action="{{ route('admin.jabatan.destroy', $j['id']) }}" method="POST" class="hidden">
+                                                @csrf @method('DELETE')
+                                            </form>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            @empty
+                                <tr id="noDataRow"><td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">Belum ada data jabatan.</td></tr>
+                            @endforelse
+                            <tr id="notFoundRow" class="hidden"><td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">Data tidak ditemukan.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 

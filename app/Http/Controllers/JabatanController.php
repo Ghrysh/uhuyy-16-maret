@@ -135,14 +135,7 @@ class JabatanController extends Controller
             }
         }
 
-        // Paginasi manual untuk Array hasil grouping
-        $jabatansCollection = collect(array_values($groupedData));
-        $perPage = 10;
-        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage();
-        $currentPageItems = $jabatansCollection->slice(($currentPage - 1) * $perPage, $perPage)->all();
-        $jabatans = new \Illuminate\Pagination\LengthAwarePaginator($currentPageItems, count($jabatansCollection), $perPage, $currentPage, [
-            'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()
-        ]);
+        $jabatans = collect(array_values($groupedData));
         // =========================================================================
 
         $jenis_jabatans = MJenisJabatan::all();
