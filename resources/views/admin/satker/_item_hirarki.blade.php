@@ -82,7 +82,7 @@
     sm:border-transparent sm:hover:border-blue-100 group cursor-pointer"
         data-id="{{ $item->id }}"
         {{-- KUNCI PERBAIKAN: Tambahkan '{{ $item->jenis_satker_id }}' di akhir fungsi toggleId --}}
-        @click="($store.selection.isSelectionMode && $store.selection.clipboard.mode === '') ? $store.selection.toggleId('{{ $item->id }}', '{{ addslashes($item->nama_satker) }}', '{{ $item->jenis_satker_id }}') : null"
+        @click="($store.selection.isSelectionMode && !$store.selection.clipboard.ids.includes('{{ $item->id }}')) ? $store.selection.toggleId('{{ $item->id }}', '{{ addslashes($item->nama_satker) }}', '{{ $item->jenis_satker_id }}') : null"
         :class="[
             search !== '' && selfText.includes(search.toLowerCase()) ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200' : '',
             $store.selection.clipboard.ids.includes('{{ $item->id }}') && $store.selection.clipboard.mode !== '' ? 'opacity-40 grayscale bg-slate-100' : '',
@@ -102,7 +102,7 @@
 
             {{-- Checkbox untuk Mode Pilih --}}
             {{-- Logika: Muncul jika mode pilih AKTIF DAN (Belum ada yang di copy ATAU item ini adalah bagian dari yang di copy) --}}
-            <div x-show="$store.selection.isSelectionMode && ($store.selection.clipboard.mode === '' || $store.selection.selectedIds.includes('{{ $item->id }}'))" 
+            <div x-show="$store.selection.isSelectionMode && !$store.selection.clipboard.ids.includes('{{ $item->id }}')" 
                  x-transition
                  class="flex items-center mr-2 transition-all">
                 <input type="checkbox" 
@@ -167,9 +167,11 @@
     @if ($item->children && $item->children->count() > 0)
         <div x-show="open || search !== ''" class="ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2">
             @php
-                // Urutkan anak berdasarkan panjang digit kodenya (misal: 2109100 sebelum 21091101)
+                // Urutkan anak berdasarkan panjang digit kodenya
+                // KUNCI PERBAIKAN: Tambahkan str_pad(..., 2, '0', STR_PAD_LEFT) agar '04' (4 digit) 
+                // terdeteksi lebih kecil dari '12' (12 digit) sehingga 12 digit pindah ke bawah.
                 $sortedChildren = $item->children->sortBy(function($child) {
-                    return strlen($child->kode_satker) . '-' . $child->kode_satker;
+                    return str_pad(strlen($child->kode_satker), 2, '0', STR_PAD_LEFT) . '-' . $child->kode_satker;
                 });
             @endphp
             @foreach ($sortedChildren as $child)

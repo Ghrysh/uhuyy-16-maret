@@ -41,14 +41,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/satker/generate-code', [SatkerController::class, 'generateCode'])->name('satker.generate-code');
     Route::post('/satker/bulk-action', [SatkerController::class, 'bulkAction'])->name('satker.bulk-action');
 
+    Route::get('/jabatan/matriks', [JabatanController::class, 'getMatriks'])->name('jabatan.matriks');
+    Route::post('/jabatan/matriks/save', [JabatanController::class, 'saveMatriks'])->name('jabatan.matriks.save');
+    Route::post('/jabatan/matriks/save-baseline', [JabatanController::class, 'saveBaselineJenjang'])->name('jabatan.matriks.save-baseline');
+    Route::put('/jabatan/update-global', [JabatanController::class, 'updateGlobal'])->name('jabatan.update_global');
+
     Route::get('/jabatan', [JabatanController::class, 'index'])->name('jabatan.index');
     Route::post('/jabatan/store', [JabatanController::class, 'store'])->name('jabatan.store');
     Route::put('/jabatan/{id}', [JabatanController::class, 'update'])->name('jabatan.update');
     Route::delete('/jabatan/{id}', [JabatanController::class, 'destroy'])->name('jabatan.destroy');
-    Route::get('/jabatan/matriks', [App\Http\Controllers\JabatanController::class, 'getMatriks'])->name('admin.jabatan.matriks');
-    Route::post('/jabatan/matriks/save', [App\Http\Controllers\JabatanController::class, 'saveMatriks'])->name('admin.jabatan.matriks.save');
-    Route::post('/jabatan/matriks/save-baseline', [App\Http\Controllers\JabatanController::class, 'saveBaselineJenjang'])->name('admin.jabatan.matriks.save-baseline');
-    Route::put('/jabatan/update-global', [JabatanController::class, 'updateGlobal'])->name('jabatan.update_global');
 
     Route::get('/pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
 

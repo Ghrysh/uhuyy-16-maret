@@ -27,7 +27,7 @@
             </div>
             <h1 class="text-2xl font-bold text-gray-800 tracking-tight">SATKER</h1>
             <p class="text-sm text-gray-500 font-medium">Sistem Manajemen Satuan Kerja</p>
-            <p class="text-xs text-gray-400">Biro SDM - Kementerian Agama RI</p>
+            <p class="text-xs text-gray-400">Kementerian Agama</p>
         </div>
 
         <div class="bg-white w-full max-w-md rounded-2xl shadow-sm border border-gray-100 p-10">

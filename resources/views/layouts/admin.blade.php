@@ -61,7 +61,7 @@
                 </div>
                 <div>
                     <h1 class="font-bold leading-none tracking-tight text-lg">SATKER</h1>
-                    <p class="text-[10px] text-gray-300 uppercase">Biro SDM Kemenag</p>
+                    <p class="text-[10px] text-gray-300 uppercase">Kementrian Agama</p>
                 </div>
             </div>
             <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white focus:outline-none">

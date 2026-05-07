@@ -735,8 +735,15 @@ class SatkerController extends Controller
     {
         $action = $request->action; // copy, move, delete
         $ids = $request->ids;
-        $targetParentId = $request->target_parent_id;
         $periodeId = $request->periode_id;
+
+        // Deteksi apakah tujuan berupa array (banyak induk) atau tunggal
+        $targetParentIds = [];
+        if ($request->has('target_parent_ids') && is_array($request->target_parent_ids)) {
+            $targetParentIds = $request->target_parent_ids;
+        } elseif ($request->has('target_parent_id')) {
+            $targetParentIds = [$request->target_parent_id];
+        }
 
         if (empty($ids)) return response()->json(['success' => false, 'message' => 'Tidak ada Satker yang dipilih.']);
 
@@ -764,9 +771,6 @@ class SatkerController extends Controller
                 $msg = "Berhasil menghapus Satker terpilih beserta seluruh unit bawahannya.";
             }
             else {
-                $targetParent = $targetParentId ? Satker::find($targetParentId) : null;
-                $targetPrefix = $targetParent ? $targetParent->kode_satker : '';
-
                 // KUNCI HIERARKI: Hanya ambil Satker teratas dari yang di-select agar tidak dobel
                 $topLevelIds = [];
                 foreach ($ids as $id) {
@@ -777,12 +781,27 @@ class SatkerController extends Controller
                     }
                 }
 
-                // Eksekusi Copy/Cut untuk Parent Teratas (anak-anaknya akan otomatis ikut)
-                foreach ($topLevelIds as $id) {
-                    $this->processCopyMove(Satker::find($id), $targetParentId, $targetPrefix, $periodeId, $action);
+                $successCount = 0;
+
+                // =============================================================
+                // FITUR BARU: BISA PASTE KE BANYAK INDUK SEKALIGUS
+                // =============================================================
+                foreach ($targetParentIds as $targetParentId) {
+                    $targetParent = $targetParentId ? Satker::find($targetParentId) : null;
+                    $targetPrefix = $targetParent ? $targetParent->kode_satker : '';
+
+                    foreach ($topLevelIds as $id) {
+                        // KUNCI PERBAIKAN: Kita kirimkan $ids (semua satker yang dicentang) sebagai parameter ke-6
+                        $this->processCopyMove(Satker::find($id), $targetParentId, $targetPrefix, $periodeId, $action, $ids);
+                        $successCount++;
+                    }
                 }
 
-                $msg = $action === 'copy' ? "Berhasil menyalin data beserta seluruh unit bawahannya." : "Berhasil memindahkan data beserta seluruh unit bawahannya.";
+                if (count($targetParentIds) > 1) {
+                    $msg = "Berhasil menyalin data ke " . count($targetParentIds) . " Induk yang berbeda.";
+                } else {
+                    $msg = $action === 'copy' ? "Berhasil menyalin data beserta seluruh unit bawahannya." : "Berhasil memindahkan data beserta seluruh unit bawahannya.";
+                }
             }
 
             DB::commit();
@@ -792,14 +811,13 @@ class SatkerController extends Controller
             DB::rollback();
             $errorMsg = $e->getMessage();
             
-            // Tangkap pesan khusus bentrok dan tampilkan nama satkernya
             if (str_starts_with($errorMsg, 'KODE_BENTROK:')) {
                 $parts = explode(':', $errorMsg);
                 $kode = $parts[1] ?? '';
                 $nama = $parts[2] ?? '';
                 return response()->json([
                     'success' => false, 
-                    'message' => "GAGAL: Kode {$kode} sudah dipakai oleh satker \"{$nama}\" di tujuan tersebut. Sistem mencegah penimpaan data secara paksa. Silakan hapus atau ubah nama satker tujuan terlebih dahulu."
+                    'message' => "GAGAL: Kode {$kode} sudah dipakai oleh satker \"{$nama}\" di salah satu tujuan. Sistem mencegah penimpaan data secara paksa."
                 ]);
             }
 
@@ -810,11 +828,11 @@ class SatkerController extends Controller
     /**
      * Fungsi Rekursif untuk Duplikasi/Memindahkan Tree Satker
      */
-    private function processCopyMove($satker, $targetParentId, $targetPrefix, $periodeId, $action) {
+    private function processCopyMove($satker, $targetParentId, $targetPrefix, $periodeId, $action, $allowedCopyIds = null) {
         $oldParent = Satker::find($satker->parent_satker_id);
         $oldParentCode = $oldParent ? $oldParent->kode_satker : '';
         
-        // Ekstrak akhiran kode dengan cerdas (tidak kaku 2 digit lagi)
+        // Ekstrak akhiran kode dengan cerdas
         $suffix = '';
         if ($oldParentCode && str_starts_with($satker->kode_satker, $oldParentCode)) {
             $suffix = substr($satker->kode_satker, strlen($oldParentCode));
@@ -828,7 +846,7 @@ class SatkerController extends Controller
         // Cek secara proaktif apakah di tujuan sudah ada kode yang sama
         $exists = Satker::where('kode_satker', $newCode)->where('periode_id', $periodeId)->first();
         if ($exists) {
-            // Lempar error khusus agar ditangkap oleh blok Try-Catch di atas
+            // Lempar error khusus agar ditangkap oleh blok Try-Catch
             throw new \Exception("KODE_BENTROK:{$newCode}:{$exists->nama_satker}");
         }
 
@@ -839,10 +857,14 @@ class SatkerController extends Controller
             $newData->parent_satker_id = $targetParentId;
             $newData->save();
 
-            // COPY ANAK-ANAKNYA SECARA OTOMATIS
+            // COPY ANAK-ANAKNYA (TETAPI DENGAN SYARAT)
             $children = Satker::where('parent_satker_id', $satker->id)->get();
             foreach ($children as $child) {
-                $this->processCopyMove($child, $newData->id, $newCode, $periodeId, 'copy');
+                // CEK SYARAT: Jika array $allowedCopyIds diberikan, pastikan ID anak ini ada di dalam array tersebut (ikut dicentang user). 
+                // Jika tidak dicentang, lewati (jangan di-copy).
+                if ($allowedCopyIds === null || in_array($child->id, $allowedCopyIds)) {
+                    $this->processCopyMove($child, $newData->id, $newCode, $periodeId, 'copy', $allowedCopyIds);
+                }
             }
 
         } else if ($action === 'move') {

@@ -379,7 +379,7 @@
                             {{-- Dropdown 1: Kategori (3 Digit) --}}
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Jabatan Fungsional</label>
-                                <select id="kategori_jabatan_fungsional" onchange="handleKategoriJabatanChange()"
+                                <select id="kategori_jabatan_fungsional" id="select_jabatan_tambah" onchange="handleKategoriJabatanChange()"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Pilih Kategori (3 Digit) --</option>
                                     @foreach ($jabatanCategories as $cat)
@@ -393,7 +393,7 @@
                             {{-- Dropdown 2: Jenjang (4 Digit) - Akan muncul setelah Kategori dipilih --}}
                             <div id="wrapper_jenjang_jabatan" class="hidden">
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenjang Jabatan</label>
-                                <select name="jabatan_id" id="jabatan_id" onchange="handleJenjangJabatanChange()"
+                                <select name="jabatan_id" id="jabatan_id" id="select_jabatan_tambah" onchange="handleJenjangJabatanChange()"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Pilih Jenjang (4 Digit) --</option>
                                     @foreach ($jabatanItems as $item)
@@ -1473,9 +1473,23 @@
             },
 
             setClipboard(mode) {
+                if (this.selectedIds.length === 0) return; // PERBAIKAN: Gunakan selectedIds
+                
                 this.clipboard.mode = mode;
-                this.clipboard.ids = [...this.selectedIds];
-                Toast.fire({ icon: 'info', title: `Siap ${mode}. Silakan klik Paste pada Parent tujuan.` });
+                this.clipboard.ids = [...this.selectedIds]; // PERBAIKAN: Gunakan selectedIds
+                this.clipboard.names = [...this.selectedNames];
+                
+                // KUNCI: Kosongkan seleksi saat ini agar user bisa memilih TARGET
+                this.selectedIds = []; // PERBAIKAN: Gunakan selectedIds
+                this.selectedNames = [];
+                
+                // Pastikan mode seleksi (checkbox) tetap aktif
+                this.isSelectionMode = true;
+
+                Toast.fire({
+                    icon: 'info',
+                    title: `${this.clipboard.ids.length} Satker disalin. Silakan centang Induk tujuan.`
+                });
             },
 
             clearClipboard() {
@@ -1593,7 +1607,103 @@
                         this.executePaste(null); 
                     }
                 });
-            }
+            },
+
+            async executeBulkPasteWithTargets(targetParentIds) {
+                try {
+                    Swal.fire({ title: 'Memproses Paste...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    
+                    const res = await fetch("{{ url('admin/satker/bulk-action') }}", {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json', 
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            action: this.clipboard.mode,
+                            ids: this.clipboard.ids,
+                            target_parent_ids: targetParentIds, // Mengirim Array ID dari TomSelect
+                            periode_id: '{{ $activePeriodeId ?? '' }}',
+                            force: false
+                        })
+                    });
+
+                    if (!res.ok) throw new Error(`Server merespon dengan kode ${res.status}`);
+
+                    const data = await res.json();
+                    if (data.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: data.message, timer: 2500, showConfirmButton: false });
+                        this.toggleSelectionMode();
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        Swal.fire('Gagal', data.message, 'error');
+                    }
+                } catch (error) {
+                    Swal.fire('Terjadi Kesalahan', error.message, 'error');
+                }
+            },
+
+            confirmBulkPaste() {
+                const sourceCount = this.clipboard.ids.length;
+                const targetCount = this.selectedIds.length; // PERBAIKAN: Gunakan selectedIds
+
+                if (targetCount === 0) return;
+
+                // Daftar nama induk tujuan yang baru saja dicentang
+                const listHtml = '<div class="bg-emerald-50 rounded-lg p-3 border border-emerald-100 max-h-40 overflow-y-auto mb-4">' + 
+                                 '<ul class="text-left text-xs space-y-1 text-emerald-800 font-medium">' + 
+                                 this.selectedNames.map(n => `<li><i class="fas fa-check-circle text-emerald-500 mr-2"></i>${n}</li>`).join('') + 
+                                 '</ul></div>';
+
+                Swal.fire({
+                    title: 'Konfirmasi Paste Massal',
+                    html: `Anda akan menyalin <b>${sourceCount} Satker</b> ke dalam <b>${targetCount} Induk Tujuan</b> berikut:<br><br>` + 
+                          listHtml + 
+                          `<span class="text-xs text-gray-500 font-semibold italic">*Sistem otomatis menyesuaikan kode hirarki di setiap tujuan.</span>`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#059669',
+                    cancelButtonColor: '#cbd5e1',
+                    confirmButtonText: 'Ya, Paste Sekarang',
+                    cancelButtonText: 'Batal',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.executeBulkPasteWithTargets(this.selectedIds); // PERBAIKAN: Gunakan selectedIds
+                    }
+                });
+            },
+
+            async executeBulkPasteWithTargets(targetParentIds) {
+                try {
+                    Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    
+                    const res = await fetch("{{ url('admin/satker/bulk-action') }}", {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json', 
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            action: this.clipboard.mode,
+                            ids: this.clipboard.ids, // Data asal
+                            target_parent_ids: targetParentIds, // Data tujuan (dari checklist)
+                            periode_id: '{{ $activePeriodeId }}'
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (data.success) {
+                        Swal.fire('Berhasil', data.message, 'success').then(() => window.location.reload());
+                    } else {
+                        Swal.fire('Gagal', data.message, 'error');
+                    }
+                } catch (error) {
+                    Swal.fire('Error', 'Terjadi kesalahan sistem.', 'error');
+                }
+            },
         });
     });
     </script>
@@ -3589,6 +3699,66 @@
             const anchorDefault = document.getElementById('anchor_rumus_default');
             if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
         };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // 1. Inisialisasi TomSelect Kategori (3 Digit)
+        const elKategori = document.getElementById('kategori_jabatan_fungsional');
+        if (elKategori) {
+            new TomSelect(elKategori, {
+                create: false,
+                placeholder: '-- Cari Kategori (3 Digit) --',
+            });
+        }
+
+        // 2. Inisialisasi TomSelect Jenjang (4 Digit)
+        const elJenjang = document.getElementById('jabatan_id');
+        if (elJenjang) {
+            // Backup semua opsi asli ke dalam array objek agar mudah difilter
+            elJenjang.allOptions = Array.from(elJenjang.querySelectorAll('option')).map(opt => ({
+                value: opt.value,
+                text: opt.text,
+                kode: opt.getAttribute('data-kode') || '',
+                parent: opt.getAttribute('data-parent-kode') || ''
+            }));
+
+            new TomSelect(elJenjang, {
+                valueField: 'value',
+                labelField: 'text',
+                searchField: ['text', 'kode'],
+                create: false,
+                placeholder: '-- Cari Jenjang (4 Digit) --',
+            });
+        }
+    });
+
+    window.handleKategoriJabatanChange = function() {
+        const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
+        const wrapperJenjang = document.getElementById('wrapper_jenjang_jabatan');
+        const elJenjang = document.getElementById('jabatan_id');
+
+        if (!elJenjang || !elJenjang.tomselect) return;
+
+        if (kategoriVal) {
+            wrapperJenjang.classList.remove('hidden');
+            
+            // 1. Kosongkan semua opsi yang ada di TomSelect
+            elJenjang.tomselect.clear();
+            elJenjang.tomselect.clearOptions();
+
+            // 2. Filter data: Harus cocok dengan parent DAN panjang kode harus 4 digit
+            const filtered = elJenjang.allOptions.filter(opt => {
+                return opt.value === "" || (opt.parent === kategoriVal && opt.kode.length === 4);
+            });
+
+            // 3. Masukkan kembali hasil filter ke TomSelect
+            elJenjang.tomselect.addOptions(filtered);
+            elJenjang.tomselect.refreshOptions(false);
+        } else {
+            wrapperJenjang.classList.add('hidden');
+            elJenjang.tomselect.clear();
+            elJenjang.tomselect.clearOptions();
+        }
+    };
     </script>
 
     <div x-data class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-[60]">
@@ -3613,16 +3783,33 @@
         </div>
 
         <div x-show="$store.selection.clipboard.mode !== ''" x-transition 
-             class="flex flex-col items-center gap-2 bg-white p-4 rounded-2xl shadow-xl border-2 border-blue-400">
-            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Mode: <span x-text="$store.selection.clipboard.mode"></span></span>
-            <div class="flex gap-2">
-                {{-- KUNCI PERBAIKAN: Sembunyikan tombol Paste ke Root jika tidak lolos validasi Eselon 1 --}}
-                <template x-if="$store.selection.canPerformAction()">
-                    <button @click="$store.selection.confirmPaste(null, '', 'Root (Eselon 1)')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-sm">Paste ke Root (Khusus Eselon 1)</button>
-                </template>
-                <button @click="$store.selection.clearClipboard()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">Batal</button>
+             class="flex flex-col items-center gap-3 bg-white p-5 rounded-2xl shadow-2xl border-2 border-emerald-400 animate-fade-in-up">
+            
+            <div class="flex flex-col items-center">
+                <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded">
+                    Mode: <span x-text="$store.selection.clipboard.mode"></span>
+                </span>
+                <p class="text-[11px] font-bold text-slate-600 mt-2">
+                    <span class="text-blue-600" x-text="$store.selection.clipboard.ids.length"></span> Satker siap disalin.
+                </p>
             </div>
-            <p class="text-[9px] text-slate-400 mt-1">*Klik icon "Paste" biru pada Parent untuk memasukkannya ke dalam Parent tersebut.</p>
+
+            <div class="flex gap-2">
+                <template x-if="$store.selection.selectedIds.length > 0">
+                    <button @click="$store.selection.confirmBulkPaste()" 
+                            class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
+                        <i class="fas fa-paste"></i> Paste ke <span x-text="$store.selection.selectedIds.length"></span> Induk Terpilih
+                    </button>
+                </template>
+
+                <template x-if="$store.selection.selectedIds.length === 0">
+                    <div class="px-5 py-2.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold border border-dashed border-slate-300">
+                        <i class="fas fa-mouse-pointer mr-1"></i> Centang satu atau lebih Satker Induk tujuan...
+                    </div>
+                </template>
+                
+                <button @click="$store.selection.clearClipboard()" class="px-5 py-2.5 bg-white text-red-500 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50">Batal</button>
+            </div>
         </div>
     </div>
 @endpush
