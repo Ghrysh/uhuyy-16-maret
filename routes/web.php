@@ -45,6 +45,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/jabatan/matriks/save', [JabatanController::class, 'saveMatriks'])->name('jabatan.matriks.save');
     Route::post('/jabatan/matriks/save-baseline', [JabatanController::class, 'saveBaselineJenjang'])->name('jabatan.matriks.save-baseline');
     Route::put('/jabatan/update-global', [JabatanController::class, 'updateGlobal'])->name('jabatan.update_global');
+    Route::post('jabatan/matriks/save-bulk', [JabatanController::class, 'saveMatriksBulk'])->name('jabatan.save-matriks-bulk');
 
     Route::get('/jabatan', [JabatanController::class, 'index'])->name('jabatan.index');
     Route::post('/jabatan/store', [JabatanController::class, 'store'])->name('jabatan.store');

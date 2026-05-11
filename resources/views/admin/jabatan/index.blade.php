@@ -42,21 +42,23 @@
             </button>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="p-4 border-b border-gray-50 bg-gray-50/30">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 relative">
+            
+            <div class="p-4 border-b border-gray-200 bg-white sticky top-0 z-[40] rounded-t-2xl shadow-sm">
                 <div class="relative max-w-xs">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i class="fas fa-search text-slate-400 text-[12px]"></i>
                     </div>
-                    <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent="if($event.shiftKey) prevMatch(); else nextMatch();" placeholder="Cari kode atau jabatan..." class="block w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#112D4E] transition">
+                    <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent="if($event.shiftKey) prevMatch(); else nextMatch();" placeholder="Cari kode atau jabatan..." class="block w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#112D4E] transition shadow-sm">
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <div class="w-full max-h-[600px] overflow-y-auto relative border border-gray-100 rounded-xl shadow-inner">
+                <div class="w-full max-h-[600px] overflow-y-auto relative border border-gray-100 rounded-b-2xl shadow-inner">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-50/50">
-                            <tr class="text-slate-500 text-[11px] uppercase tracking-widest border-b border-gray-100">
+                        
+                        <thead class="bg-gray-100 sticky top-0 z-20 ring-1 ring-gray-200 shadow-sm">
+                            <tr class="text-slate-500 text-[11px] uppercase tracking-widest border-b border-gray-200">
                                 <th class="px-6 py-4 font-bold">Kode</th>
                                 <th class="px-6 py-4 font-bold">Nama Jabatan</th>
                                 <th class="px-6 py-4 font-bold text-center">Baseline per Jenjang</th>
@@ -227,30 +229,30 @@
             
             <div id="panel_setup_baseline" class="hidden bg-amber-50 border-b-2 border-amber-200 p-4"></div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50">
+            <div class="overflow-x-auto overflow-y-auto max-h-[65vh] relative border-t border-gray-200">
+                <table class="w-full text-left border-collapse relative">
+                    <thead class="bg-gray-100 sticky top-0 z-20 shadow-sm ring-1 ring-gray-200">
                         <tr>
-                            <th rowspan="2" class="px-6 py-4 border-b border-r border-gray-200 text-xs font-bold text-slate-700 uppercase w-1/3">Struktur Satuan Kerja</th>
+                            <th rowspan="2" class="px-6 py-4 border-b border-r border-gray-200 text-xs font-bold text-slate-700 uppercase w-1/3 bg-gray-50">Struktur Satuan Kerja</th>
                             
-                            <th id="th_setup_kuota" colspan="4" class="px-6 py-2 border-b border-gray-200 text-xs font-bold text-center text-slate-700 uppercase bg-slate-100/50">Setup Kuota per Jenjang</th>
+                            <th id="th_setup_kuota" colspan="4" class="px-6 py-2 border-b border-gray-200 text-xs font-bold text-center text-slate-700 uppercase bg-slate-200/60">Setup Kuota per Jenjang</th>
                             
                             <th rowspan="2" class="px-4 py-4 border-b border-l border-gray-200 text-xs font-bold text-center text-slate-700 uppercase bg-emerald-50">Jumlah</th>
-                            <th rowspan="2" class="px-6 py-4 border-b border-l border-gray-200 text-xs font-bold text-center text-slate-700 uppercase w-32">Aksi</th>
+                            <th rowspan="2" class="px-6 py-4 border-b border-l border-gray-200 text-xs font-bold text-center text-slate-700 uppercase w-32 bg-gray-50">Aksi</th>
                         </tr>
                         <tr>
-                            <th id="th_jenjang_1" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 1</th>
-                            <th id="th_jenjang_2" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 2</th>
-                            <th id="th_jenjang_3" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 3</th>
-                            <th id="th_jenjang_4" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 4</th>
+                            <th id="th_jenjang_1" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 1</th>
+                            <th id="th_jenjang_2" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 2</th>
+                            <th id="th_jenjang_3" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 3</th>
+                            <th id="th_jenjang_4" class="px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 4</th>
                             
-                            <th id="th_jenjang_5" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 5</th>
-                            <th id="th_jenjang_6" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 6</th>
-                            <th id="th_jenjang_7" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 7</th>
-                            <th id="th_jenjang_8" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase">Jenjang 8</th>
+                            <th id="th_jenjang_5" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 5</th>
+                            <th id="th_jenjang_6" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 6</th>
+                            <th id="th_jenjang_7" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 7</th>
+                            <th id="th_jenjang_8" class="th_extra_jenjang hidden px-4 py-3 border-b border-gray-200 text-[10px] font-bold text-center text-slate-600 uppercase bg-gray-50">Jenjang 8</th>
                         </tr>
                     </thead>
-                    <tbody id="matriksTableBody" class="divide-y divide-gray-100">
+                    <tbody id="matriksTableBody" class="divide-y divide-gray-100" x-ignore>
                         <tr><td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm"><i class="fas fa-sitemap mb-3 text-2xl text-slate-300 block"></i>Pilih Jabatan Fungsional dan klik "Tampilkan Matriks" untuk melihat sebaran kuota.</td></tr>
                     </tbody>
                 </table>
@@ -639,6 +641,16 @@
                 return;
             }
 
+            const xDataEl = document.getElementById('wrapper_matriks_distribusi');
+            if (xDataEl) {
+                // Mengakses data Alpine secara aman baik v2 maupun v3
+                const alpineData = window.Alpine ? (Alpine.$data ? Alpine.$data(xDataEl) : xDataEl.__x?.$data) : xDataEl.__x?.$data;
+                if (alpineData) {
+                    alpineData.tabMatriks = 'menpan'; // Paksa UI pindah ke tab Persetujuan Kebutuhan
+                    alpineData.search = '';           // Kosongkan fitur search matriks agar data baru muncul semua
+                }
+            }
+
             Swal.fire({ title: 'Mengunduh Data...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
             try {
@@ -699,11 +711,18 @@
         }
 
         window.currentMatriksTab = 'menpan';
+        window.globalMatriksSums = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
+        window.globalMatriksLimits = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
+        window.colValidationTimers = {};
 
         window.renderTableByTab = function(tabName) {
             window.currentMatriksTab = tabName; 
             Swal.showLoading();
             
+            setTimeout(() => { _internalRenderTable(tabName); }, 50);
+        }
+
+        function _internalRenderTable(tabName) {
             let bp=0, bmu=0, bma=0, bu=0, b5=0, b6=0, b7=0, b8=0;
             if (tabName === 'menpan') {
                 bp = globalBaselineData.b_p_menpan || 0; bmu = globalBaselineData.b_mu_menpan || 0; bma = globalBaselineData.b_ma_menpan || 0; bu = globalBaselineData.b_u_menpan || 0;
@@ -716,75 +735,26 @@
                 b5 = globalBaselineData.b_5_low || 0; b6 = globalBaselineData.b_6_low || 0; b7 = globalBaselineData.b_7_low || 0; b8 = globalBaselineData.b_8_low || 0;
             }
             
+            window.globalMatriksLimits = { kp: parseInt(bp)||0, kmu: parseInt(bmu)||0, kma: parseInt(bma)||0, ku: parseInt(bu)||0, k5: parseInt(b5)||0, k6: parseInt(b6)||0, k7: parseInt(b7)||0, k8: parseInt(b8)||0 };
+            const limits = window.globalMatriksLimits;
             const isSemua = globalBaselineData.is_semua_jenjang;
-            const grandTotal = parseInt(bp) + parseInt(bmu) + parseInt(bma) + parseInt(bu) + (isSemua ? parseInt(b5)+parseInt(b6)+parseInt(b7)+parseInt(b8) : 0);
+            const grandTotal = limits.kp + limits.kmu + limits.kma + limits.ku + (isSemua ? limits.k5 + limits.k6 + limits.k7 + limits.k8 : 0);
             
-            // =============================================================
-            // FITUR BARU: NAMA JENJANG DINAMIS DI PANEL BASELINE
-            // =============================================================
             let lbl1 = "Pemula", lbl2 = "Terampil", lbl3 = "Mahir", lbl4 = "Penyelia";
             let lbl5 = "Ahli Pertama", lbl6 = "Ahli Muda", lbl7 = "Ahli Madya", lbl8 = "Ahli Utama";
 
-            // Cek apakah ini Kategori Keahlian (Ahli Pertama dkk) untuk format 4 jenjang
             const th1Text = document.getElementById('th_jenjang_1')?.innerText?.toLowerCase() || '';
             if (!isSemua && th1Text.includes('pertama')) {
                 lbl1 = "Ahli Pertama"; lbl2 = "Ahli Muda"; lbl3 = "Ahli Madya"; lbl4 = "Ahli Utama";
             }
-            // =============================================================
 
             const elSetupKuota = document.getElementById('th_setup_kuota');
             if (elSetupKuota) elSetupKuota.colSpan = isSemua ? 8 : 4;
             document.querySelectorAll('.th_extra_jenjang').forEach(el => el.classList.toggle('hidden', !isSemua));
 
-            let extraSetupHtml = isSemua ? `
-                <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl5}">${lbl5}</p><div id="display_base_5" class="px-2 py-1 bg-white border rounded font-black text-xs">${b5}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_k5" class="font-bold">0</span></p></div>
-                <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl6}">${lbl6}</p><div id="display_base_6" class="px-2 py-1 bg-white border rounded font-black text-xs">${b6}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_k6" class="font-bold">0</span></p></div>
-                <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl7}">${lbl7}</p><div id="display_base_7" class="px-2 py-1 bg-white border rounded font-black text-xs">${b7}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_k7" class="font-bold">0</span></p></div>
-                <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl8}">${lbl8}</p><div id="display_base_8" class="px-2 py-1 bg-white border rounded font-black text-xs">${b8}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_k8" class="font-bold">0</span></p></div>
-            ` : '';
-
-            document.getElementById('panel_setup_baseline').classList.remove('hidden');
-            document.getElementById('panel_setup_baseline').innerHTML = `
-                <div class="flex justify-between items-center gap-4">
-                    <div><p class="text-xs font-bold uppercase mb-1">TOTAL FORMASI MENPAN RB</p><span class="text-2xl font-black">${grandTotal}</span></div>
-                    <div class="flex-1 flex gap-2 justify-end">
-                        <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl1}">${lbl1}</p><div id="display_base_p" class="px-2 py-1 bg-white border rounded font-black text-xs">${bp}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_kp" class="font-bold">0</span></p></div>
-                        <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl2}">${lbl2}</p><div id="display_base_mu" class="px-2 py-1 bg-white border rounded font-black text-xs">${bmu}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_kmu" class="font-bold">0</span></p></div>
-                        <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl3}">${lbl3}</p><div id="display_base_ma" class="px-2 py-1 bg-white border rounded font-black text-xs">${bma}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_kma" class="font-bold">0</span></p></div>
-                        <div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${lbl4}">${lbl4}</p><div id="display_base_u" class="px-2 py-1 bg-white border rounded font-black text-xs">${bu}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_ku" class="font-bold">0</span></p></div>
-                        ${extraSetupHtml}
-                    </div>
-                </div>
-            `;
-
-            const renderTd = (type, val, id, isReadOnly) => {
-                const isEditable = !isReadOnly.includes('readonly');
-                const focusEvents = isEditable ? `onfocus="showSisaLabel('${type}', '${id}')" onblur="hideSisaLabel('${type}', '${id}')"` : '';
-
-                return `
-                <td class="px-1 py-2 align-top relative">
-                    <div id="floating_sisa_${type}_${id}" class="invisible opacity-0 absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[8px] font-bold whitespace-nowrap z-20 shadow-sm transition-all duration-200 pointer-events-none">
-                        Sisa: <span class="val-sisa-${type}">0</span>
-                    </div>
-                    <input type="number" id="${type}_${id}" data-type="${type}" value="${val || ''}" ${isReadOnly} ${focusEvents}>
-                    <div class="mt-1 min-h-[14px] text-[9px] leading-tight text-center">
-                        <p id="err_${type}_${id}" class="font-bold text-red-500 hidden">Lebih: <span id="err_val_${type}_${id}">0</span></p>
-                    </div>
-                </td>
-                `;
-            };
-
-            const tbody = document.getElementById('matriksTableBody');
-            let html = '';
-            
+            // 1. HITUNG SUMS (Sangat Cepat di Memori)
+            let sums = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
             globalMatriksData.forEach(item => {
-                const level = item.level;
-                const isParent = item.has_children || level === 0; 
-                const padStyle = `padding-left: ${1.5 + (level * 2.5)}rem;`; 
-                const bgClass = level === 0 ? 'bg-white' : (level % 2 === 1 ? 'bg-slate-50/70' : 'bg-slate-50');
-                const textClass = level === 0 ? 'font-bold text-slate-800' : (level === 1 ? 'font-semibold text-slate-700' : 'font-medium text-slate-600');
-                const iconHtml = level === 0 ? '<i class="fas fa-building mr-3 text-slate-400"></i>' : '<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>';
-
                 let v1, v2, v3, v4, v5, v6, v7, v8;
                 if (tabName === 'menpan') {
                     v1 = item.kp_menpan; v2 = item.kmu_menpan; v3 = item.kma_menpan; v4 = item.ku_menpan;
@@ -796,184 +766,306 @@
                     v1 = item.kp_lowongan; v2 = item.kmu_lowongan; v3 = item.kma_lowongan; v4 = item.ku_lowongan;
                     v5 = item.k5_lowongan; v6 = item.k6_lowongan; v7 = item.k7_lowongan; v8 = item.k8_lowongan;
                 }
-
-                const isReadOnly = (tabName === 'lowongan') 
-                    ? 'readonly disabled class="w-full text-center border border-gray-200 bg-gray-100 p-1.5 rounded text-gray-500 font-bold"' 
-                    : 'class="w-full text-center border border-gray-300 p-1.5 rounded focus:ring-2 focus:ring-blue-500" oninput="autoCalcMatriks(this)"';
-
-                const totalRow = (parseInt(v1)||0) + (parseInt(v2)||0) + (parseInt(v3)||0) + (parseInt(v4)||0) + (isSemua ? (parseInt(v5)||0)+(parseInt(v6)||0)+(parseInt(v7)||0)+(parseInt(v8)||0) : 0);
-
-                html += `
-                    <tr class="matriks-row ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}" data-search="${item.nama_satker.toLowerCase()}">
-                        <td class="py-4 pr-4 align-middle" style="${padStyle}">
-                            <div class="flex items-center ${textClass}">${iconHtml}<span class="text-sm tracking-tight leading-snug satker-name">${item.nama_satker}</span></div>
-                        </td>
-                        ${renderTd('kp', v1, item.id, isReadOnly)}
-                        ${renderTd('kmu', v2, item.id, isReadOnly)}
-                        ${renderTd('kma', v3, item.id, isReadOnly)}
-                        ${renderTd('ku', v4, item.id, isReadOnly)}
-                        ${isSemua ? renderTd('k5', v5, item.id, isReadOnly) + renderTd('k6', v6, item.id, isReadOnly) + renderTd('k7', v7, item.id, isReadOnly) + renderTd('k8', v8, item.id, isReadOnly) : ''}
-                        <td class="px-4 py-3 text-center font-bold text-emerald-600 align-top pt-4" id="total_${item.id}">${totalRow}</td>
-                        <td class="px-4 py-3 text-center align-top pt-3">
-                            ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full">Simpan</button>`) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
-                        </td>
-                    </tr>
-                `;
+                sums.kp += (parseInt(v1)||0); sums.kmu += (parseInt(v2)||0); sums.kma += (parseInt(v3)||0); sums.ku += (parseInt(v4)||0);
+                sums.k5 += (parseInt(v5)||0); sums.k6 += (parseInt(v6)||0); sums.k7 += (parseInt(v7)||0); sums.k8 += (parseInt(v8)||0);
             });
-            
-            tbody.innerHTML = html;
-            validateAllHierarchies(); 
-            Swal.close();
+            window.globalMatriksSums = sums;
 
-            // Beri tahu Alpine bahwa tabel baru saja dirender ulang (untuk fitur Search)
-            window.dispatchEvent(new CustomEvent('dom-updated'));
+            // 2. GENERATE PANEL BASELINE
+            const typeToId = { kp: 'p', kmu: 'mu', kma: 'ma', ku: 'u', k5: '5', k6: '6', k7: '7', k8: '8' };
+            const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
+            
+            const getSisaHTML = (type, limit, label) => {
+                const sisa = limit - sums[type];
+                const isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
+                const isRed = sisa < 0 && !isExempt;
+                const textColor = isRed ? 'text-red-600' : 'text-emerald-600';
+                const suffix = typeToId[type];
+                return `<div class="text-center min-w-[70px]"><p class="text-[9px] font-bold text-slate-500 uppercase mb-1 truncate" title="${label}">${label}</p><div id="display_base_${suffix}" class="px-2 py-1 bg-white border rounded font-black text-xs">${limit}</div><p class="text-[9px] mt-1 text-slate-500">Sisa: <span id="sisa_${type}" class="font-bold ${textColor}">${sisa}</span></p></div>`;
+            };
+
+            let extraSetupHtml = isSemua ? getSisaHTML('k5', limits.k5, lbl5) + getSisaHTML('k6', limits.k6, lbl6) + getSisaHTML('k7', limits.k7, lbl7) + getSisaHTML('k8', limits.k8, lbl8) : '';
+
+            document.getElementById('panel_setup_baseline').classList.remove('hidden');
+            document.getElementById('panel_setup_baseline').innerHTML = `
+                <div class="flex justify-between items-center gap-4">
+                    <div><p class="text-xs font-bold uppercase mb-1">TOTAL FORMASI</p><span class="text-2xl font-black">${grandTotal}</span></div>
+                    <div class="flex-1 flex gap-2 justify-end">
+                        ${getSisaHTML('kp', limits.kp, lbl1)}
+                        ${getSisaHTML('kmu', limits.kmu, lbl2)}
+                        ${getSisaHTML('kma', limits.kma, lbl3)}
+                        ${getSisaHTML('ku', limits.ku, lbl4)}
+                        ${extraSetupHtml}
+                    </div>
+                </div>
+            `;
+
+            const renderTd = (type, val, id, isReadOnly) => {
+                const numVal = parseInt(val) || 0;
+                const sisaGlobal = limits[type] - sums[type];
+                const limitLokal = limits[type] - (sums[type] - numVal); 
+                
+                let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
+                const isExceeding = !isExempt && (numVal > limitLokal);
+                const overVal = numVal - limitLokal;
+
+                const isEditable = !isReadOnly.includes('readonly');
+                
+                let inputClass = "w-full text-center p-1.5 rounded outline-none transition-colors relative z-10 ";
+                if (!isEditable) {
+                    inputClass += "bg-gray-100 border border-gray-200 text-gray-500 font-bold cursor-not-allowed";
+                } else {
+                    if (isExceeding) {
+                        inputClass += "border-red-500 bg-red-50 text-red-600 focus:ring-2 focus:ring-red-500";
+                    } else {
+                        inputClass += "border border-gray-300 focus:ring-2 focus:ring-blue-500";
+                    }
+                }
+
+                const errDisplay = isExceeding ? "" : "hidden";
+                const bgTooltip = (sisaGlobal < 0 && !isExempt) ? "bg-red-600" : "bg-emerald-600";
+
+                // PERUBAHAN PAMUNGKAS:
+                // Menggunakan class "group" pada <td>
+                // dan "group-focus-within:visible group-focus-within:opacity-100" pada <div> tooltip melayangnya
+                return `
+                <td class="px-1 py-2 align-top relative bg-white group">
+                    <div id="floating_sisa_${type}_${id}" class="invisible opacity-0 group-focus-within:visible group-focus-within:opacity-100 absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full ${bgTooltip} text-white px-1.5 py-0.5 rounded text-[8px] font-bold whitespace-nowrap z-20 shadow-sm transition-all duration-150 pointer-events-none">
+                        Sisa: <span class="val-sisa-${type}">${sisaGlobal}</span>
+                    </div>
+                    <input type="number" id="${type}_${id}" data-type="${type}" data-oldval="${numVal}" value="${val || ''}" class="${inputClass}" ${isReadOnly} ${isEditable ? 'oninput="autoCalcMatriks(this)"' : ''}>
+                    <div class="mt-1 min-h-[14px] text-[9px] leading-tight text-center">
+                        <p id="err_${type}_${id}" class="font-bold text-red-500 ${errDisplay}">Lebih: <span id="err_val_${type}_${id}">${overVal}</span></p>
+                    </div>
+                </td>
+                `;
+            };
+
+            const tbody = document.getElementById('matriksTableBody');
+            tbody.innerHTML = ''; // Kosongkan tabel sebelum render baru
+
+            // ==============================================================
+            // 4. CHUNKING PROCESS (INI YANG MEMBUAT BROWSER ANTI-HANG)
+            // ==============================================================
+            const totalData = globalMatriksData.length;
+            const chunkSize = 50; // Render 50 baris per frame agar mulus
+            let currentIndex = 0;
+
+            function processChunk() {
+                let chunkHtml = '';
+                const end = Math.min(currentIndex + chunkSize, totalData);
+
+                for (; currentIndex < end; currentIndex++) {
+                    const item = globalMatriksData[currentIndex];
+                    const level = item.level;
+                    const isParent = item.has_children || level === 0; 
+                    const padStyle = `padding-left: ${1.5 + (level * 2.5)}rem;`; 
+                    const bgClass = level === 0 ? 'bg-white' : (level % 2 === 1 ? 'bg-slate-50/70' : 'bg-slate-50');
+                    const textClass = level === 0 ? 'font-bold text-slate-800' : (level === 1 ? 'font-semibold text-slate-700' : 'font-medium text-slate-600');
+                    const iconHtml = level === 0 ? '<i class="fas fa-building mr-3 text-slate-400"></i>' : '<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>';
+
+                    let v1, v2, v3, v4, v5, v6, v7, v8;
+                    if (tabName === 'menpan') {
+                        v1 = item.kp_menpan; v2 = item.kmu_menpan; v3 = item.kma_menpan; v4 = item.ku_menpan;
+                        v5 = item.k5_menpan; v6 = item.k6_menpan; v7 = item.k7_menpan; v8 = item.k8_menpan;
+                    } else if (tabName === 'eksisting') {
+                        v1 = item.kp_eksisting; v2 = item.kmu_eksisting; v3 = item.kma_eksisting; v4 = item.ku_eksisting;
+                        v5 = item.k5_eksisting; v6 = item.k6_eksisting; v7 = item.k7_eksisting; v8 = item.k8_eksisting;
+                    } else {
+                        v1 = item.kp_lowongan; v2 = item.kmu_lowongan; v3 = item.kma_lowongan; v4 = item.ku_lowongan;
+                        v5 = item.k5_lowongan; v6 = item.k6_lowongan; v7 = item.k7_lowongan; v8 = item.k8_lowongan;
+                    }
+
+                    const isReadOnly = (tabName === 'lowongan') ? 'readonly disabled' : '';
+                    const totalRow = (parseInt(v1)||0) + (parseInt(v2)||0) + (parseInt(v3)||0) + (parseInt(v4)||0) + (isSemua ? (parseInt(v5)||0)+(parseInt(v6)||0)+(parseInt(v7)||0)+(parseInt(v8)||0) : 0);
+
+                    chunkHtml += `
+                        <tr class="matriks-row ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}" data-search="${item.nama_satker.toLowerCase()}">
+                            <td class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent" style="${padStyle}">
+                                <div class="flex items-center ${textClass}">${iconHtml}<span class="text-sm tracking-tight leading-snug satker-name">${item.nama_satker}</span></div>
+                            </td>
+                            ${renderTd('kp', v1, item.id, isReadOnly)}
+                            ${renderTd('kmu', v2, item.id, isReadOnly)}
+                            ${renderTd('kma', v3, item.id, isReadOnly)}
+                            ${renderTd('ku', v4, item.id, isReadOnly)}
+                            ${isSemua ? renderTd('k5', v5, item.id, isReadOnly) + renderTd('k6', v6, item.id, isReadOnly) + renderTd('k7', v7, item.id, isReadOnly) + renderTd('k8', v8, item.id, isReadOnly) : ''}
+                            <td class="px-4 py-3 text-center font-bold text-emerald-600 align-top pt-4 border-b border-gray-100 bg-transparent" id="total_${item.id}">${totalRow}</td>
+                            <td class="px-4 py-3 text-center align-top pt-3 border-b border-gray-100 bg-transparent">
+                                ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full shadow-sm hover:bg-blue-900 transition">Simpan</button>`) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // Inject ke DOM secara langsung (Sangat Ringan)
+                tbody.insertAdjacentHTML('beforeend', chunkHtml);
+
+                if (currentIndex < totalData) {
+                    // Beri jeda browser untuk bernafas sebelum render batch selanjutnya
+                    requestAnimationFrame(processChunk);
+                } else {
+                    // Setelah semua baris selesai di-render
+                    Swal.close();
+                    window.dispatchEvent(new CustomEvent('dom-updated'));
+                }
+            }
+
+            // Pancing render awal
+            if (totalData > 0) {
+                requestAnimationFrame(processChunk);
+            } else {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm">Belum ada data distribusi satker.</td></tr>';
+                Swal.close();
+            }
         }
 
         window.autoCalcMatriks = function(input) {
             const id = input.id.split('_')[1];
             const type = input.dataset.type;
             const val = parseInt(input.value) || 0;
+            const oldVal = parseInt(input.dataset.oldval) || 0; 
             
+            // 1. Update data di globalMatriksData
             let item = globalMatriksData.find(i => i.id == id);
             if(item) {
-                // Menggunakan variabel aman, bukan __x yang rawan error
                 const currentTab = window.currentMatriksTab || 'menpan';
                 if (currentTab === 'menpan') item[`${type}_menpan`] = val;
                 else if (currentTab === 'eksisting') item[`${type}_eksisting`] = val;
                 item[`${type}_lowongan`] = (parseInt(item[`${type}_menpan`]) || 0) - (parseInt(item[`${type}_eksisting`]) || 0);
             }
-            validateAllHierarchies(); // Sekarang ini pasti akan dipanggil!
-        }
 
-        function validateAllHierarchies() {
-            let sums = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
-            const inputs = document.querySelectorAll('#matriksTableBody input[data-type]:not([readonly])');
+            // 2. Update jumlah Horizontal (Baris) seketika tanpa GetElementById massal
             const isSemua = globalBaselineData.is_semua_jenjang;
             
-            // Ambil Kategori (semua jenjang, keahlian, atau keterampilan)
+            // Kita ambil nilai dari item yang sudah tersimpan di JSON, jauh lebih cepat!
+            const t_1 = currentTab === 'menpan' ? (parseInt(item.kp_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kp_eksisting)||0) : (parseInt(item.kp_lowongan)||0));
+            const t_2 = currentTab === 'menpan' ? (parseInt(item.kmu_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kmu_eksisting)||0) : (parseInt(item.kmu_lowongan)||0));
+            const t_3 = currentTab === 'menpan' ? (parseInt(item.kma_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kma_eksisting)||0) : (parseInt(item.kma_lowongan)||0));
+            const t_4 = currentTab === 'menpan' ? (parseInt(item.ku_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.ku_eksisting)||0) : (parseInt(item.ku_lowongan)||0));
+            
+            let totalVal = t_1 + t_2 + t_3 + t_4;
+            
+            if (isSemua) {
+                const t_5 = currentTab === 'menpan' ? (parseInt(item.k5_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.k5_eksisting)||0) : (parseInt(item.k5_lowongan)||0));
+                const t_6 = currentTab === 'menpan' ? (parseInt(item.k6_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.k6_eksisting)||0) : (parseInt(item.k6_lowongan)||0));
+                const t_7 = currentTab === 'menpan' ? (parseInt(item.k7_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.k7_eksisting)||0) : (parseInt(item.k7_lowongan)||0));
+                const t_8 = currentTab === 'menpan' ? (parseInt(item.k8_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.k8_eksisting)||0) : (parseInt(item.k8_lowongan)||0));
+                totalVal += (t_5 + t_6 + t_7 + t_8);
+            }
+            
+            const totalEl = document.getElementById(`total_${id}`);
+            if(totalEl) totalEl.innerText = totalVal;
+
+            // 3. Update Memori Sum secara instan
+            const diff = val - oldVal;
+            window.globalMatriksSums[type] += diff;
+            input.dataset.oldval = val; 
+
+            // 4. Validasi Merah/Hijau Kotak INI SAJA (Bukan seluruh tabel)
+            requestAnimationFrame(() => {
+                validateSingleBox(input, id, type, val);
+            });
+        }
+
+        // FUNGSI BARU: Validasi ringan per 1 kotak
+        function validateSingleBox(input, id, type, val) {
+            const sumCol = window.globalMatriksSums[type];
+            const limit = window.globalMatriksLimits[type];
+            const sisaGlobal = limit - sumCol;
+
             const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
+            let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
 
-            // 1. Hitung total input per kolom dan update baris TOTAL
-            inputs.forEach(input => {
-                const type = input.dataset.type;
-                sums[type] += (parseInt(input.value) || 0);
-                
-                const id = input.id.split('_')[1];
-                const totalVal = 
-                    (parseInt(document.getElementById(`kp_${id}`)?.value)||0) + 
-                    (parseInt(document.getElementById(`kmu_${id}`)?.value)||0) + 
-                    (parseInt(document.getElementById(`kma_${id}`)?.value)||0) + 
-                    (parseInt(document.getElementById(`ku_${id}`)?.value)||0) +
-                    (isSemua ? (parseInt(document.getElementById(`k5_${id}`)?.value)||0) + (parseInt(document.getElementById(`k6_${id}`)?.value)||0) + (parseInt(document.getElementById(`k7_${id}`)?.value)||0) + (parseInt(document.getElementById(`k8_${id}`)?.value)||0) : 0);
-                
-                const totalEl = document.getElementById(`total_${id}`);
-                if(totalEl) totalEl.innerText = totalVal;
-            });
+            const isRedGlobal = sisaGlobal < 0 && !isExempt;
+            const textColor = isRedGlobal ? 'text-red-600' : 'text-emerald-600';
+            const bgColor = isRedGlobal ? 'bg-red-600' : 'bg-emerald-600';
 
-            // 2. Ambil limit baseline
-            const limits = {
-                kp: parseInt(document.getElementById('display_base_p')?.innerText)||0,
-                kmu: parseInt(document.getElementById('display_base_mu')?.innerText)||0,
-                kma: parseInt(document.getElementById('display_base_ma')?.innerText)||0,
-                ku: parseInt(document.getElementById('display_base_u')?.innerText)||0,
-                k5: parseInt(document.getElementById('display_base_5')?.innerText)||0,
-                k6: parseInt(document.getElementById('display_base_6')?.innerText)||0,
-                k7: parseInt(document.getElementById('display_base_7')?.innerText)||0,
-                k8: parseInt(document.getElementById('display_base_8')?.innerText)||0,
-            };
+            // Update Sisa Global di Header
+            const sisaEl = document.getElementById(`sisa_${type}`);
+            if (sisaEl) {
+                sisaEl.innerText = sisaGlobal;
+                sisaEl.className = `font-bold ${textColor}`;
+            }
 
-            // 3. Update tampilan SISA GLOBAL & LABEL MELAYANG
-            Object.keys(limits).forEach(type => {
-                const sisa = limits[type] - sums[type];
-                
-                // CEK HAK ISTIMEWA: Apakah ini kolom Ahli Pertama?
-                let isExempt = false;
-                if (kategoriStr === 'semua jenjang' && type === 'k5') isExempt = true;
-                if (kategoriStr === 'keahlian' && type === 'kp') isExempt = true;
+            // Update Tooltip Melayang di Kotak Ini
+            const floatLabel = document.getElementById(`floating_sisa_${type}_${id}`);
+            if (floatLabel) {
+                floatLabel.querySelector('span').innerText = sisaGlobal;
+                floatLabel.classList.remove('bg-emerald-600', 'bg-red-600');
+                floatLabel.classList.add(bgColor);
+            }
 
-                // Jika punya Hak Istimewa, jangan pernah jadikan warna merah walaupun minus
-                const isRed = sisa < 0 && !isExempt; 
-                const textColor = isRed ? 'text-red-600' : 'text-emerald-600';
-                const bgColor = isRed ? 'bg-red-600' : 'bg-emerald-600';
-                
-                // Update Panel Atas & Header
-                const sisaEl = document.getElementById(`sisa_${type}`);
-                if (sisaEl) {
-                    sisaEl.innerText = sisa;
-                    sisaEl.className = `font-bold ${textColor}`;
-                }
-                const hSisaEl = document.getElementById(`h_sisa_${type}`);
-                if (hSisaEl) {
-                    hSisaEl.innerText = 'Sisa: ' + sisa;
-                    hSisaEl.className = `text-[9px] font-black ${textColor}`;
-                }
-                
-                // UPDATE LABEL SISA MELAYANG (DI ATAS KOTAK)
-                document.querySelectorAll(`.val-sisa-${type}`).forEach(el => {
-                    el.innerText = sisa;
-                    const parentLabel = el.parentElement;
-                    parentLabel.classList.remove('bg-emerald-600', 'bg-red-600');
-                    parentLabel.classList.add(bgColor);
-                });
-            });
+            // Validasi Limit Kotak Ini
+            // Jika sisa global negatif, berarti ada kotak yang melebihi. 
+            // Kotak yang melebihi adalah kotak yang jika nilainya dikurangi (val - 1), sisanya masih tetap butuh dipenuhi.
+            // Cara gampang: Kotak merah = (Nilai kotak > Sisa Tersedia untuk kotak ini)
+            const sisaTersediaUntukKotakIni = limit - (sumCol - val);
+            const isExceeding = !isExempt && (val > sisaTersediaUntukKotakIni);
+            
+            const errEl = document.getElementById(`err_${type}_${id}`);
+            const errValEl = document.getElementById(`err_val_${type}_${id}`);
 
-            // 4. Validasi per kotak input (Peringatan "Lebih: Sekian")
-            inputs.forEach(input => {
-                const type = input.dataset.type;
-                const id = input.id.split('_')[1];
-                const val = parseInt(input.value) || 0;
-                
-                const limit = limits[type] || 0;
-                const otherSum = sums[type] - val; 
-                const sisaTersedia = limit - otherSum;
-                
-                let isExceeding = val > sisaTersedia;
-
-                // CEK HAK ISTIMEWA KOTAK INPUT (Matikan peringatan "Lebih")
-                let isExempt = false;
-                if (kategoriStr === 'semua jenjang' && type === 'k5') isExempt = true;
-                if (kategoriStr === 'keahlian' && type === 'kp') isExempt = true;
-
-                if (isExempt) {
-                    isExceeding = false; // Memaksa Ahli Pertama selalu dianggap valid
-                }
-
-                const errEl = document.getElementById(`err_${type}_${id}`);
-                const errValEl = document.getElementById(`err_val_${type}_${id}`);
-
-                if (isExceeding) {
-                    input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
-                    input.classList.remove('border-gray-300');
-                    
-                    if (errValEl) errValEl.innerText = val - sisaTersedia;
-                    if (errEl) errEl.classList.remove('hidden');
-                } else {
-                    input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
-                    input.classList.add('border-gray-300');
-                    
-                    if (errEl) errEl.classList.add('hidden');
-                }
-            });
+            if (isExceeding) {
+                input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
+                input.classList.remove('border-gray-300');
+                if (errValEl) errValEl.innerText = val - sisaTersediaUntukKotakIni;
+                if (errEl) errEl.classList.remove('hidden');
+            } else {
+                input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
+                input.classList.add('border-gray-300');
+                if (errEl) errEl.classList.add('hidden');
+            }
         }
 
         async function simpanKuotaGroup(satkerId, tabAktif) {
-            // BLOKIR JIKA ADA ERROR DI BARIS INI
-            const row = document.getElementById(`row-${satkerId}`);
-            if (row) {
-                // Mencari tulisan "Lebih: [Angka]" yang tidak disembunyikan (berarti error aktif)
-                const errors = row.querySelectorAll('p[id^="err_"]:not(.hidden)');
-                if (errors.length > 0) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Tidak Dapat Disimpan',
-                        text: 'Terdapat input yang melebihi sisa kuota (kotak merah). Silakan perbaiki terlebih dahulu!',
-                        confirmButtonColor: '#112D4E'
-                    });
-                    return; // Hentikan eksekusi, jangan panggil server
+            const jfId = document.getElementById('filter_fungsional_distribusi').value;
+            
+            // 1. Kumpulkan ID Satker Induk dan ID Semua Anak-anaknya
+            let satkerIdsToSave = [satkerId]; // Masukkan Induk
+            
+            // Cari anak-anak di memori globalMatriksData
+            globalMatriksData.forEach(item => {
+                if (item.parent_id == satkerId) {
+                    satkerIdsToSave.push(item.id);
                 }
+            });
+
+            // 2. Siapkan Array Data Payload
+            let payloadData = [];
+            let hasError = false;
+
+            satkerIdsToSave.forEach(sId => {
+                const row = document.getElementById(`row-${sId}`);
+                if (row) {
+                    // Cek error per baris
+                    const errors = row.querySelectorAll('p[id^="err_"]:not(.hidden)');
+                    if (errors.length > 0) hasError = true;
+
+                    // Push data ke payload array
+                    payloadData.push({
+                        satker_id: sId,
+                        kp: document.getElementById(`kp_${sId}`)?.value || 0,
+                        kmu: document.getElementById(`kmu_${sId}`)?.value || 0,
+                        kma: document.getElementById(`kma_${sId}`)?.value || 0,
+                        ku: document.getElementById(`ku_${sId}`)?.value || 0,
+                        k5: document.getElementById(`k5_${sId}`)?.value || 0,
+                        k6: document.getElementById(`k6_${sId}`)?.value || 0,
+                        k7: document.getElementById(`k7_${sId}`)?.value || 0,
+                        k8: document.getElementById(`k8_${sId}`)?.value || 0
+                    });
+                }
+            });
+
+            if (hasError) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Tidak Dapat Disimpan',
+                    text: 'Terdapat input yang melebihi sisa kuota (kotak merah). Silakan perbaiki terlebih dahulu!',
+                    confirmButtonColor: '#112D4E'
+                });
+                return; 
             }
 
-            const jfId = document.getElementById('filter_fungsional_distribusi').value;
             const btn = document.querySelector(`#row-${satkerId} button`);
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>...`;
@@ -981,22 +1073,16 @@
             
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]').content;
-                await fetch(`{{ url('admin/jabatan/matriks/save') }}`, {
+                await fetch(`{{ url('admin/jabatan/matriks/save-bulk') }}`, { // <-- PERHATIKAN URL BERUBAH
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
                     body: JSON.stringify({ 
-                        satker_id: satkerId, jabatan_id: jfId, tab_aktif: tabAktif,
-                        kp: document.getElementById(`kp_${satkerId}`)?.value || 0,
-                        kmu: document.getElementById(`kmu_${satkerId}`)?.value || 0,
-                        kma: document.getElementById(`kma_${satkerId}`)?.value || 0,
-                        ku: document.getElementById(`ku_${satkerId}`)?.value || 0,
-                        k5: document.getElementById(`k5_${satkerId}`)?.value || 0,
-                        k6: document.getElementById(`k6_${satkerId}`)?.value || 0,
-                        k7: document.getElementById(`k7_${satkerId}`)?.value || 0,
-                        k8: document.getElementById(`k8_${satkerId}`)?.value || 0
+                        jabatan_id: jfId, 
+                        tab_aktif: tabAktif,
+                        data_satkers: payloadData // Kirim sebagai Array
                     })
                 });
-                Toast.fire({icon: 'success', title: 'Data ' + tabAktif.toUpperCase() + ' Tersimpan!'});
+                Toast.fire({icon: 'success', title: 'Data ' + tabAktif.toUpperCase() + ' (beserta anaknya) Tersimpan!'});
             } catch (error) {
                 Toast.fire({icon: 'error', title: 'Gagal Menyimpan'});
             } finally {
@@ -1040,8 +1126,19 @@
             hiddenKategoriJabatan.value = item.kategori;
             const hiddenKode = document.getElementById('filter_kode_fungsional');
             if (hiddenKode) hiddenKode.value = item.kode;
+            
             dropdownListJabatan.classList.add('hidden');
             clearBtn.classList.remove('hidden');
+
+            // Reset Search Matriks saat ganti Jabatan (Sebelum klik tombol Tampilkan)
+            const xDataEl = document.getElementById('wrapper_matriks_distribusi');
+            if (xDataEl) {
+                const alpineData = window.Alpine ? (Alpine.$data ? Alpine.$data(xDataEl) : xDataEl.__x?.$data) : xDataEl.__x?.$data;
+                if (alpineData) {
+                    alpineData.search = ''; 
+                    alpineData.tabMatriks = 'menpan';
+                }
+            }
         }
 
         searchInputJabatan.addEventListener('input', function() {
@@ -1245,17 +1342,6 @@
                 
                 if(lowongan) lowongan.value = menpan - eksisting;
             });
-        }
-
-        // Fungsi untuk menampilkan/menyembunyikan label sisa secara dinamis (melayang)
-        window.showSisaLabel = function(type, id) {
-            const el = document.getElementById(`floating_sisa_${type}_${id}`);
-            if (el) el.classList.remove('invisible', 'opacity-0');
-        }
-
-        window.hideSisaLabel = function(type, id) {
-            const el = document.getElementById(`floating_sisa_${type}_${id}`);
-            if (el) el.classList.add('invisible', 'opacity-0');
         }
 
         // MESIN PENCARI VSCODE STYLE UNTUK TABEL

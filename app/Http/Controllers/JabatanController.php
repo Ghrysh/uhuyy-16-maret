@@ -399,6 +399,52 @@ class JabatanController extends Controller
         return response()->json(['status' => 'success', 'message' => 'Kuota berhasil disimpan']);
     }
 
+    public function saveMatriksBulk(Request $request)
+    {
+        $request->validate([
+            'jabatan_id'   => 'required|exists:jabatan,id',
+            'tab_aktif'    => 'required|string',
+            'data_satkers' => 'required|array',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->data_satkers as $data) {
+                $kuota = \App\Models\DistribusiKuota::firstOrNew([
+                    'satker_id'  => $data['satker_id'],
+                    'jabatan_id' => $request->jabatan_id
+                ]);
+
+                if ($request->tab_aktif === 'menpan') {
+                    $kuota->kp_menpan = $data['kp'] ?? 0; $kuota->kmu_menpan = $data['kmu'] ?? 0; $kuota->kma_menpan = $data['kma'] ?? 0; $kuota->ku_menpan = $data['ku'] ?? 0;
+                    $kuota->k5_menpan = $data['k5'] ?? 0; $kuota->k6_menpan = $data['k6'] ?? 0; $kuota->k7_menpan = $data['k7'] ?? 0; $kuota->k8_menpan = $data['k8'] ?? 0;
+                } elseif ($request->tab_aktif === 'eksisting') {
+                    $kuota->kp_eksisting = $data['kp'] ?? 0; $kuota->kmu_eksisting = $data['kmu'] ?? 0; $kuota->kma_eksisting = $data['kma'] ?? 0; $kuota->ku_eksisting = $data['ku'] ?? 0;
+                    $kuota->k5_eksisting = $data['k5'] ?? 0; $kuota->k6_eksisting = $data['k6'] ?? 0; $kuota->k7_eksisting = $data['k7'] ?? 0; $kuota->k8_eksisting = $data['k8'] ?? 0;
+                }
+
+                // Hitung ulang lowongan (1-8)
+                $kuota->kp_lowongan = (int)$kuota->kp_menpan - (int)$kuota->kp_eksisting;
+                $kuota->kmu_lowongan = (int)$kuota->kmu_menpan - (int)$kuota->kmu_eksisting;
+                $kuota->kma_lowongan = (int)$kuota->kma_menpan - (int)$kuota->kma_eksisting;
+                $kuota->ku_lowongan = (int)$kuota->ku_menpan - (int)$kuota->ku_eksisting;
+
+                $kuota->k5_lowongan = (int)$kuota->k5_menpan - (int)$kuota->k5_eksisting;
+                $kuota->k6_lowongan = (int)$kuota->k6_menpan - (int)$kuota->k6_eksisting;
+                $kuota->k7_lowongan = (int)$kuota->k7_menpan - (int)$kuota->k7_eksisting;
+                $kuota->k8_lowongan = (int)$kuota->k8_menpan - (int)$kuota->k8_eksisting;
+
+                $kuota->save();
+            }
+
+            DB::commit();
+            return response()->json(['status' => 'success', 'message' => 'Kuota Bulk berhasil disimpan']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function saveBaselineJenjang(Request $request)
     {
         $request->validate([
