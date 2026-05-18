@@ -223,7 +223,7 @@
 
                 <div class="relative w-64">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-blue-400 text-xs"></i></span>
-                    <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent="if($event.shiftKey) prevMatch(); else nextMatch();" placeholder="Cari Satker di Tabel..." class="w-full pl-9 pr-3 py-1.5 border border-blue-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent placeholder="Cari Satker di Tabel..." class="w-full pl-9 pr-3 py-1.5 border border-blue-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
             </div>
             
@@ -857,7 +857,7 @@
             // 4. CHUNKING PROCESS (INI YANG MEMBUAT BROWSER ANTI-HANG)
             // ==============================================================
             const totalData = globalMatriksData.length;
-            const chunkSize = 50; // Render 50 baris per frame agar mulus
+            const chunkSize = 200;
             let currentIndex = 0;
 
             function processChunk() {
@@ -1309,17 +1309,34 @@
                 search: '',
                 matches: [],
                 currentIndex: 0,
+                hasSearched: false, // Tambahan untuk deteksi enter pertama
                 
                 init() {
-                    this.$watch('search', () => this.doSearch());
+                    this.$watch('search', () => {
+                        this.hasSearched = false; // Reset saat user mulai mengetik ulang
+                        this.doSearch();
+                    });
                     // Dengarkan event jika tabel dirender ulang (khusus tab distribusi)
                     window.addEventListener('dom-updated', () => {
                         if (this.search) this.doSearch();
                     });
                 },
                 
+                // Tambahkan fungsi baru ini untuk handle tombol Enter
+                handleEnter(isShift) {
+                    if (!this.hasSearched) {
+                        this.hasSearched = true;
+                        // Jika ini adalah pencarian pertama (biasanya Enter dari tombol HP)
+                        // Tetap diam di data pertama, jangan melompat
+                        if (this.matches.length > 0) this.scrollToMatch(0);
+                        return;
+                    }
+                    // Jika ditekan enter lagi, baru lanjut ke urutan berikutnya
+                    if (isShift) this.prevMatch();
+                    else this.nextMatch();
+                },
+                
                 doSearch() {
-                    // Bersihkan highlight sebelumnya
                     this.matches.forEach(el => el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100'));
                     this.matches = [];
                     this.currentIndex = 0;
