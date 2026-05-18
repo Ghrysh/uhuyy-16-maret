@@ -70,6 +70,19 @@
             color: #1e40af !important;
             /* text-blue-800 */
         }
+
+        /* --- CSS KHUSUS SHORTLIST MODE --- */
+        #mainTreeContainer.mode-shortlist .satker-item {
+            display: none !important;
+        }
+        #mainTreeContainer.mode-shortlist .satker-item.is-shortlist-path {
+            display: block !important;
+        }
+        /* Opsional: Beri highlight visual tambahan untuk target utama saat mode shortlist */
+        #mainTreeContainer.mode-shortlist .satker-item.is-shortlist-target > .satker-row {
+            border-left: 4px solid #f59e0b !important;
+            background-color: #fffbeb !important;
+        }
     </style>
 
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
@@ -139,12 +152,23 @@
                     // Bersihkan state & highlight jika input pencarian dikosongkan
                     this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all'));
                     this.matches = [];
+                    
+                    // -- TAMBAHAN RESET SHORTLIST --
+                    this.isShortlistMode = false;
+                    const container = document.getElementById('mainTreeContainer');
+                    if(container) {
+                        container.classList.remove('mode-shortlist');
+                        container.querySelectorAll('.is-shortlist-path').forEach(el => el.classList.remove('is-shortlist-path', 'is-shortlist-target'));
+                    }
                 }
             });
         },
 
-        // --- FUNGSI BARU UNTUK SCROLL & HIGHLIGHT (VSCode Style) ---
-        scrollToMatch(index) {
+        // Tambahkan variabel baru ini di atas init()
+        isShortlistMode: false,
+
+        // --- FUNGSI BARU UNTUK SCROLL & HIGHLIGHT (VSCode Style + Shortlist) ---
+        scrollToMatch(index, isShortlist = false) {
             if (this.matches.length === 0) return;
             
             // Hapus highlight dari hasil yang sebelumnya aktif
@@ -152,18 +176,48 @@
                 this.matches[this.currentMatchIndex].classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
             }
             
-            // Looping index (Jika next di hasil terakhir, kembali ke 1. Dan sebaliknya)
+            // Looping index
             if (index < 0) index = this.matches.length - 1;
             if (index >= this.matches.length) index = 0;
             
             this.currentMatchIndex = index;
             const target = this.matches[this.currentMatchIndex];
             
-            // Tambahkan highlight ke target yang sedang dilihat
+            // Tambahkan highlight normal ke target
             target.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
 
-            // Gulir ke elemen tersebut
             const container = document.getElementById('mainTreeContainer');
+
+            // ==========================================
+            // LOGIKA SHORTLIST MODE (FOCUS HIERARKI)
+            // ==========================================
+            this.isShortlistMode = isShortlist;
+            
+            // Bersihkan class path sebelumnya
+            container.querySelectorAll('.is-shortlist-path').forEach(el => el.classList.remove('is-shortlist-path', 'is-shortlist-target'));
+
+            if (isShortlist) {
+                container.classList.add('mode-shortlist'); // Aktifkan mode sembunyi
+                
+                let currentEl = target.closest('.satker-item');
+                if (currentEl) {
+                    currentEl.classList.add('is-shortlist-target', 'is-shortlist-path');
+                }
+
+                // Telusuri ke atas untuk memunculkan semua Induk/Parent-nya saja
+                while (currentEl && currentEl.parentElement) {
+                    currentEl = currentEl.parentElement.closest('.satker-item');
+                    if (currentEl) {
+                        currentEl.classList.add('is-shortlist-path');
+                    }
+                }
+            } else {
+                // Matikan mode sembunyi (tampil semua)
+                container.classList.remove('mode-shortlist');
+            }
+            // ==========================================
+
+            // Gulir ke elemen tersebut
             const cRect = container.getBoundingClientRect();
             const mRect = target.getBoundingClientRect();
             
@@ -173,12 +227,12 @@
             });
         },
         
-        nextMatch() {
-            this.scrollToMatch(this.currentMatchIndex + 1);
+        nextMatch(isShortlist = false) {
+            this.scrollToMatch(this.currentMatchIndex + 1, isShortlist);
         },
         
-        prevMatch() {
-            this.scrollToMatch(this.currentMatchIndex - 1);
+        prevMatch(isShortlist = false) {
+            this.scrollToMatch(this.currentMatchIndex - 1, isShortlist);
         }
     }">
 
@@ -218,7 +272,12 @@
                             <i class="fas fa-search text-slate-400 text-xs"></i>
                         </span>
                         <input type="text" x-model.debounce.300ms="search" 
-                            @keydown.enter.prevent="if($event.shiftKey) prevMatch(); else nextMatch();"
+                            @keydown.enter.prevent="
+                                if($event.shiftKey && $event.ctrlKey) prevMatch(true); 
+                                else if($event.ctrlKey) nextMatch(true);
+                                else if($event.shiftKey) prevMatch(false); 
+                                else nextMatch(false);
+                            "
                             placeholder="Cari nama / kode..."
                             class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition">
                     </div>
@@ -270,12 +329,25 @@
             <div class="w-[1px] h-4 bg-slate-200"></div>
             
             {{-- Tombol Arah --}}
-            <div class="flex items-center gap-2">
-                <button @click="prevMatch()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Sebelumnya (Shift + Enter)">
+            <div class="flex items-center gap-1.5">
+                {{-- KIRI: Shortlist Prev --}}
+                <button @click="prevMatch(true)" class="w-8 h-8 flex items-center justify-center rounded-full bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 transition" title="Fokus Hierarki Sebelumnya (Ctrl+Shift+Enter)">
+                    <i class="fas fa-chevron-left text-xs"></i>
+                </button>
+                
+                {{-- ATAS: Scroll Prev Biasa --}}
+                <button @click="prevMatch(false)" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Sebelumnya, Buka Semua (Shift+Enter)">
                     <i class="fas fa-chevron-up text-xs"></i>
                 </button>
-                <button @click="nextMatch()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Selanjutnya (Enter)">
+                
+                {{-- BAWAH: Scroll Next Biasa --}}
+                <button @click="nextMatch(false)" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition" title="Selanjutnya, Buka Semua (Enter)">
                     <i class="fas fa-chevron-down text-xs"></i>
+                </button>
+
+                {{-- KANAN: Shortlist Next --}}
+                <button @click="nextMatch(true)" class="w-8 h-8 flex items-center justify-center rounded-full bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 transition" title="Fokus Hierarki Selanjutnya (Ctrl+Enter)">
+                    <i class="fas fa-chevron-right text-xs"></i>
                 </button>
             </div>
         </div>

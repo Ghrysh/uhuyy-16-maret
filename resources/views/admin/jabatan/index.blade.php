@@ -806,34 +806,43 @@
                 const limitLokal = limits[type] - (sums[type] - numVal); 
                 
                 let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
-                const isExceeding = !isExempt && (numVal > limitLokal);
-                const overVal = numVal - limitLokal;
+                
+                const isExceeding = !isExempt && (numVal > 0) && (numVal > limitLokal);
+                const overVal = isExceeding ? (numVal - limitLokal) : 0;
 
                 const isEditable = !isReadOnly.includes('readonly');
                 
-                let inputClass = "w-full text-center p-1.5 rounded outline-none transition-colors relative z-10 ";
+                // PERBAIKAN 1: Class border dan focus dimasukkan sebagai pondasi agar tidak error
+                let inputClass = "w-full text-center p-1.5 rounded outline-none transition-colors relative z-10 border focus:ring-2 ";
+                
                 if (!isEditable) {
-                    inputClass += "bg-gray-100 border border-gray-200 text-gray-500 font-bold cursor-not-allowed";
+                    inputClass += "bg-gray-100 border-gray-200 text-gray-500 font-bold cursor-not-allowed";
                 } else {
                     if (isExceeding) {
-                        inputClass += "border-red-500 bg-red-50 text-red-600 focus:ring-2 focus:ring-red-500";
+                        inputClass += "border-red-500 bg-red-50 text-red-600 focus:ring-red-500";
                     } else {
-                        inputClass += "border border-gray-300 focus:ring-2 focus:ring-blue-500";
+                        inputClass += "border-gray-300 focus:ring-blue-500";
                     }
                 }
 
                 const errDisplay = isExceeding ? "" : "hidden";
                 const bgTooltip = (sisaGlobal < 0 && !isExempt) ? "bg-red-600" : "bg-emerald-600";
 
-                // PERUBAHAN PAMUNGKAS:
-                // Menggunakan class "group" pada <td>
-                // dan "group-focus-within:visible group-focus-within:opacity-100" pada <div> tooltip melayangnya
                 return `
                 <td class="px-1 py-2 align-top relative bg-white group">
                     <div id="floating_sisa_${type}_${id}" class="invisible opacity-0 group-focus-within:visible group-focus-within:opacity-100 absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full ${bgTooltip} text-white px-1.5 py-0.5 rounded text-[8px] font-bold whitespace-nowrap z-20 shadow-sm transition-all duration-150 pointer-events-none">
                         Sisa: <span class="val-sisa-${type}">${sisaGlobal}</span>
                     </div>
-                    <input type="number" id="${type}_${id}" data-type="${type}" data-oldval="${numVal}" value="${val || ''}" class="${inputClass}" ${isReadOnly} ${isEditable ? 'oninput="autoCalcMatriks(this)"' : ''}>
+                    
+                    <input type="number" 
+                        id="${type}_${id}" 
+                        data-type="${type}" 
+                        data-oldval="${numVal}" 
+                        value="${numVal}" 
+                        class="${inputClass}" 
+                        ${isReadOnly} 
+                        ${isEditable ? `oninput="event.stopPropagation(); autoCalcMatriks(this)" onblur="if(this.value==='') this.value='0'"` : ''}>
+                        
                     <div class="mt-1 min-h-[14px] text-[9px] leading-tight text-center">
                         <p id="err_${type}_${id}" class="font-bold text-red-500 ${errDisplay}">Lebih: <span id="err_val_${type}_${id}">${overVal}</span></p>
                     </div>
@@ -920,8 +929,9 @@
         }
 
         window.autoCalcMatriks = function(input) {
-            const id = input.id.split('_')[1];
             const type = input.dataset.type;
+            // PERBAIKAN: Ambil id dengan substring agar lebih aman dari split jika id berupa format kompleks
+            const id = input.id.substring(type.length + 1); 
             const val = parseInt(input.value) || 0;
             const oldVal = parseInt(input.dataset.oldval) || 0; 
             
@@ -936,8 +946,8 @@
 
             // 2. Update jumlah Horizontal (Baris) seketika tanpa GetElementById massal
             const isSemua = globalBaselineData.is_semua_jenjang;
+            const currentTab = window.currentMatriksTab || 'menpan';
             
-            // Kita ambil nilai dari item yang sudah tersimpan di JSON, jauh lebih cepat!
             const t_1 = currentTab === 'menpan' ? (parseInt(item.kp_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kp_eksisting)||0) : (parseInt(item.kp_lowongan)||0));
             const t_2 = currentTab === 'menpan' ? (parseInt(item.kmu_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kmu_eksisting)||0) : (parseInt(item.kmu_lowongan)||0));
             const t_3 = currentTab === 'menpan' ? (parseInt(item.kma_menpan)||0) : (currentTab === 'eksisting' ? (parseInt(item.kma_eksisting)||0) : (parseInt(item.kma_lowongan)||0));
@@ -961,60 +971,9 @@
             window.globalMatriksSums[type] += diff;
             input.dataset.oldval = val; 
 
-            // 4. Validasi Merah/Hijau Kotak INI SAJA (Bukan seluruh tabel)
             requestAnimationFrame(() => {
-                validateSingleBox(input, id, type, val);
+                validateColumnAllBoxes(type);
             });
-        }
-
-        // FUNGSI BARU: Validasi ringan per 1 kotak
-        function validateSingleBox(input, id, type, val) {
-            const sumCol = window.globalMatriksSums[type];
-            const limit = window.globalMatriksLimits[type];
-            const sisaGlobal = limit - sumCol;
-
-            const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
-            let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
-
-            const isRedGlobal = sisaGlobal < 0 && !isExempt;
-            const textColor = isRedGlobal ? 'text-red-600' : 'text-emerald-600';
-            const bgColor = isRedGlobal ? 'bg-red-600' : 'bg-emerald-600';
-
-            // Update Sisa Global di Header
-            const sisaEl = document.getElementById(`sisa_${type}`);
-            if (sisaEl) {
-                sisaEl.innerText = sisaGlobal;
-                sisaEl.className = `font-bold ${textColor}`;
-            }
-
-            // Update Tooltip Melayang di Kotak Ini
-            const floatLabel = document.getElementById(`floating_sisa_${type}_${id}`);
-            if (floatLabel) {
-                floatLabel.querySelector('span').innerText = sisaGlobal;
-                floatLabel.classList.remove('bg-emerald-600', 'bg-red-600');
-                floatLabel.classList.add(bgColor);
-            }
-
-            // Validasi Limit Kotak Ini
-            // Jika sisa global negatif, berarti ada kotak yang melebihi. 
-            // Kotak yang melebihi adalah kotak yang jika nilainya dikurangi (val - 1), sisanya masih tetap butuh dipenuhi.
-            // Cara gampang: Kotak merah = (Nilai kotak > Sisa Tersedia untuk kotak ini)
-            const sisaTersediaUntukKotakIni = limit - (sumCol - val);
-            const isExceeding = !isExempt && (val > sisaTersediaUntukKotakIni);
-            
-            const errEl = document.getElementById(`err_${type}_${id}`);
-            const errValEl = document.getElementById(`err_val_${type}_${id}`);
-
-            if (isExceeding) {
-                input.classList.add('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.remove('border-gray-300');
-                if (errValEl) errValEl.innerText = val - sisaTersediaUntukKotakIni;
-                if (errEl) errEl.classList.remove('hidden');
-            } else {
-                input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600');
-                input.classList.add('border-gray-300');
-                if (errEl) errEl.classList.add('hidden');
-            }
         }
 
         async function simpanKuotaGroup(satkerId, tabAktif) {
@@ -1403,5 +1362,58 @@
                 prevMatch() { this.scrollToMatch(this.currentIndex - 1); }
             }));
         });
+
+        window.validateColumnAllBoxes = function(type) {
+            const sumCol = window.globalMatriksSums[type];
+            const limit = window.globalMatriksLimits[type];
+            const sisaGlobal = limit - sumCol;
+
+            const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
+            let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
+
+            const isRedGlobal = sisaGlobal < 0 && !isExempt;
+            const textColor = isRedGlobal ? 'text-red-600' : 'text-emerald-600';
+            const bgColor = isRedGlobal ? 'bg-red-600' : 'bg-emerald-600';
+
+            const sisaEl = document.getElementById(`sisa_${type}`);
+            if (sisaEl) {
+                sisaEl.innerText = sisaGlobal;
+                sisaEl.className = `font-bold ${textColor}`;
+            }
+
+            const inputs = document.querySelectorAll(`input[data-type="${type}"]`);
+            
+            inputs.forEach(input => {
+                const id = input.id.substring(type.length + 1);
+                const val = parseInt(input.value) || 0;
+                
+                const floatLabel = document.getElementById(`floating_sisa_${type}_${id}`);
+                if (floatLabel) {
+                    const spanEl = floatLabel.querySelector('span');
+                    if (spanEl) spanEl.innerText = sisaGlobal;
+                    floatLabel.classList.remove('bg-emerald-600', 'bg-red-600');
+                    floatLabel.classList.add(bgColor);
+                }
+
+                const sisaTersediaUntukKotakIni = limit - (sumCol - val);
+                const isExceeding = !isExempt && (val > 0) && (val > sisaTersediaUntukKotakIni);
+                
+                const errEl = document.getElementById(`err_${type}_${id}`);
+                const errValEl = document.getElementById(`err_val_${type}_${id}`);
+
+                if (isExceeding) {
+                    // PERBAIKAN 3: Pastikan focus:ring-red-500 ditambahkan dan biru dihapus
+                    input.classList.add('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
+                    input.classList.remove('border-gray-300', 'focus:ring-blue-500');
+                    if (errValEl) errValEl.innerText = val - sisaTersediaUntukKotakIni;
+                    if (errEl) errEl.classList.remove('hidden');
+                } else {
+                    // PERBAIKAN 4: Pastikan focus:ring-red-500 benar-benar dihapus dan dikembalikan ke biru
+                    input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
+                    input.classList.add('border-gray-300', 'focus:ring-blue-500');
+                    if (errEl) errEl.classList.add('hidden');
+                }
+            });
+        }
     </script>
 @endpush
