@@ -83,8 +83,77 @@
             border-left: 4px solid #f59e0b !important;
             background-color: #fffbeb !important;
         }
+        .is-shortlist-path > .satker-row {
+            border-left: 3px solid #f59e0b;
+        }
+        .is-shortlist-target > .satker-row {
+            background-color: #fffbeb !important;
+        }
+        
+        /* ATURAN PENCARIAN DOM RINGAN VIA CSS */
+        #mainTreeContainer.is-searching .satker-item {
+            display: none;
+        }
+        #mainTreeContainer.is-searching .satker-item.is-match,
+        #mainTreeContainer.is-searching .satker-item.is-match .satker-item {
+            display: block; /* Menampilkan item yang cocok dan seluruh anak-anaknya jika perlu, wait, we actually just want to show match and its parents */
+        }
+        /* Tampilkan juga parent yang memiliki anak is-match */
+        #mainTreeContainer.is-searching .satker-item:has(.is-match) {
+            display: block;
+        }
+        
+        #mainTreeContainer.is-searching .satker-item:has(.is-match) > .children-container {
+            display: block !important;
+        }
     </style>
 
+@endpush
+
+@push('scripts')
+    <!-- Vanilla JS untuk Toggle Node tanpa Alpine -->
+    <script>
+        async function toggleSatkerNode(element, event, satkerId) {
+            event.stopPropagation();
+            const parent = element.closest('.satker-item');
+            if (parent) {
+                const chevron = element.querySelector('.chevron-icon');
+                let childrenContainer = parent.querySelector(':scope > .children-container');
+                
+                if ((!childrenContainer || childrenContainer.innerHTML.trim() === '') && satkerId) {
+                    const icon = element.querySelector('i');
+                    const oldClass = icon.className;
+                    icon.className = 'fas fa-spinner fa-spin text-xs';
+                    
+                    try {
+                        const response = await fetch(`{{ route('admin.satker.load-children') }}?parent_id=${satkerId}`);
+                        const data = await response.json();
+                        
+                        if (!childrenContainer) {
+                            childrenContainer = document.createElement('div');
+                            childrenContainer.className = 'children-container ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2';
+                            parent.appendChild(childrenContainer);
+                        }
+                        
+                        childrenContainer.innerHTML = data.html;
+                        childrenContainer.classList.remove('hidden');
+                        
+                        icon.className = 'fas fa-chevron-right text-xs transition-transform duration-200 chevron-icon rotate-90';
+                    } catch (err) {
+                        console.error('Error loading children:', err);
+                        icon.className = oldClass;
+                    }
+                    return; 
+                }
+                
+                if (childrenContainer) {
+                    childrenContainer.classList.toggle('hidden');
+                    if (chevron) chevron.classList.toggle('rotate-90');
+                }
+            }
+        }
+    </script>
+    <!-- Alpine JS & TomSelect -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 @endpush
@@ -99,67 +168,56 @@
         matches: [],             // BARU: Menyimpan semua baris hasil yang cocok
         currentMatchIndex: 0,    // BARU: Melacak urutan hasil yang sedang dilihat
     
-        isMatch(nama, kode) {
-            if (!this.search) return false;
-            let s = this.search.toLowerCase();
-            return nama.includes(s) || kode.includes(s);
-        },
-    
-        hasMatchingChild(children) {
-            if (!children || children.length === 0) return false;
-            for (let child of children) {
-                if (this.isMatch(child.nama_satker.toLowerCase(), child.kode_satker.toLowerCase())) return true;
-                if (this.hasMatchingChild(child.children_recursive)) return true;
-            }
-            return false;
-        },
+        // (Dihapus isMatch dan hasMatchingChild karena sudah diganti CSS murni)
 
         init() {
-            this.$watch('search', (val) => {
-                if (val && val.length > 0) {
+            // Simpan state awal untuk merestore saat pencarian dibatalkan
+            this.$nextTick(() => {
+                const container = document.getElementById('mainTreeContainer');
+                if (container) {
+                    this.originalHtml = container.innerHTML;
+                }
+            });
+
+            this.$watch('search', async (val) => {
+                const container = document.getElementById('mainTreeContainer');
+                if (!container) return;
+
+                if (val && val.trim().length >= 2) {
                     clearTimeout(this.scrollTimeout);
                     
-                    this.scrollTimeout = setTimeout(() => {
-                        const container = document.getElementById('mainTreeContainer');
-                        if (!container) return;
-
+                    this.scrollTimeout = setTimeout(async () => {
                         const term = val.toLowerCase();
-                        const rows = container.querySelectorAll('.satker-row');
                         
-                        // Bersihkan sisa highlight sebelumnya
-                        this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all'));
-                        
-                        this.matches = [];
-                        this.currentMatchIndex = 0;
-
-                        // Kumpulkan SEMUA baris yang cocok
-                        for (let i = 0; i < rows.length; i++) {
-                            const row = rows[i];
-                            if (row.offsetHeight > 0) { 
-                                const text = row.innerText || row.textContent;
-                                if (text.toLowerCase().includes(term)) {
-                                    this.matches.push(row);
-                                }
+                        try {
+                            container.style.opacity = '0.5';
+                            const res = await fetch(`{{ route('admin.satker.search-tree') }}?q=${encodeURIComponent(term)}&periode_id=${this.activePeriode}`);
+                            const data = await res.json();
+                            
+                            container.innerHTML = data.html;
+                            container.style.opacity = '1';
+                            
+                            // Re-init matches from loaded HTML
+                            this.matches = Array.from(container.querySelectorAll('.is-shortlist-target > .satker-row'));
+                            this.currentMatchIndex = 0;
+                            
+                            if (this.matches.length > 0) {
+                                this.scrollToMatch(0);
                             }
+                        } catch (err) {
+                            console.error(err);
+                            container.style.opacity = '1';
                         }
-
-                        // Scroll otomatis ke hasil pertama jika ada
-                        if (this.matches.length > 0) {
-                            this.scrollToMatch(0);
-                        }
-                    }, 300);
-                } else {
-                    // Bersihkan state & highlight jika input pencarian dikosongkan
-                    this.matches.forEach(row => row.classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all'));
-                    this.matches = [];
-                    
-                    // -- TAMBAHAN RESET SHORTLIST --
-                    this.isShortlistMode = false;
-                    const container = document.getElementById('mainTreeContainer');
-                    if(container) {
-                        container.classList.remove('mode-shortlist');
-                        container.querySelectorAll('.is-shortlist-path').forEach(el => el.classList.remove('is-shortlist-path', 'is-shortlist-target'));
+                    }, 500);
+                } else if (!val || val.trim().length === 0) {
+                    clearTimeout(this.scrollTimeout);
+                    if (this.originalHtml) {
+                        container.innerHTML = this.originalHtml;
+                    } else {
+                        window.location.reload();
                     }
+                    this.matches = [];
+                    this.isShortlistMode = false;
                 }
             });
         },
@@ -400,13 +458,6 @@
                         <select name="parent_satker_id" id="parent_satker_id"
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                             <option value="">Cari atau pilih Satker Induk...</option>
-                            @foreach ($parents as $p)
-                                <option value="{{ $p->id }}" data-eselon="{{ $p->jenis_satker_id }}"
-                                    data-wilayah="{{ $p->wilayah_id }}" data-periode="{{ $p->periode_id }}">
-                                    {{-- Pastikan data-periode ada --}}
-                                    {{ $p->kode_satker }} - {{ $p->nama_satker }}
-                                </option>
-                            @endforeach
                         </select>
                     </div>
 
@@ -467,19 +518,20 @@
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenjang Jabatan</label>
                                 <select name="jabatan_id" id="jabatan_id" id="select_jabatan_tambah" onchange="handleJenjangJabatanChange()"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                                    <option value="">-- Pilih Jenjang (4 Digit) --</option>
-                                    @foreach ($jabatanItems as $item)
-                                        @php
-                                            // Gabungkan nama jabatan dasar dengan nama jenjang dari relasi fungsional
-                                            $namaJenjang = $item->fungsional ? $item->fungsional->name : '';
-                                            $displayFull = trim($item->nama_jabatan . ' ' . $namaJenjang);
-                                        @endphp
-                                        <option value="{{ $item->id }}" 
-                                                data-kode="{{ $item->kode_jabatan }}"
-                                                data-parent-kode="{{ substr($item->kode_jabatan, 0, 3) }}">
-                                            {{ $item->kode_jabatan }} - {{ $displayFull }}
-                                        </option>
-                                    @endforeach
+                                    <option value="">-- Cari atau pilih Jenjang (4 Digit) --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {{-- Pelaksana --}}
+                        <div id="container_pelaksana" class="hidden space-y-5 mt-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenis Pelaksana (2 Digit)</label>
+                                <select name="jenis_pelaksana" id="jenis_pelaksana" onchange="handleJenisPelaksanaChange()"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                    <option value="">-- Pilih Jenis Pelaksana --</option>
+                                    <option value="71">Klerek</option>
+                                    <option value="72">Operator</option>
                                 </select>
                             </div>
                         </div>
@@ -718,13 +770,7 @@
                         <select name="parent_satker_id" id="edit_parent_satker_id"
                             class="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm focus:outline-none pointer-events-none select-none text-slate-500"
                             tabindex="-1">
-                            <option value="">Pilih Satker Induk</option>
-                            @foreach ($listAllSatkers as $p)
-                                <option value="{{ $p->id }}" data-eselon="{{ $p->jenis_satker_id }}"
-                                    data-periode="{{ $p->periode_id }}"> {{-- Tambahkan ini --}}
-                                    {{ $p->kode_satker }} - {{ $p->nama_satker }}
-                                </option>
-                            @endforeach
+                            <option value="">Cari atau pilih Satker Induk...</option>
                         </select>
                     </div>
 
@@ -1096,28 +1142,30 @@
 @push('scripts')
     <script>
         let timeout = null;
-        const searchInput = document.querySelector('input[name="search"]');
+        const searchInput = document.querySelector('input[x-model\\.debounce\\.300ms="search"]');
         const loader = document.getElementById('page-loader');
 
-        searchInput.addEventListener('keyup', function() {
-            clearTimeout(timeout);
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function() {
+                clearTimeout(timeout);
 
-            // Opsional: Beri feedback visual langsung di input jika ingin
-            timeout = setTimeout(() => {
-                // Tampilkan loader sebelum submit
+                // Opsional: Beri feedback visual langsung di input jika ingin
+                timeout = setTimeout(() => {
+                    // Tampilkan loader sebelum submit
+                    if (loader) {
+                        loader.classList.remove('hidden');
+                    }
+                    this.closest('form')?.submit();
+                }, 500); // Tunggu 500ms setelah user berhenti mengetik
+            });
+
+            // Menangani jika user menekan tombol 'Enter' secara manual
+            searchInput.closest('form')?.addEventListener('submit', function() {
                 if (loader) {
                     loader.classList.remove('hidden');
                 }
-                this.closest('form').submit();
-            }, 500); // Tunggu 500ms setelah user berhenti mengetik
-        });
-
-        // Menangani jika user menekan tombol 'Enter' secara manual
-        searchInput.closest('form').addEventListener('submit', function() {
-            if (loader) {
-                loader.classList.remove('hidden');
-            }
-        });
+            });
+        }
     </script>
 
     <script>
@@ -1507,9 +1555,11 @@
                     this.selectedNames = [];
                     this.selectedEselons = []; // RESET INI
                     this.clearClipboard();
-                    window.dispatchEvent(new CustomEvent('close-all-nodes'));
+                    document.querySelectorAll('.children-container').forEach(el => el.classList.add('hidden'));
+                    document.querySelectorAll('.chevron-icon').forEach(el => el.classList.remove('rotate-90'));
                 } else {
-                    window.dispatchEvent(new CustomEvent('open-all-nodes'));
+                    document.querySelectorAll('.children-container').forEach(el => el.classList.remove('hidden'));
+                    document.querySelectorAll('.chevron-icon').forEach(el => el.classList.add('rotate-90'));
                 }
             },
 
@@ -1810,7 +1860,9 @@
             const jenisId = jenisIdManual || document.getElementById('edit_jenis_satker_id').value;
             const container = document.getElementById('edit_parent_container');
             const select = document.getElementById('edit_parent_satker_id');
-            const options = select.querySelectorAll('option');
+
+            // Kosongkan opsi lama
+            select.innerHTML = '<option value="">Cari atau pilih Satker Induk...</option>';
 
             // Sembunyikan jika Eselon 1
             if (jenisId === "1" || jenisId === "") {
@@ -1820,16 +1872,22 @@
             }
 
             container.classList.remove('hidden');
-            const targetParentEselon = parseInt(jenisId) - 1;
-
-            options.forEach(option => {
-                if (option.value === "") return;
-                const optionEselon = parseInt(option.getAttribute('data-eselon'));
-                option.style.display = (optionEselon === targetParentEselon) ? 'block' : 'none';
-            });
 
             if (parentIdManual) {
-                select.value = parentIdManual;
+                // Fetch data dari API
+                fetch('{{ url("admin/satker/api-search") }}?id=' + parentIdManual)
+                    .then(response => response.json())
+                    .then(json => {
+                        if (json.items && json.items.length > 0) {
+                            const item = json.items[0];
+                            const option = document.createElement('option');
+                            option.value = item.id;
+                            option.text = item.kode_satker + ' - ' + item.nama_satker;
+                            option.selected = true;
+                            select.appendChild(option);
+                        }
+                    })
+                    .catch(err => console.error("Gagal fetch parent", err));
             }
         }
     </script>
@@ -1929,14 +1987,14 @@
                             actionButton = '<div class="flex flex-col gap-1.5 min-w-[85px]">';
                             
                             // Siapkan fungsi penolakan atau fungsi asli berdasarkan izin
-                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${user.name}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
-                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${user.name}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
+                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${addslashes(user.name)}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
+                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${addslashes(user.name)}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
 
                             if (!user.is_cuti) {
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
                                 actionButton += `<button onclick="${cutiAction}" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti"><i class="fas fa-calendar-minus mr-1.5"></i> Cuti</button>`;
                             } else {
-                                actionButton += `<button onclick="showDetailCuti('${user.name}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
+                                actionButton += `<button onclick="showDetailCuti('${addslashes(user.name)}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
                             }
                             actionButton += '</div>';
@@ -2154,7 +2212,7 @@
 
 
         // Fungsi Tambah Sub Satker (Ditempel ke window agar terbaca global oleh tombol HTML)
-        window.openTambahSubSatker = function(parentId, parentJenisId, wilayahId, periodeId, lockParent = false) {
+        window.openTambahSubSatker = function(parentId, parentJenisId, wilayahId, periodeId, lockParent = false, parentName = '') {
             const form = document.querySelector('#modalTambahSatker form');
             if (form) form.reset();
 
@@ -2226,6 +2284,10 @@
                     }
 
                     if (typeof control !== 'undefined' && control) {
+                        if (parentId && parentName) {
+                            control.addOption({id: parentId, text: parentName});
+                            control.setValue(parentId, true);
+                        }
                         control.disable();
                     } else if (parentSelect) {
                         parentSelect.disabled = true;
@@ -2274,11 +2336,20 @@
                 jenisSelect.value = "";
             }
 
+            // reset hidden inputs yang mungkin tersangkut dari klik row sebelumnya
+            const hiddenJenis = document.getElementById('hidden_jenis_satker_id');
+            if (hiddenJenis) hiddenJenis.disabled = true;
+            
+            const hiddenParent = document.getElementById('hidden_parent_satker_id');
+            if (hiddenParent) hiddenParent.disabled = true;
+
             // reset parent satker
             if (control) {
                 control.enable();
                 control.unlock();
                 control.clear();
+                control.clearOptions();
+                control.clearCache();
                 control.wrapper.style.pointerEvents = "auto";
             } else if (parentSelect) {
                 parentSelect.disabled = false;
@@ -2312,19 +2383,37 @@
                 rumusSelect.value = "";
             }
 
+            // reset kategori jabatan fungsional (TomSelect)
+            const tsKategori = document.getElementById('kategori_jabatan_fungsional')?.tomselect;
+            if (tsKategori) tsKategori.clear();
+
+            // reset jenjang jabatan fungsional (TomSelect)
+            const tsJenjang = document.getElementById('jabatan_id')?.tomselect;
+            if (tsJenjang) {
+                tsJenjang.clear();
+                tsJenjang.clearOptions();
+                tsJenjang.clearCache();
+            }
+            const wrapperJenjang = document.getElementById('wrapper_jenjang_jabatan');
+            if (wrapperJenjang) wrapperJenjang.classList.add('hidden');
+
+            const containerPelaksana = document.getElementById('container_pelaksana');
+            if (containerPelaksana) containerPelaksana.classList.add('hidden');
+            const pelaksanaSelect = document.getElementById('jenis_pelaksana');
+            if (pelaksanaSelect) pelaksanaSelect.value = "";
+
             const containerFakultas = document.getElementById('container_rumpun_fakultas');
             if (containerFakultas) containerFakultas.classList.add('hidden');
             const dropdownFakultas = document.getElementById('rumpun_fakultas');
             if (dropdownFakultas) dropdownFakultas.value = "";
 
             // reset rumus (jika ada)
-            const rumusSelect = document.getElementById('rumus_id');
-            if (rumusSelect) {
-                rumusSelect.value = "";
+            const rumusSelectNode = document.getElementById('rumus_id');
+            if (rumusSelectNode) {
+                rumusSelectNode.value = "";
             }
 
-            const rumusSelect = document.getElementById('rumus_id');
-            const activeRumusId = rumusSelect ? rumusSelect.value : null;
+            const activeRumusId = rumusSelectNode ? rumusSelectNode.value : null;
             const namaInput = document.getElementById('nama_satker');
 
             if (activeRumusId && namaInput && window.rumusDatabase) {
@@ -2541,7 +2630,40 @@
             if (parentSelectEl) {
                 if (parentSelectEl.tomselect) parentSelectEl.tomselect.destroy();
                 control = new TomSelect('#parent_satker_id', {
+                    valueField: 'id',
+                    labelField: 'text',
+                    searchField: 'text',
+                    preload: 'focus',
                     onChange: function(value) { if (typeof updateDropdownRumus === 'function') updateDropdownRumus(); },
+                    load: function(query, callback) {
+                        const jenisSelect = document.getElementById('jenis_satker_id');
+                        const periodeSelect = document.getElementById('periode_id');
+                        
+                        if (!jenisSelect || !jenisSelect.value) return callback();
+                        const targetParentEselon = parseInt(jenisSelect.value) - 1;
+
+                        // Default search
+                        const url = new URL('{{ url("admin/satker/api-search") }}');
+                        url.searchParams.append('q', query);
+                        url.searchParams.set('target_eselon', targetParentEselon);
+                        if (periodeSelect) url.searchParams.set('periode_id', periodeSelect.value);
+                        
+                        fetch(url)
+                            .then(response => response.json())
+                            .then(json => {
+                                // Tampilkan semua hasil pencarian yang relevan, biarkan user memilih induk secara fleksibel
+                                const mapped = json.items.map(item => {
+                                    return {
+                                        id: item.id,
+                                        text: item.kode_satker + ' - ' + item.nama_satker
+                                    };
+                                });
+                                callback(mapped);
+                            })
+                            .catch(() => {
+                                callback();
+                            });
+                    },
                     render: {
                         option: function(data, escape) { return `<div class="py-1"><div class="text-sm text-slate-700 leading-relaxed">${escape(data.text)}</div></div>`; },
                         item: function(data, escape) { return `<div class="text-slate-700">${escape(data.text)}</div>`; }
@@ -2605,7 +2727,7 @@
                 });
             }
 
-            const triggerIds = ['jenis_satker_id', 'parent_satker_id', 'wilayah_id', 'tanpa_jabatan', 'kategori_kotakab', 'jenis_madrasah', 'kategori_unit', 'jabatan_id'];
+            const triggerIds = ['jenis_satker_id', 'parent_satker_id', 'wilayah_id', 'tanpa_jabatan', 'kategori_kotakab', 'jenis_madrasah', 'kategori_unit', 'jabatan_id', 'jenis_pelaksana'];
             triggerIds.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('change', function() {
@@ -2706,12 +2828,9 @@
             checkFungsiVisibility();
             updateDropdownRumus();
         }
-
         function openTambahModalWithPeriode(periodeId) {
-            resetTambahSatkerModal(); 
-            document.getElementById('periode_id').value = periodeId; 
-            toggleModal('modalTambahSatker'); 
-            filterParent(); 
+            // Gunakan fungsi terpadu openTambahSubSatker agar logika Lock/Unlock Hidden Input berjalan konsisten.
+            openTambahSubSatker('', '', '', periodeId, false, '');
         }
 
         function getPrediksiKode(pola, parentCode, periodeId) {
@@ -2937,14 +3056,14 @@
 
             if (jenisId === "1" || jenisId === "") {
                 if(parentContainer) parentContainer.classList.add('hidden');
-                if (control) control.clear();
+                if (control) { control.clear(); control.clearOptions(); control.clearCache(); }
             } else {
                 if(parentContainer) parentContainer.classList.remove('hidden');
-                const filteredData = allParentOptions.filter(opt => opt.eselon === targetParentEselon && opt.periode == currentPeriodeId);
                 if (control) {
+                    control.clear(); 
                     control.clearOptions();
-                    filteredData.forEach(opt => control.addOption({ value: opt.id, text: opt.text, periode: opt.periode }));
-                    control.refreshOptions(false);
+                    control.clearCache();
+                    control.load(''); // Panggil load secara paksa agar daftar terisi ulang di background
                 }
             }
             checkFungsiVisibility();
@@ -3009,11 +3128,13 @@
 
                 const rumpunFakultas = document.getElementById('rumpun_fakultas')?.value || '';
                 const jabatanId = document.getElementById('jabatan_id')?.value || '';
+                const jenisPelaksana = document.getElementById('jenis_pelaksana')?.value || '';
 
                 const queryParams = new URLSearchParams({
                     jenis_id: jenisId, parent_id: parentId, ref_jabatan_satker_id: refJabatanId,
                     wilayah_id: wilayahId, periode_id: periodeId, start_num: startNumBalai,
-                    rumus_id: rumusId, rumpun_fakultas: rumpunFakultas, jabatan_id: jabatanId, _t: Date.now()
+                    rumus_id: rumusId, rumpun_fakultas: rumpunFakultas, jabatan_id: jabatanId,
+                    jenis_pelaksana: jenisPelaksana, _t: Date.now()
                 });
 
                 const response = await fetch(`{{ url('admin/satker/generate-code') }}?${queryParams}`);
@@ -3025,8 +3146,7 @@
                 } catch (e) {
                     throw new Error("Terjadi kesalahan pada server (Data terformat HTML/Error). Silakan hubungi admin.");
                 }
-
-                if (!response.ok && !data.success) throw new Error(data.message || 'Gagal membuat kode satker.');
+                if (!response.ok && !data.success) throw new Error(data.error || data.message || 'Gagal membuat kode satker.');
 
                 const generatedCode = data.kode || data.code || "";
                 const renderUiCode = (fullCode) => {
@@ -3141,8 +3261,9 @@
                         const isLockedName = namaRumus.includes('Madrasah Ibtidaiyah Negeri') || 
                                              namaRumus.includes('Wakil Rektor Bidang') || 
                                              namaRumus.includes('Kantor Urusan Agama') ||
-                                             namaRumus.includes('Madrasah Aliyah Negeri Insan Cendikia');
-                                             (statJab === 'jabatan_fungsional');
+                                             namaRumus.includes('Madrasah Aliyah Negeri Insan Cendikia') ||
+                                             (statJab === 'jabatan_fungsional') ||
+                                             (statJab === 'pelaksana');
 
                         if (isLockedName) {
                             const lockedPrefix = namaRumus + ' ';
@@ -3316,7 +3437,8 @@
                 'container_kabupaten', 
                 'container_jenis_madrasah', 
                 'container_jabatan_fungsional',
-                'container_rumpun_fakultas'
+                'container_rumpun_fakultas',
+                'container_pelaksana'
             ];
             
             // Sembunyikan semua dulu
@@ -3329,8 +3451,20 @@
             if(document.getElementById('kategori_unit')) document.getElementById('kategori_unit').value = "";
             if(document.getElementById('kategori_kotakab')) document.getElementById('kategori_kotakab').value = "";
             if(document.getElementById('jenis_madrasah')) document.getElementById('jenis_madrasah').value = "";
-            if(document.getElementById('kategori_jabatan_fungsional')) document.getElementById('kategori_jabatan_fungsional').value = "";
-            if(document.getElementById('jabatan_id')) {
+            if(document.getElementById('jenis_pelaksana')) document.getElementById('jenis_pelaksana').value = "";
+            
+            const tsKategori = document.getElementById('kategori_jabatan_fungsional')?.tomselect;
+            if (tsKategori) tsKategori.clear();
+            else if(document.getElementById('kategori_jabatan_fungsional')) document.getElementById('kategori_jabatan_fungsional').value = "";
+
+            const tsJenjang = document.getElementById('jabatan_id')?.tomselect;
+            if (tsJenjang) {
+                tsJenjang.clear();
+                tsJenjang.clearOptions();
+                tsJenjang.clearCache();
+                const wrapperJenjang = document.getElementById('wrapper_jenjang_jabatan');
+                if (wrapperJenjang) wrapperJenjang.classList.add('hidden');
+            } else if(document.getElementById('jabatan_id')) {
                 document.getElementById('jabatan_id').value = "";
                 const wrapperJenjang = document.getElementById('wrapper_jenjang_jabatan');
                 if (wrapperJenjang) wrapperJenjang.classList.add('hidden');
@@ -3352,6 +3486,11 @@
                 if (jfContainer) {
                     jfContainer.classList.remove('hidden');
                     jfContainer.style.pointerEvents = 'auto'; // Mengizinkan klik
+                }
+            } else if (status === 'pelaksana') {
+                const pelContainer = document.getElementById('container_pelaksana');
+                if (pelContainer) {
+                    pelContainer.classList.remove('hidden');
                 }
             }
 
@@ -3377,6 +3516,9 @@
             } else if (status === 'jabatan_fungsional') {
                 // Di handle khusus oleh handleJenjangJabatanChange, jadi di sini cukup kosongkan saja
                 namaSatkerInput.value = ''; 
+                namaSatkerInput.dataset.staticText = '';
+            } else if (status === 'pelaksana') {
+                namaSatkerInput.value = '';
                 namaSatkerInput.dataset.staticText = '';
             } else if (status === 'jabatan_kotakab') {
                 updateNamaSatkerDariKabupaten();
@@ -3693,29 +3835,29 @@
             const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
             const jenjangWrapper = document.getElementById('wrapper_jenjang_jabatan');
             const jenjangSelect = document.getElementById('jabatan_id');
-            const options = jenjangSelect.querySelectorAll('option');
+            const tsJenjang = jenjangSelect.tomselect;
 
             if (!kategoriVal) {
                 jenjangWrapper.classList.add('hidden');
-                jenjangSelect.value = "";
+                if (tsJenjang) {
+                    tsJenjang.clear();
+                    tsJenjang.clearOptions();
+                    tsJenjang.clearCache();
+                } else {
+                    jenjangSelect.value = "";
+                }
                 return;
             }
 
             jenjangWrapper.classList.remove('hidden');
-            jenjangSelect.value = "";
-
-            // Filter opsi 4 digit berdasarkan 3 digit pertama
-            options.forEach(opt => {
-                if (opt.value === "") return;
-                // Cek data-parent-kode yang kita buat di HTML tadi
-                if (opt.dataset.parentKode === kategoriVal) {
-                    opt.hidden = false;
-                    opt.disabled = false;
-                } else {
-                    opt.hidden = true;
-                    opt.disabled = true;
-                }
-            });
+            if (tsJenjang) {
+                tsJenjang.clear();
+                tsJenjang.clearOptions();
+                tsJenjang.clearCache();
+                tsJenjang.load('');
+            } else {
+                jenjangSelect.value = "";
+            }
         }
 
         function handleJenjangJabatanChange() {
@@ -3740,6 +3882,29 @@
             
             updateRefJabatanId();
             if(typeof updateDropdownRumus === 'function') updateDropdownRumus();
+        }
+
+        function handleJenisPelaksanaChange() {
+            const pelSelect = document.getElementById('jenis_pelaksana');
+            const namaInput = document.getElementById('nama_satker');
+            
+            if (pelSelect.value !== "") {
+                const text = pelSelect.options[pelSelect.selectedIndex].text;
+                const nama = `Pelaksana - ${text}`;
+                
+                if (namaInput) {
+                    namaInput.value = nama;
+                    namaInput.dataset.staticText = nama + " ";
+                }
+                
+                if (typeof generateSatkerCode === 'function') generateSatkerCode();
+            } else {
+                if (namaInput) {
+                    namaInput.value = '';
+                    namaInput.dataset.staticText = '';
+                }
+            }
+            updateRefJabatanId();
         }
 
         // Fungsi untuk mereset modal dan semua state input
@@ -3785,20 +3950,35 @@
         // 2. Inisialisasi TomSelect Jenjang (4 Digit)
         const elJenjang = document.getElementById('jabatan_id');
         if (elJenjang) {
-            // Backup semua opsi asli ke dalam array objek agar mudah difilter
-            elJenjang.allOptions = Array.from(elJenjang.querySelectorAll('option')).map(opt => ({
-                value: opt.value,
-                text: opt.text,
-                kode: opt.getAttribute('data-kode') || '',
-                parent: opt.getAttribute('data-parent-kode') || ''
-            }));
-
             new TomSelect(elJenjang, {
-                valueField: 'value',
-                labelField: 'text',
-                searchField: ['text', 'kode'],
+                valueField: 'id',
+                labelField: 'full_name',
+                searchField: ['full_name', 'kode_jabatan'],
                 create: false,
+                preload: 'focus',
                 placeholder: '-- Cari Jenjang (4 Digit) --',
+                load: function(query, callback) {
+                    const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
+                    const periodeId = document.getElementById('periode_id')?.value;
+                    if (!kategoriVal) return callback();
+
+                    const url = new URL('{{ url("admin/satker/api-jabatan") }}');
+                    url.searchParams.append('q', query);
+                    url.searchParams.set('kategori', kategoriVal);
+                    if (periodeId) url.searchParams.set('periode_id', periodeId);
+
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(json => {
+                            // API sudah mereturn data dengan field id dan full_name
+                            callback(json.items.filter(item => item.kode_jabatan.length === 4));
+                        })
+                        .catch(() => callback());
+                },
+                render: {
+                    option: function(data, escape) { return `<div class="py-1"><div class="text-sm text-slate-700 leading-relaxed">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div></div>`; },
+                    item: function(data, escape) { return `<div class="text-slate-700">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div>`; }
+                }
             });
         }
     });
@@ -3812,19 +3992,9 @@
 
         if (kategoriVal) {
             wrapperJenjang.classList.remove('hidden');
-            
-            // 1. Kosongkan semua opsi yang ada di TomSelect
             elJenjang.tomselect.clear();
             elJenjang.tomselect.clearOptions();
-
-            // 2. Filter data: Harus cocok dengan parent DAN panjang kode harus 4 digit
-            const filtered = elJenjang.allOptions.filter(opt => {
-                return opt.value === "" || (opt.parent === kategoriVal && opt.kode.length === 4);
-            });
-
-            // 3. Masukkan kembali hasil filter ke TomSelect
-            elJenjang.tomselect.addOptions(filtered);
-            elJenjang.tomselect.refreshOptions(false);
+            // Akan trigger AJAX saat di-klik/dicari karena pakai load() function
         } else {
             wrapperJenjang.classList.add('hidden');
             elJenjang.tomselect.clear();

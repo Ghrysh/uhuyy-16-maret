@@ -81,12 +81,17 @@ class DashboardController extends Controller
             ->get();
 
         // 4. DAFTAR SATKER KOSONG (Benar-benar tidak ada pejabat aktif sama sekali)
+        // Dihitung dulu totalnya tanpa pagination
+        $satkerTanpaDefinitif = Satker::where('periode_id', $activePeriodeId)
+            ->whereDoesntHave('penugasan', function($query) {
+                $query->where('status_aktif', true);
+            })->count();
+
+        // Gunakan pagination 10 data untuk render di UI agar browser tidak hang
         $satkerKosong = Satker::with(['eselon', 'wilayah'])->where('periode_id', $activePeriodeId)
             ->whereDoesntHave('penugasan', function($query) {
                 $query->where('status_aktif', true);
-            })->orderBy('kode_satker', 'asc')->get();
-        
-        $satkerTanpaDefinitif = $satkerKosong->count();
+            })->orderBy('kode_satker', 'asc')->paginate(10);
 
         // 5. KALKULASI KLASIFIKASI LAMA JABATAN & PENSIUN
         $penugasans = Penugasan::with(['user.userDetail'])

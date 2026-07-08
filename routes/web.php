@@ -38,6 +38,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::put('/satker/{id}', [SatkerController::class, 'update'])->name('satker.update');
     Route::delete('/satker/{id}', [SatkerController::class, 'destroy'])->name('satker.destroy');
     Route::get('/satker/users/{id}', [SatkerController::class, 'getUsersBySatker'])->name('satker.users');
+    Route::get('/satker/api-search', [SatkerController::class, 'apiSearchSatker'])->name('satker.api-search');
+    Route::get('/satker/load-children', [SatkerController::class, 'loadChildren'])->name('satker.load-children');
+    Route::get('/satker/search-tree', [SatkerController::class, 'searchTree'])->name('satker.search-tree');
+    Route::get('/satker/api-jabatan', [SatkerController::class, 'apiSearchJabatan'])->name('satker.api-jabatan');
     Route::get('/satker/generate-code', [SatkerController::class, 'generateCode'])->name('satker.generate-code');
     Route::post('/satker/bulk-action', [SatkerController::class, 'bulkAction'])->name('satker.bulk-action');
 

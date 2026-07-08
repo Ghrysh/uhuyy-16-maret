@@ -275,10 +275,12 @@ class JabatanController extends Controller
         $isSuperAdmin = in_array('super_admin', $userRoles);
         $isAdminJafung = (in_array('admin_jafung_pengguna', $userRoles) || in_array('admin_jafung_pembina', $userRoles)) && !$isSuperAdmin;
 
-        $satkers = collect();
-
-        // [PERBAIKAN 1]: Tambahkan ->select(...) agar query ke database sangat ringan & hemat RAM
         $selectCols = ['id', 'parent_satker_id', 'nama_satker', 'jenis_satker_id', 'kode_satker'];
+
+        $satkers = collect();
+        $satkerIds = [];
+        $totalData = 0;
+        $lastPage = 1;
 
         if ($isAdminJafung && $user->satker_id) {
             $userSatker = \App\Models\Satker::select($selectCols)->where('periode_id', $jabatan->periode_id)->find($user->satker_id);
@@ -289,14 +291,29 @@ class JabatanController extends Controller
                 }
                 $satkers->push($userSatker);
             }
+            $satkerIds = $satkers->pluck('id')->toArray();
+            $totalData = $satkers->count();
         } else {
-            $satkers = \App\Models\Satker::select($selectCols)
+            // PERUBAHAN: Gunakan Paginator untuk memecah data
+            $limit = $request->query('limit', 500); 
+            $paginator = \App\Models\Satker::select($selectCols)
                 ->where('periode_id', $jabatan->periode_id)
                 ->orderBy('kode_satker', 'asc')
-                ->get();
+                ->paginate($limit);
+
+            $satkers = collect($paginator->items());
+            $satkerIds = $satkers->pluck('id')->toArray();
+            $totalData = $paginator->total();
+            $lastPage = $paginator->lastPage();
         }
 
-        $kuotas = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)->get()->keyBy('satker_id');
+        $kuotasRaw = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)
+            ->whereIn('satker_id', $satkerIds)
+            ->toBase()->get();
+        $kuotas = [];
+        foreach ($kuotasRaw as $k) {
+            $kuotas[$k->satker_id] = (array) $k;
+        }
         
         // [PERBAIKAN 2]: Tambahkan array_flip() agar pencarian array menjadi O(1) Hash Map, bukan O(N) Array Biasa. 
         // Ini akan meningkatkan kecepatan proses array hingga 100x lipat jika data ribuan!
@@ -314,6 +331,7 @@ class JabatanController extends Controller
         $penugasanCounts = \Illuminate\Support\Facades\DB::table('penugasan')
             ->select('satker_id', 'jabatan_id', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
             ->where('status_aktif', 1)->whereIn('jabatan_id', array_values($mapJabatanIds))
+            ->whereIn('satker_id', $satkerIds)
             ->groupBy('satker_id', 'jabatan_id')->get();
             
         $eksMap = []; 
@@ -324,44 +342,50 @@ class JabatanController extends Controller
 
         $isSemua = count($mapJabatanIds) > 4;
 
-        $data = $satkers->map(function($satker) use ($kuotas, $isAdminJafung, $parentIds, $eksMap, $isSemua) {
-            $kuota = $kuotas->get($satker->id);
+    $data = [];
+        foreach ($satkers as $satker) {
+            // Karena $kuotas sekarang Array murni, kita panggil sebagai Array (jauh lebih kilat)
+            $kuota = $kuotas[$satker->id] ?? [];
             $level = $isAdminJafung ? ($satker->parent_satker_id ? 1 : 0) : max(0, ($satker->jenis_satker_id ?? 1) - 1);
             
-            $e_1 = $eksMap[$satker->id]['1'] ?? ($isSemua ? 0 : ($eksMap[$satker->id]['5'] ?? 0));
-            $e_2 = $eksMap[$satker->id]['2'] ?? ($isSemua ? 0 : ($eksMap[$satker->id]['6'] ?? 0));
-            $e_3 = $eksMap[$satker->id]['3'] ?? ($isSemua ? 0 : ($eksMap[$satker->id]['7'] ?? 0));
-            $e_4 = $eksMap[$satker->id]['4'] ?? ($isSemua ? 0 : ($eksMap[$satker->id]['8'] ?? 0));
-            $e_5 = $eksMap[$satker->id]['5'] ?? 0;
-            $e_6 = $eksMap[$satker->id]['6'] ?? 0;
-            $e_7 = $eksMap[$satker->id]['7'] ?? 0;
-            $e_8 = $eksMap[$satker->id]['8'] ?? 0;
+            // Ekstrak datanya sekali saja ke variabel lokal agar lebih ringan
+            $eks = $eksMap[$satker->id] ?? []; 
 
-            return [
+            $e_1 = $eks['1'] ?? ($isSemua ? 0 : ($eks['5'] ?? 0));
+            $e_2 = $eks['2'] ?? ($isSemua ? 0 : ($eks['6'] ?? 0));
+            $e_3 = $eks['3'] ?? ($isSemua ? 0 : ($eks['7'] ?? 0));
+            $e_4 = $eks['4'] ?? ($isSemua ? 0 : ($eks['8'] ?? 0));
+            $e_5 = $eks['5'] ?? 0;
+            $e_6 = $eks['6'] ?? 0;
+            $e_7 = $eks['7'] ?? 0;
+            $e_8 = $eks['8'] ?? 0;
+
+            $data[] = [
                 'id' => $satker->id, 'parent_id' => $satker->parent_satker_id, 'nama_satker' => $satker->nama_satker,
-                
-                // [PERBAIKAN 3]: Ganti in_array menjadi isset. Ini sangat mempercepat map perulangan!
                 'level' => $level, 'has_children' => isset($parentIds[$satker->id]),
                 
-                'kp_menpan' => $kuota->kp_menpan ?? 0, 'kmu_menpan' => $kuota->kmu_menpan ?? 0, 'kma_menpan' => $kuota->kma_menpan ?? 0, 'ku_menpan' => $kuota->ku_menpan ?? 0,
-                'k5_menpan' => $kuota->k5_menpan ?? 0, 'k6_menpan'  => $kuota->k6_menpan ?? 0,  'k7_menpan'  => $kuota->k7_menpan ?? 0,  'k8_menpan' => $kuota->k8_menpan ?? 0,
+                // Perhatikan pemanggilan diubah dari objek (->) menjadi index string ('')
+                'kp_menpan' => $kuota['kp_menpan'] ?? 0, 'kmu_menpan' => $kuota['kmu_menpan'] ?? 0, 'kma_menpan' => $kuota['kma_menpan'] ?? 0, 'ku_menpan' => $kuota['ku_menpan'] ?? 0,
+                'k5_menpan' => $kuota['k5_menpan'] ?? 0, 'k6_menpan'  => $kuota['k6_menpan'] ?? 0,  'k7_menpan'  => $kuota['k7_menpan'] ?? 0,  'k8_menpan' => $kuota['k8_menpan'] ?? 0,
                 
-                'kp_eksisting' => $kuota->kp_eksisting ?? $e_1, 'kmu_eksisting' => $kuota->kmu_eksisting ?? $e_2, 'kma_eksisting' => $kuota->kma_eksisting ?? $e_3, 'ku_eksisting' => $kuota->ku_eksisting ?? $e_4,
-                'k5_eksisting' => $kuota->k5_eksisting ?? $e_5, 'k6_eksisting'  => $kuota->k6_eksisting ?? $e_6,  'k7_eksisting'  => $kuota->k7_eksisting ?? $e_7,  'k8_eksisting' => $kuota->k8_eksisting ?? $e_8,
+                'kp_eksisting' => $kuota['kp_eksisting'] ?? $e_1, 'kmu_eksisting' => $kuota['kmu_eksisting'] ?? $e_2, 'kma_eksisting' => $kuota['kma_eksisting'] ?? $e_3, 'ku_eksisting' => $kuota['ku_eksisting'] ?? $e_4,
+                'k5_eksisting' => $kuota['k5_eksisting'] ?? $e_5, 'k6_eksisting'  => $kuota['k6_eksisting'] ?? $e_6,  'k7_eksisting'  => $kuota['k7_eksisting'] ?? $e_7,  'k8_eksisting' => $kuota['k8_eksisting'] ?? $e_8,
                 
-                'kp_lowongan' => ($kuota->kp_menpan ?? 0) - ($kuota->kp_eksisting ?? $e_1),
-                'kmu_lowongan' => ($kuota->kmu_menpan ?? 0) - ($kuota->kmu_eksisting ?? $e_2),
-                'kma_lowongan' => ($kuota->kma_menpan ?? 0) - ($kuota->kma_eksisting ?? $e_3),
-                'ku_lowongan' => ($kuota->ku_menpan ?? 0) - ($kuota->ku_eksisting ?? $e_4),
+                'kp_lowongan' => ($kuota['kp_menpan'] ?? 0) - ($kuota['kp_eksisting'] ?? $e_1),
+                'kmu_lowongan' => ($kuota['kmu_menpan'] ?? 0) - ($kuota['kmu_eksisting'] ?? $e_2),
+                'kma_lowongan' => ($kuota['kma_menpan'] ?? 0) - ($kuota['kma_eksisting'] ?? $e_3),
+                'ku_lowongan' => ($kuota['ku_menpan'] ?? 0) - ($kuota['ku_eksisting'] ?? $e_4),
                 
-                'k5_lowongan' => ($kuota->k5_menpan ?? 0) - ($kuota->k5_eksisting ?? $e_5),
-                'k6_lowongan' => ($kuota->k6_menpan ?? 0) - ($kuota->k6_eksisting ?? $e_6),
-                'k7_lowongan' => ($kuota->k7_menpan ?? 0) - ($kuota->k7_eksisting ?? $e_7),
-                'k8_lowongan' => ($kuota->k8_menpan ?? 0) - ($kuota->k8_eksisting ?? $e_8),
+                'k5_lowongan' => ($kuota['k5_menpan'] ?? 0) - ($kuota['k5_eksisting'] ?? $e_5),
+                'k6_lowongan' => ($kuota['k6_menpan'] ?? 0) - ($kuota['k6_eksisting'] ?? $e_6),
+                'k7_lowongan' => ($kuota['k7_menpan'] ?? 0) - ($kuota['k7_eksisting'] ?? $e_7),
+                'k8_lowongan' => ($kuota['k8_menpan'] ?? 0) - ($kuota['k8_eksisting'] ?? $e_8),
             ];
-        })->values();
+        }
 
         return response()->json([
+            'total_data' => $totalData,
+            'last_page' => $lastPage,
             'is_semua_jenjang' => $isSemua,
             'b_p_menpan' => $jabatan->b_pertama_menpan, 'b_mu_menpan' => $jabatan->b_muda_menpan, 'b_ma_menpan' => $jabatan->b_madya_menpan, 'b_u_menpan' => $jabatan->b_utama_menpan,
             'b_5_menpan' => $jabatan->b_lima_menpan,    'b_6_menpan' => $jabatan->b_enam_menpan,   'b_7_menpan' => $jabatan->b_tujuh_menpan,   'b_8_menpan' => $jabatan->b_delapan_menpan,

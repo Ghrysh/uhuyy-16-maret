@@ -122,6 +122,27 @@
                 </tbody>
             </table>
         </div>
+        
+        {{-- Paginasi Tabel --}}
+        @if($satkerKosong->hasPages())
+            <div class="px-6 py-4 border-t border-gray-100 bg-white pagination-container">
+                {{ $satkerKosong->appends(request()->query())->links() }}
+            </div>
+            <script>
+                // Pencegat Link Paginasi agar selalu mengikuti path asli di Browser (mendukung Proxy /satker/)
+                document.querySelectorAll('.pagination-container a').forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetUrl = new URL(this.href);
+                        const page = targetUrl.searchParams.get('page');
+                        
+                        const currentBrowserUrl = new URL(window.location.href);
+                        currentBrowserUrl.searchParams.set('page', page);
+                        window.location.href = currentBrowserUrl.toString();
+                    });
+                });
+            </script>
+        @endif
     </div>
 
     {{-- Modal Detail Satker Kosong --}}

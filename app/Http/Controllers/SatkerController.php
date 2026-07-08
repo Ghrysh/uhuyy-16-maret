@@ -123,41 +123,22 @@ class SatkerController extends Controller
         // Pastikan activePeriodeId terdefinisi untuk filter
         $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
-        $satkerQuery = Satker::with('children')->where('periode_id', $activePeriodeId);
-        $flatQuery = Satker::with(['childrenRecursive', 'wilayah', 'eselon'])->where('periode_id', $activePeriodeId);
-        $tableQuery = Satker::query()->with(['wilayah', 'eselon'])->where('periode_id', $activePeriodeId);
-        $listQuery = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'periode_id')->where('periode_id', $activePeriodeId);
-        $parentsQuery = Satker::query()->where('periode_id', $activePeriodeId);
+        $satkerQuery = Satker::with('eselon')->withCount('children')->where('periode_id', $activePeriodeId);
 
         // PENERAPAN VISIBILITAS DARI REGULASI (Ini yang mengembalikan data Anda yang "hilang")
         if ($perm['visibility'] !== 'all') {
             $allowedIds = $perm['allowed_ids'];
 
             $satkerQuery->whereIn('id', $allowedIds);
-            $flatQuery->whereIn('id', $allowedIds);
-            $tableQuery->whereIn('id', $allowedIds);
-            $listQuery->whereIn('id', $allowedIds);
-            $parentsQuery->whereIn('id', $allowedIds);
         } else {
             $satkerQuery->whereNull('parent_satker_id');
-            $flatQuery->whereNull('parent_satker_id');
         }
 
         $satkers = $satkerQuery->orderByRaw('LENGTH(kode_satker) ASC')->orderBy('kode_satker', 'asc')->get();
-        $allSatkersFlat = $flatQuery->orderByRaw('LENGTH(kode_satker) ASC')->orderBy('kode_satker', 'asc')->get();
-
-        $search = $request->query('search');
-        $allSatkers = $tableQuery->when($search, function ($query, $search) {
-                return $query->where(function($q) use ($search) {
-                    $q->where('nama_satker', 'like', "%{$search}%")
-                      ->orWhere('kode_satker', 'like', "%{$search}%");
-                });
-            })
-            ->orderBy('kode_satker', 'asc')
-            ->paginate(10);
-        
-        $listAllSatkers = $listQuery->orderBy('kode_satker', 'asc')->get();
-        $parents = $parentsQuery->get();
+        $listAllSatkers = collect(); 
+        $parents = collect();
+        $allSatkersFlat = collect(); 
+        $allSatkers = collect();
 
 // Master Data lainnya
         $jenisSatkers = DB::table('m_jenis_satker')->get();
@@ -165,7 +146,7 @@ class SatkerController extends Controller
         // ----------------------------------------------------------------------
         // JAWABAN: LOGIKA JABATAN FUNGSIONAL BERSARANG (Ekstrak 3 Digit Otomatis)
         // ----------------------------------------------------------------------
-        $allJabatan = Jabatan::where('periode_id', $activePeriodeId)->with('fungsional')->get();
+        $allJabatan = collect();
         
         $jabatanCategories = collect();
         $jabatanItems = collect();
@@ -197,7 +178,7 @@ class SatkerController extends Controller
 
         // Urutkan berdasarkan kode
         $jabatanCategories = $jabatanCategories->sortBy('kode_jabatan')->values();
-        $jabatanItems = $jabatanItems->sortBy('kode_jabatan')->values();
+        $jabatanItems = collect(); // OPTIMIZED: Akan diload via AJAX
         
         // ----------------------------------------------------------------------
         // PENGHAPUSAN QUERY BERAT ($pegawais = User::all()) YANG MEMBUAT LEMOT!
@@ -224,29 +205,112 @@ class SatkerController extends Controller
             'jabatanCategories', 'jabatanItems' 
         ));
         
-        // ----------------------------------------------------------------------
-        // PENGHAPUSAN QUERY BERAT ($pegawais = User::all()) YANG MEMBUAT LEMOT!
-        // ----------------------------------------------------------------------
-        $pegawais = collect([]); 
-        
-        $jenis_penugasans = MJenisPenugasan::all();
-        $wilayahs = Wilayah::whereIn('tingkat_wilayah_id', [1, 2, 4])->orderBy('kode_wilayah', 'asc')->get();
-        $kabupaten = Wilayah::where('tingkat_wilayah_id', 3)->orderBy('kode_wilayah', 'asc')->get();
-        $refJabatanSatker = RefJabatanSatker::orderBy('label_jabatan', 'asc')->get();
-        $roles = MRole::whereIn('key', [
-            'admin_satker', 
-            'pejabat', 
-            'admin_jafung_pengguna', 
-            'admin_jafung_pembina'
-        ])->get();
-        
-        $rumusList = DB::table('rumus_kodes')->orderBy('id', 'asc')->get();
-
         return view('admin.satker.index', compact(
             'satkers', 'allSatkers', 'listAllSatkers', 'wilayahs', 'kabupaten', 'parents', 
-            'jenisSatkers', 'jabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 
-            'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList', 'activePeriodeId'
+            'jenisSatkers', 'allJabatan', 'pegawais', 'jenis_penugasans', 'periodes', 'roles', 
+            'userRoles', 'allSatkersFlat', 'refJabatanSatker', 'perm', 'rumusList', 'activePeriodeId',
+            'jabatanCategories', 'jabatanItems' 
         ));
+    }
+
+    public function loadChildren(Request $request)
+    {
+        $parentId = $request->query('parent_id');
+        $perm = $this->getPermissions();
+        if (!$perm['can_view']) abort(403);
+
+        $children = Satker::with('eselon')->withCount('children')
+            ->where('parent_satker_id', $parentId)
+            ->orderBy('kode_satker', 'asc')
+            ->get();
+
+        $sortedChildren = $children->sortBy(function($child) {
+            return str_pad(strlen($child->kode_satker), 2, '0', STR_PAD_LEFT) . '-' . $child->kode_satker;
+        });
+
+        $html = '';
+        foreach ($sortedChildren as $child) {
+            $html .= view('admin.satker._item_hirarki', [
+                'item' => $child,
+                'perm' => $perm
+            ])->render();
+        }
+
+        return response()->json(['html' => $html]);
+    }
+
+    public function searchTree(Request $request)
+    {
+        $search = $request->query('q');
+        $periodeId = $request->query('periode_id');
+        $perm = $this->getPermissions();
+        if (!$perm['can_view']) abort(403);
+
+        $matches = Satker::select('id', 'parent_satker_id', 'kode_satker')
+            ->where('periode_id', $periodeId)
+            ->where(function($q) use ($search) {
+                $q->where('nama_satker', 'ilike', "%{$search}%")
+                  ->orWhere('kode_satker', 'ilike', "%{$search}%");
+            });
+
+        if ($perm['visibility'] !== 'all') {
+            $matches->whereIn('id', $perm['allowed_ids']);
+        }
+        
+        // Limit untuk menghindari hasil yang terlalu masif (misal mengetik 'kemenag')
+        $matches = $matches->limit(100)->get();
+
+        if ($matches->isEmpty()) {
+            return response()->json(['html' => '<div class="py-12 text-center text-slate-400 text-sm italic">Pencarian tidak ditemukan.</div>']);
+        }
+
+        // Ambil semua parent ID secara rekursif agar jalurnya utuh
+        $matchedIds = $matches->pluck('id')->toArray();
+        $parentIds = array_unique(array_filter($matches->pluck('parent_satker_id')->toArray()));
+        
+        $allIdsToFetch = array_merge($matchedIds, $parentIds);
+        
+        // Ambil parent dari parent sampai root
+        while(!empty($parentIds)) {
+            $parents = Satker::whereIn('id', $parentIds)->pluck('parent_satker_id')->toArray();
+            $parentIds = array_unique(array_filter($parents));
+            $allIdsToFetch = array_merge($allIdsToFetch, $parentIds);
+        }
+        $allIdsToFetch = array_unique($allIdsToFetch);
+
+        $allNodes = Satker::with('eselon')->withCount('children')
+            ->whereIn('id', $allIdsToFetch)
+            ->orderBy('kode_satker', 'asc')
+            ->get();
+            
+        // Build the tree manually from allNodes
+        $nodesById = [];
+        foreach($allNodes as $node) {
+            // override the default relations so we don't query DB
+            $node->setRelation('children', collect()); 
+            $nodesById[$node->id] = $node;
+        }
+        
+        $roots = collect();
+        foreach($nodesById as $id => $node) {
+            if ($node->parent_satker_id && isset($nodesById[$node->parent_satker_id])) {
+                $nodesById[$node->parent_satker_id]->children->push($node);
+            } else {
+                $roots->push($node);
+            }
+        }
+
+        $html = '';
+        foreach ($roots as $root) {
+            $html .= view('admin.satker._item_hirarki', [
+                'item' => $root,
+                'perm' => $perm,
+                'forceShowChildren' => true,
+                'matchedIds' => $matchedIds // untuk penanda data-match CSS nantinya
+            ])->render();
+        }
+
+        return response()->json(['html' => $html]);
     }
     
     private function getAllDescendantIds($satkerId) {
@@ -267,6 +331,100 @@ class SatkerController extends Controller
             }
         }
     }
+
+    // =================================================================================
+    // API UNTUK TOMSELECT (SERVER-SIDE SEARCH) AGAR BROWSER TIDAK HANG
+    // =================================================================================
+    public function apiSearchSatker(Request $request)
+    {
+        $search = $request->query('q', '');
+        $periodeId = $request->query('periode_id');
+        $id = $request->query('id'); // Tambahan untuk fetch 1 data di Edit Modal
+        $page = $request->query('page', 1);
+        $limit = 20;
+
+        $query = Satker::select('id', 'nama_satker', 'kode_satker', 'jenis_satker_id', 'wilayah_id', 'periode_id');
+        
+        $targetEselon = $request->query('target_eselon');
+        if ($targetEselon !== null && $targetEselon !== '') {
+            $query->where('jenis_satker_id', $targetEselon);
+        }
+
+        if ($id) {
+            $query->where('id', $id);
+        }
+
+        if ($periodeId) {
+            $query->where('periode_id', $periodeId);
+        }
+
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('nama_satker', 'ilike', "%{$search}%")
+                  ->orWhere('kode_satker', 'ilike', "%{$search}%");
+            });
+        }
+
+        // Terapkan visibility
+        $perm = $this->getPermissions();
+        if ($perm['visibility'] !== 'all') {
+            $query->whereIn('id', $perm['allowed_ids']);
+        }
+
+        $results = $query->orderBy('kode_satker', 'asc')
+                         ->paginate($limit, ['*'], 'page', $page);
+
+        return response()->json([
+            'items' => $results->items(),
+            'total_count' => $results->total()
+        ]);
+    }
+
+    public function apiSearchJabatan(Request $request)
+    {
+        $search = $request->query('q', '');
+        $periodeId = $request->query('periode_id');
+        $kategori = $request->query('kategori'); // Prefix 3 digit
+        $page = $request->query('page', 1);
+        $limit = 20;
+
+        $query = Jabatan::with('fungsional');
+
+        if ($periodeId) {
+            $query->where('periode_id', $periodeId);
+        }
+
+        if (!empty($kategori)) {
+            $query->where('kode_jabatan', 'like', $kategori . '%');
+        }
+
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('nama_jabatan', 'ilike', "%{$search}%")
+                  ->orWhere('kode_jabatan', 'ilike', "%{$search}%");
+            });
+        }
+
+        $results = $query->orderBy('kode_jabatan', 'asc')
+                         ->paginate($limit, ['*'], 'page', $page);
+
+        // Format return data agar ada full_name
+        $items = collect($results->items())->map(function($item) {
+            $namaJenjang = $item->fungsional ? $item->fungsional->name : '';
+            return [
+                'id' => $item->id,
+                'kode_jabatan' => $item->kode_jabatan,
+                'nama_jabatan' => $item->nama_jabatan,
+                'full_name' => trim($item->nama_jabatan . ' ' . $namaJenjang)
+            ];
+        });
+
+        return response()->json([
+            'items' => $items,
+            'total_count' => $results->total()
+        ]);
+    }
+
 
     public function store(Request $request)
     {
@@ -495,7 +653,6 @@ class SatkerController extends Controller
                     'code' => $finalCode,
                     'gaps' => [],
                     'default_nama' => $fullName, // Kirim nama lengkap ke UI
-                    'is_incremental' => false,
                     'is_new' => true,
                     'last_kode' => null,
                     'last_nama' => null
@@ -503,6 +660,84 @@ class SatkerController extends Controller
             }
         }
         
+        if ($request->filled('jenis_pelaksana')) {
+            $prefix = $request->jenis_pelaksana; // '71' or '72'
+            $parentCode = '';
+            if ($parentId) {
+                $parent = \App\Models\Satker::find($parentId);
+                $parentCode = $parent ? trim($parent->kode_satker) : '';
+            }
+
+            // Cari satker di db dengan parent_id ini, yang kodenya mulai dari parentCode + prefix
+            $pattern = $parentCode . $prefix . '%';
+            $existingCodes = \App\Models\Satker::where('parent_satker_id', $parentId)
+                ->where('kode_satker', 'like', $pattern)
+                ->pluck('kode_satker')
+                ->map(function($code) use ($parentCode, $prefix) {
+                    $base = $parentCode . $prefix;
+                    return (int) substr($code, strlen($base), 2);
+                })
+                ->toArray();
+            
+            $nextInc = 1;
+            if (!empty($existingCodes)) {
+                // Cari gap pertama (urutan kosong terendah) atau increment max
+                sort($existingCodes);
+                foreach ($existingCodes as $e) {
+                    if ($e == $nextInc) {
+                        $nextInc++;
+                    } elseif ($e > $nextInc) {
+                        break;
+                    }
+                }
+            }
+
+            $suffix = str_pad($nextInc, 2, '0', STR_PAD_LEFT);
+            $fullCodeSuffix = $prefix . $suffix;
+            $finalCode = $parentCode . $fullCodeSuffix;
+
+            $pelaksanaMap = [
+                '7101' => 'Penelaah Teknis Kebijakan',
+                '7102' => 'Pengolah Data dan Informasi',
+                '7103' => 'Pengadministrasi Perkantoran',
+                '7104' => 'Pengembang Buku Elektronik',
+                '7105' => 'Penata Keprotokolan',
+                '7106' => 'Pengelola Keprotokolan',
+                '7107' => 'Penata Kelola Hukum dan Perundang-undangan',
+                '7108' => 'Penyusun Materi Hukum dan Perundang-undangan',
+                '7109' => 'Penata Kelola Sistem dan Teknologi Informasi',
+                '7110' => 'Penelaah Hisab Rukyat',
+                '7111' => 'Penata Kelola Zakat dan Wakaf',
+                '7112' => 'Pranata Kerukunan Umat Beragama',
+                '7113' => 'Pengawas Lembaga Ibadah Haji dan Umrah',
+                '7114' => 'Pembimbing Teknis Urusan Agama',
+                '7115' => 'Penata Kelola Jaminan Produk Halal',
+                '7116' => 'Penata Kelola Madrasah, Pendidikan Agama dan Keagamaan',
+                '7201' => 'Penata Layanan Operasional',
+                '7202' => 'Penata Kelola Sistem Jaringan Penyiaran',
+                '7203' => 'Editor Buku',
+                '7204' => 'Jurnalis',
+                '7205' => 'Kurator',
+                '7206' => 'Operator Laboratorium',
+                '7207' => 'Pengelola Layanan Operasional',
+                '7208' => 'Operator Layanan Operasional',
+                '7209' => 'Pengelola Umum Operasional'
+            ];
+
+            $namaPelaksana = $pelaksanaMap[$fullCodeSuffix] ?? ($prefix === '71' ? 'Pelaksana - Klerek' : 'Pelaksana - Operator');
+
+            return response()->json([
+                'success' => true,
+                'code' => $finalCode,
+                'gaps' => [],
+                'default_nama' => $namaPelaksana,
+                'is_incremental' => true,
+                'is_new' => true,
+                'last_kode' => null,
+                'last_nama' => null
+            ]);
+        }
+
         $wilayahId = $request->wilayah_id;
         $tingkatWilayahId = null;
         $kodeWilayah = '';
@@ -552,7 +787,7 @@ class SatkerController extends Controller
         }
 
         if (!$setup) {
-            return response()->json(['error' => 'Setup Rumus tidak ditemukan untuk kombinasi ini.'], 404);
+            return response()->json(['success' => false, 'message' => 'Setup Rumus tidak ditemukan untuk kombinasi ini.'], 400);
         }
 
         $kodeBaru = "";
@@ -733,6 +968,9 @@ class SatkerController extends Controller
 
     public function bulkAction(Request $request)
     {
+        // Mencegah PHP Timeout (500 Internal Server Error) saat paste massal di Production
+        set_time_limit(300);
+
         $action = $request->action; // copy, move, delete
         $ids = $request->ids;
         $periodeId = $request->periode_id;

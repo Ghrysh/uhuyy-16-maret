@@ -31,8 +31,8 @@ class Satker extends Model
 
     public function children()
     {
-        // Memanggil children dan eselon secara rekursif untuk performa optimal (Eager Loading)
-        return $this->hasMany(Satker::class, 'parent_satker_id', 'id')->with(['children', 'eselon'])
+        // Jangan meload rekursif by default karena akan sangat berat untuk 10.000 data
+        return $this->hasMany(Satker::class, 'parent_satker_id', 'id')->with('eselon')
                 ->orderBy('kode_satker', 'asc');
     }
 

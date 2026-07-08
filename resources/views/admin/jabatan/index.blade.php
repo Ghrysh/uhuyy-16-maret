@@ -229,9 +229,9 @@
             
             <div id="panel_setup_baseline" class="hidden bg-amber-50 border-b-2 border-amber-200 p-4"></div>
 
-            <div class="overflow-x-auto overflow-y-auto max-h-[65vh] relative border-t border-gray-200">
-                <table class="w-full text-left border-collapse relative">
-                    <thead class="bg-gray-100 sticky top-0 z-20 shadow-sm ring-1 ring-gray-200">
+            <div class="overflow-x-auto relative border-t border-gray-200 pb-20">
+                <table class="w-full text-left border-collapse relative table-fixed">
+                    <thead class="bg-gray-100 sticky top-0 z-[45] shadow-md ring-1 ring-gray-200 backdrop-blur-md bg-gray-100/90">
                         <tr>
                             <th rowspan="2" class="px-6 py-4 border-b border-r border-gray-200 text-xs font-bold text-slate-700 uppercase w-1/3 bg-gray-50">Struktur Satuan Kerja</th>
                             
@@ -257,6 +257,12 @@
                     </tbody>
                 </table>
             </div>
+
+            <div id="pagination-controls" class="hidden flex flex-col md:flex-row justify-between items-center px-6 py-4 bg-white border-t border-gray-200">
+                <div class="text-xs text-slate-500 mb-2 md:mb-0" id="pagination-info">Menampilkan 0 - 0 dari 0 data</div>
+                <div class="flex gap-2" id="pagination-buttons"></div>
+            </div>
+
             <div x-show="search && matches.length > 0" x-transition.opacity x-cloak class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-[55]">
                 <div class="text-xs font-bold text-slate-600 tracking-wide">
                     <span x-text="currentIndex + 1" class="text-blue-600"></span> <span class="text-slate-400 mx-1">dari</span> <span x-text="matches.length"></span>
@@ -629,8 +635,42 @@
         // ==========================================
         // AJAX LOAD MATRIKS (ANTI-FREEZE DENGAN CHUNKING)
         // ==========================================
-        let globalMatriksData = [];
-        let globalBaselineData = {};
+        var globalMatriksData = [];
+        var globalBaselineData = {};
+        var globalMatriksMap = {};
+        var filteredMatriksData = [];
+        var currentPage = 1;
+        var itemsPerPage = 100;
+
+        window.renderPaginatedTable = function() {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const paginatedData = filteredMatriksData.slice(start, end);
+
+            // Render ke tabel
+            window.renderTbody(paginatedData, window.currentMatriksTab);
+
+            // Update UI Tombol & Info Pagination
+            const totalItems = filteredMatriksData.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+            document.getElementById('pagination-controls').classList.remove('hidden');
+            document.getElementById('pagination-info').innerHTML = `Menampilkan <b class="text-slate-700">${totalItems === 0 ? 0 : start + 1}</b> - <b class="text-slate-700">${Math.min(end, totalItems)}</b> dari <b class="text-slate-700">${totalItems}</b> satker`;
+
+            let btnHtml = '';
+            btnHtml += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed text-xs font-bold"' : 'class="px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 text-xs font-bold transition"'}><i class="fas fa-chevron-left mr-1"></i> Sebelumnya</button>`;
+            btnHtml += `<span class="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg border border-slate-200">Hal ${currentPage} / ${totalPages}</span>`;
+            btnHtml += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed text-xs font-bold"' : 'class="px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 text-xs font-bold transition"'}>Selanjutnya <i class="fas fa-chevron-right ml-1"></i></button>`;
+
+            document.getElementById('pagination-buttons').innerHTML = btnHtml;
+        };
+
+        window.changePage = function(page) {
+            const totalPages = Math.ceil(filteredMatriksData.length / itemsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            window.renderPaginatedTable();
+        };
 
         async function loadMatriks() {
             const fungsionalId = document.getElementById('filter_fungsional_distribusi').value;
@@ -651,22 +691,51 @@
                 }
             }
 
-            Swal.fire({ title: 'Mengunduh Data...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            Swal.fire({ 
+                title: 'Mengunduh Data...', 
+                html: 'Memuat data satker: <b id="progress-text" class="text-blue-600">0</b> dari <b id="total-text">...</b>',
+                allowOutsideClick: false, 
+                didOpen: () => { Swal.showLoading(); } 
+            });
 
             try {
-                const response = await fetch(`{{ url('admin/jabatan/matriks') }}?jabatan_id=${fungsionalId}`);
-                
-                // CEK DULU APAKAH RESPONSE NYA OK ATAU ERROR DARI SERVER
-                if (!response.ok) {
-                    throw new Error("HTTP error " + response.status);
+                let page = 1;
+                let lastPage = 1;
+                globalMatriksData = [];
+
+                // Looping Chunking Data
+                do {
+                    const response = await fetch(`{{ url('admin/jabatan/matriks') }}?jabatan_id=${fungsionalId}&page=${page}&limit=500`);
+                    if (!response.ok) throw new Error("HTTP error " + response.status);
+
+                    const dataJSON = await response.json();
+
+                    // Gabungkan array satkers halaman ini dengan yang sebelumnya
+                    globalMatriksData = globalMatriksData.concat(dataJSON.satkers || []);
+                    lastPage = dataJSON.last_page || 1;
+
+                    // Ambil config baseline cukup dari request halaman pertama saja
+                    if (page === 1) {
+                        globalBaselineData = dataJSON;
+                    }
+
+                    // Update Angka di SweetAlert secara realtime
+                    const elProgress = document.getElementById('progress-text');
+                    const elTotal = document.getElementById('total-text');
+                    if (elProgress && elTotal) {
+                        elProgress.innerText = globalMatriksData.length;
+                        elTotal.innerText = dataJSON.total_data;
+                    }
+
+                    page++;
+                } while (page <= lastPage);
+
+                globalMatriksMap = {};
+                for (let i = 0; i < globalMatriksData.length; i++) {
+                    globalMatriksMap[globalMatriksData[i].id] = globalMatriksData[i];
                 }
                 
-                const dataJSON = await response.json();
-                
-                globalMatriksData = dataJSON.satkers || [];
-                globalBaselineData = dataJSON; 
-                
-                const isSemua = dataJSON.is_semua_jenjang;
+                const isSemua = globalBaselineData.is_semua_jenjang;
                 if (isSemua) {
                     document.getElementById('th_jenjang_1').innerText = "Pemula";
                     document.getElementById('th_jenjang_2').innerText = "Terampil";
@@ -800,29 +869,38 @@
                 </div>
             `;
 
+            // TAMPILKAN 100 BARIS PERTAMA DEMI KEAMANAN RAM!
+            filteredMatriksData = globalMatriksData; // Reset data ke awal
+            currentPage = 1; // Kembali ke halaman 1
+            window.renderPaginatedTable();
+        }
+
+        window.renderTbody = function(dataArray, tabName) {
+            const tbody = document.getElementById('matriksTableBody');
+            if (!tbody) return;
+
+            const isSemua = globalBaselineData.is_semua_jenjang;
+            const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
+            const limits = window.globalMatriksLimits;
+            const sums = window.globalMatriksSums;
+
             const renderTd = (type, val, id, isReadOnly) => {
                 const numVal = parseInt(val) || 0;
                 const sisaGlobal = limits[type] - sums[type];
                 const limitLokal = limits[type] - (sums[type] - numVal); 
                 
                 let isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
-                
                 const isExceeding = !isExempt && (numVal > 0) && (numVal > limitLokal);
                 const overVal = isExceeding ? (numVal - limitLokal) : 0;
-
                 const isEditable = !isReadOnly.includes('readonly');
                 
-                // PERBAIKAN 1: Class border dan focus dimasukkan sebagai pondasi agar tidak error
-                let inputClass = "w-full text-center p-1.5 rounded outline-none transition-colors relative z-10 border focus:ring-2 ";
+                let inputClass = `input-type-${type} w-full text-center p-1.5 rounded outline-none transition-colors border focus:ring-2 `;
                 
                 if (!isEditable) {
                     inputClass += "bg-gray-100 border-gray-200 text-gray-500 font-bold cursor-not-allowed";
                 } else {
-                    if (isExceeding) {
-                        inputClass += "border-red-500 bg-red-50 text-red-600 focus:ring-red-500";
-                    } else {
-                        inputClass += "border-gray-300 focus:ring-blue-500";
-                    }
+                    if (isExceeding) inputClass += "border-red-500 bg-red-50 text-red-600 focus:ring-red-500";
+                    else inputClass += "border-gray-300 focus:ring-blue-500";
                 }
 
                 const errDisplay = isExceeding ? "" : "hidden";
@@ -850,82 +928,58 @@
                 `;
             };
 
-            const tbody = document.getElementById('matriksTableBody');
-            tbody.innerHTML = ''; // Kosongkan tabel sebelum render baru
+            let finalHtml = '';
+            
+            dataArray.forEach(item => {
+                const level = item.level;
+                const isParent = item.has_children || level === 0; 
+                const padStyle = `padding-left: ${1.5 + (level * 2.5)}rem;`; 
+                const bgClass = level === 0 ? 'bg-white' : (level % 2 === 1 ? 'bg-slate-50/70' : 'bg-slate-50');
+                const textClass = level === 0 ? 'font-bold text-slate-800' : (level === 1 ? 'font-semibold text-slate-700' : 'font-medium text-slate-600');
+                const iconHtml = level === 0 ? '<i class="fas fa-building mr-3 text-slate-400"></i>' : '<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>';
 
-            // ==============================================================
-            // 4. CHUNKING PROCESS (INI YANG MEMBUAT BROWSER ANTI-HANG)
-            // ==============================================================
-            const totalData = globalMatriksData.length;
-            const chunkSize = 200;
-            let currentIndex = 0;
+                const namaSatkerSafe = item.nama_satker || '';
 
-            function processChunk() {
-                let chunkHtml = '';
-                const end = Math.min(currentIndex + chunkSize, totalData);
-
-                for (; currentIndex < end; currentIndex++) {
-                    const item = globalMatriksData[currentIndex];
-                    const level = item.level;
-                    const isParent = item.has_children || level === 0; 
-                    const padStyle = `padding-left: ${1.5 + (level * 2.5)}rem;`; 
-                    const bgClass = level === 0 ? 'bg-white' : (level % 2 === 1 ? 'bg-slate-50/70' : 'bg-slate-50');
-                    const textClass = level === 0 ? 'font-bold text-slate-800' : (level === 1 ? 'font-semibold text-slate-700' : 'font-medium text-slate-600');
-                    const iconHtml = level === 0 ? '<i class="fas fa-building mr-3 text-slate-400"></i>' : '<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>';
-
-                    let v1, v2, v3, v4, v5, v6, v7, v8;
-                    if (tabName === 'menpan') {
-                        v1 = item.kp_menpan; v2 = item.kmu_menpan; v3 = item.kma_menpan; v4 = item.ku_menpan;
-                        v5 = item.k5_menpan; v6 = item.k6_menpan; v7 = item.k7_menpan; v8 = item.k8_menpan;
-                    } else if (tabName === 'eksisting') {
-                        v1 = item.kp_eksisting; v2 = item.kmu_eksisting; v3 = item.kma_eksisting; v4 = item.ku_eksisting;
-                        v5 = item.k5_eksisting; v6 = item.k6_eksisting; v7 = item.k7_eksisting; v8 = item.k8_eksisting;
-                    } else {
-                        v1 = item.kp_lowongan; v2 = item.kmu_lowongan; v3 = item.kma_lowongan; v4 = item.ku_lowongan;
-                        v5 = item.k5_lowongan; v6 = item.k6_lowongan; v7 = item.k7_lowongan; v8 = item.k8_lowongan;
-                    }
-
-                    const isReadOnly = (tabName === 'lowongan') ? 'readonly disabled' : '';
-                    const totalRow = (parseInt(v1)||0) + (parseInt(v2)||0) + (parseInt(v3)||0) + (parseInt(v4)||0) + (isSemua ? (parseInt(v5)||0)+(parseInt(v6)||0)+(parseInt(v7)||0)+(parseInt(v8)||0) : 0);
-
-                    chunkHtml += `
-                        <tr class="matriks-row ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}" data-search="${item.nama_satker.toLowerCase()}">
-                            <td class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent" style="${padStyle}">
-                                <div class="flex items-center ${textClass}">${iconHtml}<span class="text-sm tracking-tight leading-snug satker-name">${item.nama_satker}</span></div>
-                            </td>
-                            ${renderTd('kp', v1, item.id, isReadOnly)}
-                            ${renderTd('kmu', v2, item.id, isReadOnly)}
-                            ${renderTd('kma', v3, item.id, isReadOnly)}
-                            ${renderTd('ku', v4, item.id, isReadOnly)}
-                            ${isSemua ? renderTd('k5', v5, item.id, isReadOnly) + renderTd('k6', v6, item.id, isReadOnly) + renderTd('k7', v7, item.id, isReadOnly) + renderTd('k8', v8, item.id, isReadOnly) : ''}
-                            <td class="px-4 py-3 text-center font-bold text-emerald-600 align-top pt-4 border-b border-gray-100 bg-transparent" id="total_${item.id}">${totalRow}</td>
-                            <td class="px-4 py-3 text-center align-top pt-3 border-b border-gray-100 bg-transparent">
-                                ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full shadow-sm hover:bg-blue-900 transition">Simpan</button>`) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
-                            </td>
-                        </tr>
-                    `;
-                }
-
-                // Inject ke DOM secara langsung (Sangat Ringan)
-                tbody.insertAdjacentHTML('beforeend', chunkHtml);
-
-                if (currentIndex < totalData) {
-                    // Beri jeda browser untuk bernafas sebelum render batch selanjutnya
-                    requestAnimationFrame(processChunk);
+                let v1, v2, v3, v4, v5, v6, v7, v8;
+                if (tabName === 'menpan') {
+                    v1 = item.kp_menpan; v2 = item.kmu_menpan; v3 = item.kma_menpan; v4 = item.ku_menpan;
+                    v5 = item.k5_menpan; v6 = item.k6_menpan; v7 = item.k7_menpan; v8 = item.k8_menpan;
+                } else if (tabName === 'eksisting') {
+                    v1 = item.kp_eksisting; v2 = item.kmu_eksisting; v3 = item.kma_eksisting; v4 = item.ku_eksisting;
+                    v5 = item.k5_eksisting; v6 = item.k6_eksisting; v7 = item.k7_eksisting; v8 = item.k8_eksisting;
                 } else {
-                    // Setelah semua baris selesai di-render
-                    Swal.close();
-                    window.dispatchEvent(new CustomEvent('dom-updated'));
+                    v1 = item.kp_lowongan; v2 = item.kmu_lowongan; v3 = item.kma_lowongan; v4 = item.ku_lowongan;
+                    v5 = item.k5_lowongan; v6 = item.k6_lowongan; v7 = item.k7_lowongan; v8 = item.k8_lowongan;
                 }
+
+                const isReadOnly = (tabName === 'lowongan') ? 'readonly disabled' : '';
+                const totalRow = (parseInt(v1)||0) + (parseInt(v2)||0) + (parseInt(v3)||0) + (parseInt(v4)||0) + (isSemua ? (parseInt(v5)||0)+(parseInt(v6)||0)+(parseInt(v7)||0)+(parseInt(v8)||0) : 0);
+
+                finalHtml += `
+                    <tr class="matriks-row ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}" data-search="${namaSatkerSafe.toLowerCase()}">
+                        <td class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent" style="${padStyle}">
+                            <div class="flex items-center ${textClass}">${iconHtml}<span class="text-sm tracking-tight leading-snug satker-name">${namaSatkerSafe}</span></div>
+                        </td>
+                        ${renderTd('kp', v1, item.id, isReadOnly)}
+                        ${renderTd('kmu', v2, item.id, isReadOnly)}
+                        ${renderTd('kma', v3, item.id, isReadOnly)}
+                        ${renderTd('ku', v4, item.id, isReadOnly)}
+                        ${isSemua ? renderTd('k5', v5, item.id, isReadOnly) + renderTd('k6', v6, item.id, isReadOnly) + renderTd('k7', v7, item.id, isReadOnly) + renderTd('k8', v8, item.id, isReadOnly) : ''}
+                        <td class="px-4 py-3 text-center font-bold text-emerald-600 align-top pt-4 border-b border-gray-100 bg-transparent" id="total_${item.id}">${totalRow}</td>
+                        <td class="px-4 py-3 text-center align-top pt-3 border-b border-gray-100 bg-transparent">
+                            ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full shadow-sm hover:bg-blue-900 transition">Simpan</button>`) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            if (dataArray.length === 0) {
+                finalHtml = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm">Tidak ada satker yang cocok dengan pencarian Anda.</td></tr>';
             }
 
-            // Pancing render awal
-            if (totalData > 0) {
-                requestAnimationFrame(processChunk);
-            } else {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-12 text-center text-slate-400 text-sm">Belum ada data distribusi satker.</td></tr>';
-                Swal.close();
-            }
+            tbody.innerHTML = finalHtml;
+            Swal.close();
+            window.dispatchEvent(new CustomEvent('dom-updated'));
         }
 
         window.autoCalcMatriks = function(input) {
@@ -936,7 +990,7 @@
             const oldVal = parseInt(input.dataset.oldval) || 0; 
             
             // 1. Update data di globalMatriksData
-            let item = globalMatriksData.find(i => i.id == id);
+            let item = globalMatriksMap[id];
             if(item) {
                 const currentTab = window.currentMatriksTab || 'menpan';
                 if (currentTab === 'menpan') item[`${type}_menpan`] = val;
@@ -1303,59 +1357,73 @@
             });
         }
 
-        // MESIN PENCARI VSCODE STYLE UNTUK TABEL
+        // MESIN PENCARI PINTAR (FILTER + VSCODE STYLE)
         document.addEventListener('alpine:init', () => {
             Alpine.data('searchVSCode', (containerId, rowSelector) => ({
                 search: '',
                 matches: [],
                 currentIndex: 0,
-                hasSearched: false, // Tambahan untuk deteksi enter pertama
+                hasSearched: false,
                 
                 init() {
                     this.$watch('search', () => {
-                        this.hasSearched = false; // Reset saat user mulai mengetik ulang
+                        this.hasSearched = false;
                         this.doSearch();
-                    });
-                    // Dengarkan event jika tabel dirender ulang (khusus tab distribusi)
-                    window.addEventListener('dom-updated', () => {
-                        if (this.search) this.doSearch();
                     });
                 },
                 
-                // Tambahkan fungsi baru ini untuk handle tombol Enter
                 handleEnter(isShift) {
                     if (!this.hasSearched) {
                         this.hasSearched = true;
-                        // Jika ini adalah pencarian pertama (biasanya Enter dari tombol HP)
-                        // Tetap diam di data pertama, jangan melompat
                         if (this.matches.length > 0) this.scrollToMatch(0);
                         return;
                     }
-                    // Jika ditekan enter lagi, baru lanjut ke urutan berikutnya
                     if (isShift) this.prevMatch();
                     else this.nextMatch();
                 },
                 
                 doSearch() {
-                    this.matches.forEach(el => el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-100'));
                     this.matches = [];
                     this.currentIndex = 0;
                     
-                    if (!this.search) return;
-                    
                     const term = this.search.toLowerCase();
-                    const container = document.getElementById(containerId);
-                    if (!container) return;
                     
-                    const rows = container.querySelectorAll(rowSelector);
-                    rows.forEach(row => {
-                        const text = row.getAttribute('data-search') || '';
-                        if (text.includes(term)) {
-                            this.matches.push(row);
+                    // JIKA INI TABEL MATRIKS SATKER
+                    if(containerId === 'matriksTableBody' && window.globalMatriksData) {
+                        if (!term) {
+                            filteredMatriksData = window.globalMatriksData;
+                        } else {
+                            filteredMatriksData = window.globalMatriksData.filter(item => {
+                                return (item.nama_satker || '').toLowerCase().includes(term);
+                            });
                         }
-                    });
-                    
-                    if (this.matches.length > 0) this.scrollToMatch(0);
+                        currentPage = 1;
+                        window.renderPaginatedTable();
+
+                        // Ambil elemen untuk fitur panah atas bawah
+                        setTimeout(() => {
+                            const container = document.getElementById(containerId);
+                            if(container) {
+                                this.matches = Array.from(container.querySelectorAll(rowSelector));
+                                if (this.matches.length > 0) this.scrollToMatch(0);
+                            }
+                        }, 50);
+
+                    } else {
+                        // JIKA INI TABEL MASTER JABATAN (Berjalan normal seperti biasa)
+                        const container = document.getElementById(containerId);
+                        if (!container) return;
+                        
+                        const rows = container.querySelectorAll(rowSelector);
+                        rows.forEach(row => {
+                            const text = row.getAttribute('data-search') || '';
+                            if (text.includes(term)) {
+                                this.matches.push(row);
+                            }
+                        });
+                        
+                        if (this.matches.length > 0) this.scrollToMatch(0);
+                    }
                 },
                 
                 scrollToMatch(index) {
@@ -1369,10 +1437,10 @@
                     this.currentIndex = index;
                     
                     const target = this.matches[this.currentIndex];
-                    target.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
-                    
-                    // Gulir layar tepat ke tengah elemen yang dicari
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if(target) {
+                        target.classList.add('ring-2', 'ring-blue-500', 'bg-blue-100');
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                 },
                 
                 nextMatch() { this.scrollToMatch(this.currentIndex + 1); },
@@ -1398,9 +1466,10 @@
                 sisaEl.className = `font-bold ${textColor}`;
             }
 
-            const inputs = document.querySelectorAll(`input[data-type="${type}"]`);
+            const inputs = document.getElementsByClassName(`input-type-${type}`);
             
-            inputs.forEach(input => {
+            for (let i = 0; i < inputs.length; i++) {
+                const input = inputs[i];
                 const id = input.id.substring(type.length + 1);
                 const val = parseInt(input.value) || 0;
                 
@@ -1419,18 +1488,20 @@
                 const errValEl = document.getElementById(`err_val_${type}_${id}`);
 
                 if (isExceeding) {
-                    // PERBAIKAN 3: Pastikan focus:ring-red-500 ditambahkan dan biru dihapus
-                    input.classList.add('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
-                    input.classList.remove('border-gray-300', 'focus:ring-blue-500');
+                    if (!input.classList.contains('border-red-500')) {
+                        input.classList.add('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
+                        input.classList.remove('border-gray-300', 'focus:ring-blue-500');
+                        if (errEl) errEl.classList.remove('hidden');
+                    }
                     if (errValEl) errValEl.innerText = val - sisaTersediaUntukKotakIni;
-                    if (errEl) errEl.classList.remove('hidden');
                 } else {
-                    // PERBAIKAN 4: Pastikan focus:ring-red-500 benar-benar dihapus dan dikembalikan ke biru
-                    input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
-                    input.classList.add('border-gray-300', 'focus:ring-blue-500');
-                    if (errEl) errEl.classList.add('hidden');
+                    if (input.classList.contains('border-red-500')) {
+                        input.classList.remove('border-red-500', 'bg-red-50', 'text-red-600', 'focus:ring-red-500');
+                        input.classList.add('border-gray-300', 'focus:ring-blue-500');
+                        if (errEl) errEl.classList.add('hidden');
+                    }
                 }
-            });
+            }
         }
     </script>
 @endpush
