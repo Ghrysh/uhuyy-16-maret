@@ -36,7 +36,8 @@ class SettingKodeController extends Controller implements HasMiddleware
         $tingkatWilayahs = DB::table('m_tingkat_wilayah')->orderBy('id', 'asc')->get();
         $periodes = \App\Models\Periode::orderBy('created_at', 'asc')->get(); 
 
-        $satkerRoots = Satker::with(['children', 'eselon'])
+        // Menggunakan withCount('children') agar tidak meload seluruh children saat awal (mencegah lag)
+        $satkerRoots = Satker::with('eselon')->withCount('children')
             ->whereNull('parent_satker_id')
             ->orderBy('kode_satker', 'asc')
             ->get();
@@ -316,5 +317,90 @@ class SettingKodeController extends Controller implements HasMiddleware
         }
         
         return $changes;
+    }
+
+    public function loadChildren(Request $request)
+    {
+        $parentId = $request->query('parent_id');
+
+        $children = Satker::with('eselon')->withCount('children')
+            ->where('parent_satker_id', $parentId)
+            ->orderBy('kode_satker', 'asc')
+            ->get();
+
+        $sortedChildren = $children->sortBy(function($child) {
+            return str_pad(strlen($child->kode_satker), 2, '0', STR_PAD_LEFT) . '-' . $child->kode_satker;
+        });
+
+        $html = '';
+        foreach ($sortedChildren as $child) {
+            $html .= view('admin.setting-kode._item_edit_manual', [
+                'item' => $child,
+            ])->render();
+        }
+
+        return response()->json(['html' => $html]);
+    }
+
+    public function searchTree(Request $request)
+    {
+        $search = $request->query('q');
+        $periodeId = $request->query('periode_id');
+
+        $matches = Satker::select('id', 'parent_satker_id', 'kode_satker', 'nama_satker', 'jenis_satker_id', 'periode_id')
+            ->where('periode_id', $periodeId)
+            ->where(function($q) use ($search) {
+                $q->where('nama_satker', 'ilike', "%{$search}%")
+                  ->orWhere('kode_satker', 'ilike', "%{$search}%");
+            })
+            ->limit(100)
+            ->get();
+
+        if ($matches->isEmpty()) {
+            return response()->json(['html' => '<div class="py-12 text-center text-slate-400 text-sm italic">Pencarian tidak ditemukan.</div>']);
+        }
+
+        $matchedIds = $matches->pluck('id')->toArray();
+        $parentIds = array_unique(array_filter($matches->pluck('parent_satker_id')->toArray()));
+        
+        $allIdsToFetch = array_merge($matchedIds, $parentIds);
+        
+        while(!empty($parentIds)) {
+            $parents = Satker::whereIn('id', $parentIds)->pluck('parent_satker_id')->toArray();
+            $parentIds = array_unique(array_filter($parents));
+            $allIdsToFetch = array_merge($allIdsToFetch, $parentIds);
+        }
+        $allIdsToFetch = array_unique($allIdsToFetch);
+
+        $allNodes = Satker::with('eselon')->withCount('children')
+            ->whereIn('id', $allIdsToFetch)
+            ->orderBy('kode_satker', 'asc')
+            ->get();
+            
+        $nodesById = [];
+        foreach($allNodes as $node) {
+            $node->setRelation('children', collect()); 
+            $nodesById[$node->id] = $node;
+        }
+        
+        $roots = collect();
+        foreach($nodesById as $id => $node) {
+            if ($node->parent_satker_id && isset($nodesById[$node->parent_satker_id])) {
+                $nodesById[$node->parent_satker_id]->children->push($node);
+            } else {
+                $roots->push($node);
+            }
+        }
+        
+        $html = '';
+        foreach($roots as $root) {
+            $html .= view('admin.setting-kode._item_edit_manual', [
+                'item' => $root,
+                'forceShowChildren' => true,
+                'matchedIds' => $matchedIds
+            ])->render();
+        }
+
+        return response()->json(['html' => $html]);
     }
 }

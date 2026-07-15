@@ -741,7 +741,7 @@
 
     {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}
     <div x-show="search && matches.length > 0" x-transition.opacity x-cloak
-         class="fixed bottom-8 right-8 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-50">
+         class="fixed bottom-8 right-8 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-40">
         
         <div class="text-xs font-bold text-slate-600 tracking-wide">
             <span x-text="currentMatchIndex + 1" class="text-blue-600"></span> 
@@ -765,10 +765,67 @@
 @endsection
 
 @push('styles')
-<style> [x-cloak] { display: none !important; } </style>
+<style>
+    [x-cloak] { display: none !important; }
+    
+    #satkerManualContainer.is-searching .satker-item {
+        display: none;
+    }
+    #satkerManualContainer.is-searching .satker-item.is-match,
+    #satkerManualContainer.is-searching .satker-item.is-shortlist-path {
+        display: block;
+    }
+    #satkerManualContainer.is-searching .satker-item:has(.is-match) {
+        display: block;
+    }
+    #satkerManualContainer.is-searching .satker-item:has(.is-match) > .children-container {
+        display: block !important;
+    }
+</style>
 @endpush
 
 @push('scripts')
+<script>
+    async function toggleSatkerNodeManual(element, event, satkerId) {
+        event.stopPropagation();
+        const parent = element.closest('.satker-item');
+        if (parent) {
+            const chevron = element.querySelector('.chevron-icon');
+            let childrenContainer = parent.querySelector(':scope > .children-container');
+            
+            if ((!childrenContainer || childrenContainer.innerHTML.trim() === '') && satkerId) {
+                const icon = element.querySelector('i');
+                const oldClass = icon.className;
+                icon.className = 'fas fa-spinner fa-spin text-xs';
+                
+                try {
+                    const response = await fetch(`{{ route('admin.setting-kode.load-children') }}?parent_id=${satkerId}`);
+                    const data = await response.json();
+                    
+                    if (!childrenContainer) {
+                        childrenContainer = document.createElement('div');
+                        childrenContainer.className = 'children-container ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2';
+                        parent.appendChild(childrenContainer);
+                    }
+                    
+                    childrenContainer.innerHTML = data.html;
+                    childrenContainer.classList.remove('hidden');
+                    
+                    icon.className = 'fas fa-chevron-right text-xs transition-transform duration-200 chevron-icon rotate-90';
+                } catch (err) {
+                    console.error('Error loading children:', err);
+                    icon.className = oldClass;
+                }
+                return; 
+            }
+            
+            if (childrenContainer) {
+                childrenContainer.classList.toggle('hidden');
+                if (chevron) chevron.classList.toggle('rotate-90');
+            }
+        }
+    }
+</script>
 <script>
     document.addEventListener('alpine:init', () => {
     Alpine.data('formulaBuilder', () => ({
@@ -807,6 +864,82 @@
             matches: [],
             currentMatchIndex: 0,
             scrollTimeout: null,
+            originalHtml: '',
+            isShortlistMode: false,
+
+            init() {
+                // Simpan state awal untuk merestore saat pencarian dibatalkan
+                this.$nextTick(() => {
+                    const container = document.getElementById('satkerManualContainer');
+                    if (container) {
+                        this.originalHtml = container.innerHTML;
+                    }
+                });
+
+                this.$watch('search', async (val) => {
+                    const container = document.getElementById('satkerManualContainer');
+                    if (!container) return;
+
+                    if (val && val.trim().length >= 2) {
+                        clearTimeout(this.scrollTimeout);
+                        
+                        this.scrollTimeout = setTimeout(async () => {
+                            const term = val.toLowerCase();
+                            
+                            try {
+                                container.style.opacity = '0.5';
+                                const res = await fetch(`{{ route('admin.setting-kode.search-tree') }}?q=${encodeURIComponent(term)}&periode_id=${this.activePeriode}`);
+                                const data = await res.json();
+                                
+                                container.innerHTML = data.html;
+                                container.style.opacity = '1';
+                                container.classList.add('is-searching');
+                                
+                                this.matches = Array.from(container.querySelectorAll('.is-shortlist-target > .satker-row'));
+                                this.currentMatchIndex = 0;
+                                
+                                if (this.matches.length > 0) {
+                                    this.scrollToMatch(0);
+                                }
+                            } catch (err) {
+                                console.error(err);
+                                container.style.opacity = '1';
+                            }
+                        }, 500);
+                    } else if (!val || val.trim().length === 0) {
+                        clearTimeout(this.scrollTimeout);
+                        if (this.originalHtml) {
+                            container.innerHTML = this.originalHtml;
+                        } else {
+                            window.location.reload();
+                        }
+                        container.classList.remove('is-searching');
+                        this.matches = [];
+                        this.isShortlistMode = false;
+                    }
+                });
+            },
+
+            scrollToMatch(index, isShortlist = false) {
+                if (this.matches.length === 0) return;
+                
+                if (this.matches[this.currentMatchIndex]) {
+                    this.matches[this.currentMatchIndex].classList.remove('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                }
+                
+                if (index < 0) index = this.matches.length - 1;
+                if (index >= this.matches.length) index = 0;
+                
+                this.currentMatchIndex = index;
+                const target = this.matches[this.currentMatchIndex];
+                
+                target.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50', 'transition-all');
+                
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            },
+
+            nextMatch() { this.scrollToMatch(this.currentMatchIndex + 1); },
+            prevMatch() { this.scrollToMatch(this.currentMatchIndex - 1); },
             
             allJabatans: window.refJabatanDatabase || [],
             filteredJabatans: [],

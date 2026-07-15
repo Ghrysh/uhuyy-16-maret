@@ -198,7 +198,8 @@
                             container.style.opacity = '1';
                             
                             // Re-init matches from loaded HTML
-                            this.matches = Array.from(container.querySelectorAll('.is-shortlist-target > .satker-row'));
+                            // Diubah karena kita menambahkan div wrapper flex di luar .satker-row untuk checkbox
+                            this.matches = Array.from(container.querySelectorAll('.is-shortlist-target > div > .satker-row'));
                             this.currentMatchIndex = 0;
                             
                             if (this.matches.length > 0) {
@@ -375,7 +376,7 @@
         {{-- ================= FLOATING SEARCH NAVIGATOR (VSCode Style) ================= --}}      
         <div x-show="search && matches.length > 0" x-transition.opacity x-cloak
              {{-- KUNCI PERBAIKAN: Ubah right-8 menjadi left-1/2 dan -translate-x-1/2 agar posisinya di tengah bawah --}}
-             class="fixed bottom-24 md:bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-[55]">
+             class="fixed bottom-24 md:bottom-8 left-1/2 transform -translate-x-1/2 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] border border-slate-200 rounded-full px-5 py-2.5 flex items-center gap-4 z-40">
             
             {{-- Indikator Angka (contoh: 1 dari 5) --}}
             <div class="text-xs font-bold text-slate-600 tracking-wide">
@@ -1576,6 +1577,53 @@
                     this.selectedIds.push(id);
                     this.selectedNames.push(name);
                     this.selectedEselons.push(parseInt(echelon));
+                }
+            },
+
+            // TAMBAHAN BARU: Fungsi untuk toggle parent beserta seluruh anaknya
+            async toggleHierarchy(id, name, echelon, event) {
+                const isChecked = event.target.checked;
+                const iconElement = event.target.nextElementSibling;
+                
+                try {
+                    if (iconElement) {
+                        iconElement.classList.remove('fa-sitemap');
+                        iconElement.classList.add('fa-spinner', 'fa-spin');
+                    }
+                    
+                    const res = await fetch(`{{ url('admin/satker/get-descendants') }}/${id}`);
+                    const json = await res.json();
+                    
+                    if (iconElement) {
+                        iconElement.classList.remove('fa-spinner', 'fa-spin');
+                        iconElement.classList.add('fa-sitemap');
+                    }
+                    
+                    if (json.success && json.data) {
+                        json.data.forEach(item => {
+                            const idx = this.selectedIds.indexOf(item.id.toString());
+                            if (isChecked) {
+                                if (idx === -1) {
+                                    this.selectedIds.push(item.id.toString());
+                                    this.selectedNames.push(item.name);
+                                    this.selectedEselons.push(parseInt(item.echelon));
+                                }
+                            } else {
+                                if (idx > -1) {
+                                    this.selectedIds.splice(idx, 1);
+                                    this.selectedNames = this.selectedNames.filter(n => n !== item.name);
+                                    const escIdx = this.selectedEselons.indexOf(parseInt(item.echelon));
+                                    if (escIdx > -1) this.selectedEselons.splice(escIdx, 1);
+                                }
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching descendants', err);
+                    if (iconElement) {
+                        iconElement.classList.remove('fa-spinner', 'fa-spin');
+                        iconElement.classList.add('fa-sitemap');
+                    }
                 }
             },
 
@@ -4003,7 +4051,7 @@
     };
     </script>
 
-    <div x-data class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-[60]">
+    <div x-data class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-40">
         <button @click="$store.selection.toggleSelectionMode()" 
                 :class="$store.selection.isSelectionMode ? 'bg-red-600' : 'bg-blue-600'"
                 class="flex items-center gap-2 px-6 py-3 text-white rounded-full shadow-2xl hover:scale-105 transition-all font-bold">

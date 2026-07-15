@@ -40,6 +40,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/satker/users/{id}', [SatkerController::class, 'getUsersBySatker'])->name('satker.users');
     Route::get('/satker/api-search', [SatkerController::class, 'apiSearchSatker'])->name('satker.api-search');
     Route::get('/satker/load-children', [SatkerController::class, 'loadChildren'])->name('satker.load-children');
+    Route::get('/satker/get-descendants/{id}', [SatkerController::class, 'getDescendants'])->name('satker.get-descendants');
     Route::get('/satker/search-tree', [SatkerController::class, 'searchTree'])->name('satker.search-tree');
     Route::get('/satker/api-jabatan', [SatkerController::class, 'apiSearchJabatan'])->name('satker.api-jabatan');
     Route::get('/satker/generate-code', [SatkerController::class, 'generateCode'])->name('satker.generate-code');
@@ -79,6 +80,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     ->name('bulking.list');
 
     Route::get('/setting-kode', [\App\Http\Controllers\SettingKodeController::class, 'index'])->name('setting-kode.index');
+    Route::get('/setting-kode/load-children', [\App\Http\Controllers\SettingKodeController::class, 'loadChildren'])->name('setting-kode.load-children');
+    Route::get('/setting-kode/search-tree', [\App\Http\Controllers\SettingKodeController::class, 'searchTree'])->name('setting-kode.search-tree');
     Route::post('/setting-kode/rumus', [\App\Http\Controllers\SettingKodeController::class, 'storeRumus'])->name('setting-kode.storeRumus');
     Route::put('/setting-kode/manual/{id}', [\App\Http\Controllers\SettingKodeController::class, 'updateManual'])->name('setting-kode.updateManual');
     Route::post('/setting-kode/update-manual-bulk', [\App\Http\Controllers\SettingKodeController::class, 'updateManualBulk'])->name('setting-kode.updateManualBulk');

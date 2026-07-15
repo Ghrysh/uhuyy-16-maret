@@ -966,6 +966,29 @@ class SatkerController extends Controller
         ]);
     }
 
+    public function getDescendants($id)
+    {
+        $satker = Satker::with('childrenRecursive')->findOrFail($id);
+        
+        $data = [];
+        
+        $getDescendantsRecursive = function($satker) use (&$getDescendantsRecursive, &$data) {
+            $data[] = [
+                'id' => $satker->id,
+                'name' => $satker->nama_satker,
+                'echelon' => $satker->jenis_satker_id
+            ];
+            
+            foreach($satker->childrenRecursive as $child) {
+                $getDescendantsRecursive($child);
+            }
+        };
+        
+        $getDescendantsRecursive($satker);
+        
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
     public function bulkAction(Request $request)
     {
         // Mencegah PHP Timeout (500 Internal Server Error) saat paste massal di Production

@@ -8,45 +8,21 @@
             $eselonName = 'Tugas Tambahan';
         }
     }
+
+    $isMatch = isset($matchedIds) && in_array($item->id, $matchedIds);
+    $isPath = isset($forceShowChildren) && $forceShowChildren;
 @endphp
 
-<div x-data="{
-    open: false,
-    selfText: '{{ $selfText }}',
-    hasScrolled: false,
-
-    get isVisible() {
-        if (search === '') return true;
-        if (this.selfText.includes(search.toLowerCase())) return true;
-        return $el.querySelectorAll('.satker-row:not([style*=\'display: none\'])').length > 0;
-    },
-
-    init() {
-        this.$watch('search', value => {
-            if (!value) {
-                this.hasScrolled = false;
-                return;
-            }
-            this.$nextTick(() => {
-                let isMatch = this.selfText.includes(value.toLowerCase());
-                if (isMatch && !this.hasScrolled) {
-                    this.hasScrolled = true;
-                    this.$el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            });
-        });
-    }
-}" x-show="isVisible" class="satker-item w-full">
+<div class="satker-item w-full {{ $isPath ? 'is-shortlist-path' : '' }} {{ $isMatch ? 'is-match is-shortlist-target' : '' }}" data-search="{{ $selfText }}">
 
     <div class="satker-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-3 
     bg-white hover:bg-blue-50/50 rounded-xl transition border border-slate-100 
-    sm:border-transparent sm:hover:border-blue-100 group"
-        :class="search !== '' && selfText.includes(search.toLowerCase()) ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200' : ''">
+    sm:border-transparent sm:hover:border-blue-100 group {{ $isMatch ? 'ring-2 ring-blue-400 bg-blue-50' : '' }}">
 
         <div class="flex items-start gap-3 min-w-0">
-            <div class="text-slate-400 cursor-pointer w-5 flex-shrink-0 mt-1" @click="open = !open">
-                @if ($item->children && $item->children->count() > 0)
-                    <i class="fas fa-chevron-right text-xs transition-transform duration-200" :class="(open || search !== '') ? 'rotate-90' : ''"></i>
+            <div class="text-slate-400 cursor-pointer w-5 flex-shrink-0 mt-1" onclick="toggleSatkerNodeManual(this, event, '{{ $item->id }}')">
+                @if (($item->children_count ?? 0) > 0 || ($item->relationLoaded('children') && $item->children->count() > 0))
+                    <i class="fas fa-chevron-right text-xs transition-transform duration-200 chevron-icon {{ isset($forceShowChildren) && $forceShowChildren ? 'rotate-90' : '' }}"></i>
                 @else
                     <i class="fas fa-circle text-[5px] ml-1"></i>
                 @endif
@@ -58,7 +34,7 @@
 
             <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-sm sm:text-base font-semibold text-slate-700 break-words" :class="search !== '' && '{{ strtolower($item->nama_satker) }}'.includes(search.toLowerCase()) ? 'text-amber-700' : ''">
+                    <span class="text-sm sm:text-base font-semibold text-slate-700 break-words {{ $isMatch ? 'text-amber-700' : '' }}">
                         {{ $item->nama_satker }}
                     </span>
                     @if ($item->eselon)
@@ -86,11 +62,22 @@
         </div>
     </div>
 
-    @if ($item->children && $item->children->count() > 0)
-        <div x-show="open || search !== ''" class="ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2">
-            @foreach ($item->children as $child)
-                @include('admin.setting-kode._item_edit_manual', ['item' => $child])
-            @endforeach
+    @if (($item->children_count ?? 0) > 0 || ($item->relationLoaded('children') && $item->children->count() > 0))
+        <div class="children-container ml-5 sm:ml-10 mt-2 border-l-2 border-gray-100 pl-4 space-y-2 {{ isset($forceShowChildren) && $forceShowChildren ? '' : 'hidden' }}">
+            @if ($item->relationLoaded('children') && $item->children->count() > 0)
+                @php
+                    $sortedChildren = $item->children->sortBy(function($child) {
+                        return str_pad(strlen($child->kode_satker), 2, '0', STR_PAD_LEFT) . '-' . $child->kode_satker;
+                    });
+                @endphp
+                @foreach ($sortedChildren as $child)
+                    @include('admin.setting-kode._item_edit_manual', [
+                        'item' => $child,
+                        'forceShowChildren' => isset($matchedIds) && in_array($child->id, $matchedIds) ? true : (isset($forceShowChildren) && $forceShowChildren),
+                        'matchedIds' => $matchedIds ?? []
+                    ])
+                @endforeach
+            @endif
         </div>
     @endif
 </div>
