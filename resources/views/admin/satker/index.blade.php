@@ -2035,14 +2035,15 @@
                             actionButton = '<div class="flex flex-col gap-1.5 min-w-[85px]">';
                             
                             // Siapkan fungsi penolakan atau fungsi asli berdasarkan izin
-                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${addslashes(user.name)}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
-                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${addslashes(user.name)}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
+                            let safeName = user.name ? user.name.replace(/'/g, "\\'") : '';
+                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${safeName}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
+                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${safeName}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
 
                             if (!user.is_cuti) {
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
                                 actionButton += `<button onclick="${cutiAction}" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti"><i class="fas fa-calendar-minus mr-1.5"></i> Cuti</button>`;
                             } else {
-                                actionButton += `<button onclick="showDetailCuti('${addslashes(user.name)}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
+                                actionButton += `<button onclick="showDetailCuti('${safeName}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
                             }
                             actionButton += '</div>';
