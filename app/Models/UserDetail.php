@@ -126,4 +126,16 @@ class UserDetail extends Model
         );
     }
 
+    public function riwayatSatkers()
+    {
+        return $this->hasManyThrough(
+            PegawaiPeriode::class,
+            User::class,
+            'nip',         // Foreign key on users table (maps to nip_baru)
+            'user_id',     // Foreign key on pegawai_periodes table
+            'nip_baru',    // Local key on user_details table
+            'id'           // Local key on users table
+        );
+    }
+
 }

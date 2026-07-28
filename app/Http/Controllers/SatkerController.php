@@ -15,100 +15,94 @@ use App\Models\MJenisSatker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 
 class SatkerController extends Controller
 {
-    private function getPermissions()
+    public function getPermissions()
     {
-        $user = Auth::user();
-        $userRoles = $user->roles;
-        $isSuperAdmin = $userRoles->contains('key', 'super_admin');
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if (!$user) return ['can_view' => false, 'visibility' => 'none', 'actions' => [], 'allowed_ids' => []];
 
-        if ($isSuperAdmin) {
-            return [
-                'is_super'   => true, 'can_view' => true, 'all_access' => true,
-                'visibility' => 'all', 'actions' => ['create', 'edit', 'delete', 'assign', 'end_self', 'end_other', 'cuti_self', 'cuti_other'],
-                'allowed_ids' => []
+        return \Illuminate\Support\Facades\Cache::remember('satker_permissions_' . $user->id, 300, function () use ($user) {
+            $userRoles = $user->roles;
+            if ($userRoles->contains('key', 'super_admin')) {
+                return [
+                    'is_super'   => true, 'can_view' => true, 'all_access' => true,
+                    'visibility' => 'all', 'actions' => ['create', 'edit', 'delete', 'assign', 'end_self', 'end_other', 'cuti_self', 'cuti_other'],
+                    'allowed_ids' => []
+                ];
+            }
+
+            $permissions = [
+                'is_super' => false, 'can_view' => false, 'all_access' => false, 'view_only' => false,
+                'visibility' => 'none', 'actions' => [], 'allowed_ids' => []
             ];
-        }
 
-        $permissions = [
-            'is_super' => false, 'can_view' => false, 'all_access' => false, 'view_only' => false,
-            'visibility' => 'none', 'actions' => [], 'allowed_ids' => []
-        ];
-
-        foreach ($userRoles as $role) {
-            $config = [];
-            if ($role->key === 'pejabat') {
-                $activeAssignment = \App\Models\Penugasan::where('user_id', $user->id)
-                    ->where('status_aktif', 1)->with('jenisPenugasan')->first();
-                if ($activeAssignment && $activeAssignment->jenisPenugasan) {
-                    $config = $activeAssignment->jenisPenugasan->menus['satker'] ?? [];
-                }
-            } else {
-                $config = $role->menus['satker'] ?? [];
-            }
-
-            if (!empty($config) && ($config['enabled'] ?? false)) {
-                $permissions['can_view'] = true;
-                if ($config['all_access'] ?? false) $permissions['all_access'] = true;
-                if ($config['view_only'] ?? false) $permissions['view_only'] = true;
-
-                // Ambil level visibilitas tertinggi
-                $v = $config['visibility'] ?? 'none';
-                $order = ['all' => 4, 'self_up_down' => 3, 'self_down' => 2, 'self_only' => 1, 'none' => 0];
-                if ($order[$v] > $order[$permissions['visibility']]) {
-                    $permissions['visibility'] = $v;
-                }
-
-                if (isset($config['actions'])) {
-                    $permissions['actions'] = array_unique(array_merge($permissions['actions'], $config['actions']));
-                }
-            }
-        }
-
-        // =================================================================================
-        // PERBAIKAN: CARI SATKER BERDASARKAN PENUGASAN AKTIF PEGAWAI DI TABEL PENUGASAN
-        // =================================================================================
-        $activeSatkerIds = \App\Models\Penugasan::where('user_id', $user->id)
-            ->where('status_aktif', 1)
-            ->pluck('satker_id')
-            ->unique()
-            ->toArray();
-            
-        // Fallback (jika tidak ada penugasan tapi di tabel user tercatat punya satker)
-        if (empty($activeSatkerIds) && $user->satker_id) {
-            $activeSatkerIds = [$user->satker_id];
-        }
-
-        if ($permissions['visibility'] !== 'all' && !empty($activeSatkerIds)) {
-            $ids = $activeSatkerIds; // Masukkan semua satker di mana dia bekerja
-
-            if ($permissions['visibility'] === 'self_up_down') {
-                foreach ($activeSatkerIds as $sid) {
-                    // Ambil Induk (Atasan)
-                    $curr = Satker::find($sid);
-                    while ($curr && $curr->parent_satker_id) {
-                        $ids[] = $curr->parent_satker_id;
-                        $curr = Satker::find($curr->parent_satker_id);
+            foreach ($userRoles as $role) {
+                $config = [];
+                if ($role->key === 'pejabat') {
+                    $activeAssignment = \App\Models\Penugasan::where('user_id', $user->id)
+                        ->where('status_aktif', 1)->with('jenisPenugasan')->first();
+                    if ($activeAssignment && $activeAssignment->jenisPenugasan) {
+                        $config = $activeAssignment->jenisPenugasan->menus['satker'] ?? [];
                     }
-                    // Ambil Bawahan
-                    $this->extractChildIds(Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+                } else {
+                    $config = $role->menus['satker'] ?? [];
                 }
-            } elseif ($permissions['visibility'] === 'self_down') {
-                foreach ($activeSatkerIds as $sid) {
-                    // Ambil Bawahan
-                    $this->extractChildIds(Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+
+                if (!empty($config) && ($config['enabled'] ?? false)) {
+                    $permissions['can_view'] = true;
+                    if ($config['all_access'] ?? false) $permissions['all_access'] = true;
+                    if ($config['view_only'] ?? false) $permissions['view_only'] = true;
+
+                    // Ambil level visibilitas tertinggi
+                    $v = $config['visibility'] ?? 'none';
+                    $order = ['all' => 4, 'self_up_down' => 3, 'self_down' => 2, 'self_only' => 1, 'none' => 0];
+                    if ($order[$v] > $order[$permissions['visibility']]) {
+                        $permissions['visibility'] = $v;
+                    }
+
+                    if (isset($config['actions'])) {
+                        $permissions['actions'] = array_unique(array_merge($permissions['actions'], $config['actions']));
+                    }
                 }
             }
 
-            // Bersihkan duplikat array ID
-            $permissions['allowed_ids'] = array_values(array_unique($ids));
-        }
-        // =================================================================================
+            $activeSatkerIds = \App\Models\Penugasan::where('user_id', $user->id)
+                ->where('status_aktif', 1)
+                ->pluck('satker_id')
+                ->unique()
+                ->toArray();
+                
+            if (empty($activeSatkerIds) && $user->satker_id) {
+                $activeSatkerIds = [$user->satker_id];
+            }
 
-        return $permissions;
+            if ($permissions['visibility'] !== 'all' && !empty($activeSatkerIds)) {
+                $ids = $activeSatkerIds; 
+
+                if ($permissions['visibility'] === 'self_up_down') {
+                    foreach ($activeSatkerIds as $sid) {
+                        $curr = \App\Models\Satker::find($sid);
+                        while ($curr && $curr->parent_satker_id) {
+                            $ids[] = $curr->parent_satker_id;
+                            $curr = \App\Models\Satker::find($curr->parent_satker_id);
+                        }
+                        $this->extractChildIds(\App\Models\Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+                    }
+                } elseif ($permissions['visibility'] === 'self_down') {
+                    foreach ($activeSatkerIds as $sid) {
+                        $this->extractChildIds(\App\Models\Satker::with('childrenRecursive')->find($sid)->childrenRecursive, $ids);
+                    }
+                }
+
+                $permissions['allowed_ids'] = array_values(array_unique($ids));
+            }
+
+            return $permissions;
+        });
     }
 
     public function index(Request $request)
@@ -123,15 +117,20 @@ class SatkerController extends Controller
         // Pastikan activePeriodeId terdefinisi untuk filter
         $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
 
-        $satkerQuery = Satker::with('eselon')->withCount('children')->where('periode_id', $activePeriodeId);
+        $satkerQuery = Satker::with('eselon')->where('periode_id', $activePeriodeId);
 
         // PENERAPAN VISIBILITAS DARI REGULASI (Ini yang mengembalikan data Anda yang "hilang")
         if ($perm['visibility'] !== 'all') {
             $allowedIds = $perm['allowed_ids'];
 
             $satkerQuery->whereIn('id', $allowedIds);
+            
+            // Filter children count to only count allowed children
+            $satkerQuery->withCount(['children' => function($q) use ($allowedIds) {
+                $q->whereIn('id', $allowedIds);
+            }]);
         } else {
-            $satkerQuery->whereNull('parent_satker_id');
+            $satkerQuery->whereNull('parent_satker_id')->withCount('children');
         }
 
         $satkers = $satkerQuery->orderByRaw('LENGTH(kode_satker) ASC')->orderBy('kode_satker', 'asc')->get();
@@ -146,7 +145,7 @@ class SatkerController extends Controller
         // ----------------------------------------------------------------------
         // JAWABAN: LOGIKA JABATAN FUNGSIONAL BERSARANG (Ekstrak 3 Digit Otomatis)
         // ----------------------------------------------------------------------
-        $allJabatan = collect();
+        $allJabatan = DB::table('jabatan')->select('kode_jabatan', 'nama_jabatan')->get();
         
         $jabatanCategories = collect();
         $jabatanItems = collect();
@@ -219,10 +218,21 @@ class SatkerController extends Controller
         $perm = $this->getPermissions();
         if (!$perm['can_view']) abort(403);
 
-        $children = Satker::with('eselon')->withCount('children')
+        $query = Satker::with('eselon')
             ->where('parent_satker_id', $parentId)
-            ->orderBy('kode_satker', 'asc')
-            ->get();
+            ->orderBy('kode_satker', 'asc');
+
+        if ($perm['visibility'] !== 'all') {
+            $allowedIds = $perm['allowed_ids'];
+            $query->whereIn('id', $allowedIds);
+            $query->withCount(['children' => function($q) use ($allowedIds) {
+                $q->whereIn('id', $allowedIds);
+            }]);
+        } else {
+            $query->withCount('children');
+        }
+
+        $children = $query->get();
 
         $sortedChildren = $children->sortBy(function($child) {
             return str_pad(strlen($child->kode_satker), 2, '0', STR_PAD_LEFT) . '-' . $child->kode_satker;
@@ -278,10 +288,18 @@ class SatkerController extends Controller
         }
         $allIdsToFetch = array_unique($allIdsToFetch);
 
-        $allNodes = Satker::with('eselon')->withCount('children')
-            ->whereIn('id', $allIdsToFetch)
-            ->orderBy('kode_satker', 'asc')
-            ->get();
+        $query = Satker::with('eselon')->whereIn('id', $allIdsToFetch)->orderBy('kode_satker', 'asc');
+        
+        if ($perm['visibility'] !== 'all') {
+            $allowedIds = $perm['allowed_ids'];
+            $query->withCount(['children' => function($q) use ($allowedIds) {
+                $q->whereIn('id', $allowedIds);
+            }]);
+        } else {
+            $query->withCount('children');
+        }
+        
+        $allNodes = $query->get();
             
         // Build the tree manually from allNodes
         $nodesById = [];
@@ -612,6 +630,8 @@ class SatkerController extends Controller
                     'is_self'           => $isSelf,
                     'can_end'           => $canEnd,   // <-- DIKIRIM KE JAVASCRIPT
                     'can_cuti'          => $canCuti,  // <-- DIKIRIM KE JAVASCRIPT
+                    'can_delete'        => $perm['is_super'], // Hanya superadmin
+
                     
                     'tanggal_mulai_cuti_raw'   => $penugasan->tanggal_mulai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_mulai_cuti)->format('d F Y') : null,
                     'tanggal_selesai_cuti_raw' => $penugasan->tanggal_selesai_cuti ? \Carbon\Carbon::parse($penugasan->tanggal_selesai_cuti)->format('d F Y') : null,
@@ -1153,5 +1173,194 @@ class SatkerController extends Controller
         ]);
         
         $satker->delete();
+    }
+
+    // =================================================================================
+    // API UNTUK LAPORAN SATKER
+    // =================================================================================
+    public function apiLaporanSearch(Request $request)
+    {
+        $search = $request->query('q', '');
+        $periodeId = $request->query('periode_id');
+        $eselonId = $request->query('eselon_id'); // Fitur baru: Filter Eselon
+
+        $query = Satker::select('nama_satker')->distinct();
+
+        if ($periodeId) {
+            $query->where('periode_id', $periodeId);
+        }
+        
+        if (!empty($eselonId)) {
+            $query->where('jenis_satker_id', $eselonId);
+        }
+
+        // Terapkan visibility
+        $perm = $this->getPermissions();
+        if ($perm['visibility'] !== 'all') {
+            $query->whereIn('id', $perm['allowed_ids']);
+        }
+
+        $allNames = $query->pluck('nama_satker');
+
+        // Daftar Prefix untuk grouping (dari yang terpanjang/paling spesifik ke yang lebih umum)
+        $prefixes = [
+            'Kantor Wilayah Kementerian Agama',
+            'Kantor Kementerian Agama',
+            'Balai Pendidikan dan Pelatihan Keagamaan',
+            'Balai Penelitian dan Pengembangan Agama',
+            'Universitas Islam Negeri',
+            'UIN',
+            'Institut Agama Islam Negeri',
+            'IAIN',
+            'Sekolah Tinggi Agama Islam Negeri',
+            'STAIN',
+            'Institut Agama Kristen Negeri',
+            'IAKN',
+            'Institut Agama Hindu Negeri',
+            'IAHN',
+            'Sekolah Tinggi Agama Buddha Negeri',
+            'STABN',
+            'Madrasah Aliyah Negeri',
+            'MAN',
+            'Madrasah Tsanawiyah Negeri',
+            'MTsN',
+            'Madrasah Ibtidaiyah Negeri',
+            'MIN',
+            'Kantor Urusan Agama'
+        ];
+
+        $categories = [];
+
+        // Lakukan pengelompokkan
+        foreach ($allNames as $name) {
+            $kategori = $name;
+            foreach ($prefixes as $prefix) {
+                // Gunakan stripos agar case-insensitive
+                if (stripos(trim($name), $prefix) === 0) {
+                    $kategori = $prefix;
+                    break;
+                }
+            }
+            // Simpan dalam format [key => value] untuk mendapatkan daftar kategori unik
+            $categories[$kategori] = true;
+        }
+
+        $uniqueCategories = array_keys($categories);
+
+        // Filter berdasarkan kata kunci pencarian ($search)
+        if (!empty($search)) {
+            $terms = explode(' ', trim(strtolower($search)));
+            
+            $filteredCategories = array_filter($uniqueCategories, function($kategori) use ($terms) {
+                $kategoriLower = strtolower($kategori);
+                foreach ($terms as $term) {
+                    if (!empty($term) && strpos($kategoriLower, $term) === false) {
+                        return false; // Jika ada 1 term yang tidak cocok, maka gagal
+                    }
+                }
+                return true;
+            });
+            $uniqueCategories = array_values($filteredCategories);
+        }
+
+        // Batasi hasil pencarian agar UI tidak berat (misal top 100)
+        sort($uniqueCategories);
+        $results = array_slice($uniqueCategories, 0, 100);
+
+        return response()->json([
+            'items' => array_map(function($item) {
+                return [
+                    'id' => $item,
+                    'nama_satker' => $item
+                ];
+            }, $results)
+        ]);
+    }
+
+
+
+    public function apiLaporanDetail(Request $request)
+    {
+        $namaSatker = $request->query('nama_satker');
+        $periodeId = $request->query('periode_id');
+        $eselonId = $request->query('eselon_id'); // Fitur baru: Filter Eselon
+
+        if (empty($namaSatker)) {
+            return response()->json(['error' => 'Kategori / Nama Satker wajib diisi'], 400);
+        }
+
+        $query = Satker::with([
+            'wilayah', 
+            'eselon', 
+            'penugasan.user', 
+            'penugasan.jenisPenugasan',
+            'pegawaiPeriodes.user' // Gunakan tabel pivot untuk periode terkait
+        ])->where('nama_satker', 'LIKE', "{$namaSatker}%");
+
+        if ($periodeId) {
+            $query->where('periode_id', $periodeId);
+        }
+
+        if (!empty($eselonId)) {
+            $query->where('jenis_satker_id', $eselonId);
+        }
+
+        $perm = $this->getPermissions();
+        if ($perm['visibility'] !== 'all') {
+            $query->whereIn('id', $perm['allowed_ids']);
+        }
+
+        $satkers = $query->get();
+        
+        $totalSatker = $satkers->count();
+        $totalPenugasan = 0;
+        $totalPegawai = 0;
+
+        $satkerDetails = [];
+
+        foreach ($satkers as $satker) {
+            $penugasans = $satker->penugasan->map(function($p) {
+                return [
+                    'nama_pegawai' => $p->user ? $p->user->name : 'Tanpa Nama',
+                    'nip' => $p->user ? $p->user->nip : '-',
+                    'role' => $p->jenisPenugasan ? $p->jenisPenugasan->nama : 'Unknown Role'
+                ];
+            });
+
+            // Load dari relasi pivot pegawaiPeriodes
+            $usersInSatker = $satker->pegawaiPeriodes->map(function($pp) {
+                return $pp->user;
+            })->filter(); // Filter null users
+            
+            $pegawais = $usersInSatker->map(function($u) {
+                return [
+                    'nama_pegawai' => $u->name,
+                    'nip' => $u->nip ?? '-'
+                ];
+            });
+
+            $totalPenugasan += $penugasans->count();
+            $totalPegawai += $pegawais->count();
+
+            $satkerDetails[] = [
+                'id' => $satker->id,
+                'nama_satker' => $satker->nama_satker, // Perlu dikirim agar UI bisa merender nama lengkap per satker
+                'kode_satker' => $satker->kode_satker,
+                'wilayah' => $satker->wilayah ? $satker->wilayah->nama_wilayah : 'Tidak Ada Wilayah',
+                'eselon' => $satker->eselon ? $satker->eselon->nama : 'Tidak Ada Eselon',
+                'penugasans' => $penugasans,
+                'pegawais' => $pegawais,
+                'jumlah_penugasan' => $penugasans->count(),
+                'jumlah_pegawai' => $pegawais->count()
+            ];
+        }
+
+        return response()->json([
+            'nama_satker' => $namaSatker,
+            'jumlah_satker' => $totalSatker,
+            'total_penugasan' => $totalPenugasan,
+            'total_pegawai' => $totalPegawai,
+            'details' => $satkerDetails
+        ]);
     }
 }

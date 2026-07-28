@@ -15,9 +15,17 @@ class PenugasanController extends Controller
      */
     public function index(Request $request)
     {
-        $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'kode_satker' => 'required|string'
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
         $kodeSatker = $request->kode_satker;
 

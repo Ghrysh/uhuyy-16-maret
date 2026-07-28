@@ -282,30 +282,28 @@ class JabatanController extends Controller
         $totalData = 0;
         $lastPage = 1;
 
-        if ($isAdminJafung && $user->satker_id) {
-            $userSatker = \App\Models\Satker::select($selectCols)->where('periode_id', $jabatan->periode_id)->find($user->satker_id);
-            if ($userSatker) {
-                if ($userSatker->parent_satker_id) {
-                    $parentSatker = \App\Models\Satker::select($selectCols)->where('periode_id', $jabatan->periode_id)->find($userSatker->parent_satker_id);
-                    if ($parentSatker) $satkers->push($parentSatker);
-                }
-                $satkers->push($userSatker);
-            }
-            $satkerIds = $satkers->pluck('id')->toArray();
-            $totalData = $satkers->count();
-        } else {
-            // PERUBAHAN: Gunakan Paginator untuk memecah data
-            $limit = $request->query('limit', 500); 
-            $paginator = \App\Models\Satker::select($selectCols)
-                ->where('periode_id', $jabatan->periode_id)
-                ->orderBy('kode_satker', 'asc')
-                ->paginate($limit);
+        $jabatanPerm = $this->getPermissions();
+        // Ambil pengaturan visibilitas Satker karena matriks menampilkan Satker
+        $satkerPerm = app(\App\Http\Controllers\SatkerController::class)->getPermissions();
 
-            $satkers = collect($paginator->items());
-            $satkerIds = $satkers->pluck('id')->toArray();
-            $totalData = $paginator->total();
-            $lastPage = $paginator->lastPage();
+        // 1. Ambil query Satker
+        $satkerQuery = \App\Models\Satker::select($selectCols)
+            ->where('periode_id', $jabatan->periode_id);
+
+        // 2. Terapkan Filter Visibilitas berdasarkan akses Satker user
+        if ($satkerPerm['visibility'] !== 'all') {
+            $allowedIds = $satkerPerm['allowed_ids'] ?? [];
+            $satkerQuery->whereIn('id', $allowedIds);
         }
+
+        // 3. Paginasi Hasil
+        $limit = $request->query('limit', 500); 
+        $paginator = $satkerQuery->orderBy('kode_satker', 'asc')->paginate($limit);
+
+        $satkers = collect($paginator->items());
+        $satkerIds = $satkers->pluck('id')->toArray();
+        $totalData = $paginator->total();
+        $lastPage = $paginator->lastPage();
 
         $kuotasRaw = \App\Models\DistribusiKuota::where('jabatan_id', $jabatan_id)
             ->whereIn('satker_id', $satkerIds)
@@ -401,6 +399,11 @@ class JabatanController extends Controller
 
     public function saveMatriks(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('edit_kuota', $perm['matriks'] ?? [])) {
+            return response()->json(['status' => 'error', 'message' => 'Akses Ditolak: Anda tidak memiliki izin untuk mengedit kuota.'], 403);
+        }
+
         $request->validate([
             'satker_id'  => 'required|exists:satker,id',
             'jabatan_id' => 'required|exists:jabatan,id',
@@ -435,6 +438,11 @@ class JabatanController extends Controller
 
     public function saveMatriksBulk(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('edit_kuota', $perm['matriks'] ?? [])) {
+            return response()->json(['status' => 'error', 'message' => 'Akses Ditolak: Anda tidak memiliki izin untuk mengedit kuota.'], 403);
+        }
+
         $request->validate([
             'jabatan_id'   => 'required|exists:jabatan,id',
             'tab_aktif'    => 'required|string',
@@ -481,6 +489,11 @@ class JabatanController extends Controller
 
     public function saveBaselineJenjang(Request $request)
     {
+        $perm = $this->getPermissions();
+        if (!$perm['is_super'] && !$perm['all_access'] && !in_array('set_baseline', $perm['matriks'] ?? [])) {
+            return response()->json(['status' => 'error', 'message' => 'Akses Ditolak: Anda tidak memiliki izin untuk setup baseline alokasi.'], 403);
+        }
+
         $request->validate([
             'jabatan_id' => 'required|exists:jabatan,id',
             'b_pertama'  => 'numeric',

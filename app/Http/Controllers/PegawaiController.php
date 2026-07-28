@@ -21,15 +21,18 @@ class PegawaiController extends Controller
         $search = $request->input('search');
         $user = auth()->user();
 
+        $periodes = \App\Models\Periode::orderBy('created_at', 'asc')->get();
+        $activePeriodeId = $request->input('periode_id', $periodes->first()->id ?? null);
+
         // Ambil semua satker hanya jika user tidak punya satker_id
         $satkers = null;
         if (!$user->satker_id) {
-            $satkers = Satker::orderBy('nama_satker')->get();
+            $satkers = Satker::where('periode_id', $activePeriodeId)->orderBy('nama_satker')->get();
         }
         // dd($user);
 
-        $pegawais = UserDetail::with(['user2.satker' => function($q){
-            $q->select('id', 'kode_satker','nama_satker'); // pilih field yang perlu
+        $pegawais = UserDetail::with(['riwayatSatkers' => function($q) use ($activePeriodeId) {
+            $q->where('periode_id', $activePeriodeId)->with('satker:id,kode_satker,nama_satker');
         }])
         ->when($search, function ($query, $search) {
             $qStr = "%{$search}%";
@@ -53,10 +56,10 @@ class PegawaiController extends Controller
 
 
         if ($request->ajax()) {
-            return view('admin.pegawai.index', compact('pegawais','satkers', 'bulkings'))->render();
+            return view('admin.pegawai.index', compact('pegawais','satkers', 'bulkings', 'periodes', 'activePeriodeId'))->render();
         }
 
-        return view('admin.pegawai.index', compact('pegawais','satkers', 'bulkings'));
+        return view('admin.pegawai.index', compact('pegawais','satkers', 'bulkings', 'periodes', 'activePeriodeId'));
     }
 
     public function updateSatker(Request $request)
@@ -98,20 +101,38 @@ class PegawaiController extends Controller
                     throw new \Exception('NIP baru tidak tersedia untuk user ini.');
                 }
 
+                $satkerTarget = Satker::find($request->satker_id);
+                if (!$satkerTarget) {
+                    throw new \Exception('Satker tujuan tidak ditemukan.');
+                }
+
                 $user = User::where('nip', $detail->nip_baru)->first();
 
                 if ($user) {
-                    $user->satker_id = $request->satker_id;
+                    $user->satker_id = $request->satker_id; // Keep backwards compatibility
                     $user->save();
+                    
+                    \App\Models\PegawaiPeriode::updateOrCreate(
+                        ['user_id' => $user->id, 'periode_id' => $satkerTarget->periode_id],
+                        ['satker_id' => $satkerTarget->id]
+                    );
+
                     Log::info("User satker updated", ['user_id' => $user->id, 'new_satker' => $request->satker_id]);
                 } else {
-                    User::create([
+                    $user = User::create([
                         'nip'       => $detail->nip_baru,
                         'name'      => $detail->nama_lengkap ?? $detail->nama,
                         'email'     => $detail->email_dinas ?? $detail->nip_baru . '@kemenag.go.id',
                         'password'  => bcrypt('password123'),
                         'satker_id' => $request->satker_id,
                     ]);
+
+                    \App\Models\PegawaiPeriode::create([
+                        'user_id' => $user->id,
+                        'periode_id' => $satkerTarget->periode_id,
+                        'satker_id' => $satkerTarget->id
+                    ]);
+
                     Log::info("User created and assigned to satker", ['nip' => $detail->nip_baru, 'satker' => $request->satker_id]);
                 }
             });

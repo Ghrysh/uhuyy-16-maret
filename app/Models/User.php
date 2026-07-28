@@ -72,5 +72,35 @@ class User extends Authenticatable
         return $this->belongsTo(Satker::class, 'satker_id');
     }
 
+    public function riwayatSatkers()
+    {
+        return $this->hasMany(PegawaiPeriode::class, 'user_id');
+    }
+
+    /**
+     * Dapatkan satker aktif berdasarkan session periode aktif, 
+     * atau fallback ke satker_id bawaan jika tidak ada di periode tersebut (opsional).
+     */
+    public function satkerAktif($periodeId = null)
+    {
+        if (!$periodeId) {
+            $periodeId = session('active_periode_id');
+            if (!$periodeId) {
+                // fallback ke periode aktif
+                $periode = \App\Models\Periode::where('status_aktif', true)->first();
+                $periodeId = $periode ? $periode->id : null;
+            }
+        }
+
+        if ($periodeId) {
+            $riwayat = $this->riwayatSatkers()->where('periode_id', $periodeId)->first();
+            if ($riwayat) {
+                return $riwayat->satker;
+            }
+        }
+
+        return null;
+    }
+
 
 }

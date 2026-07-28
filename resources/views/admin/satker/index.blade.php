@@ -162,6 +162,7 @@
     {{-- Ganti baris ini --}}
 @section('content')
     <div x-data="{
+        activeMainTab: 'kelola',
         search: '',
         activePeriode: '{{ $activePeriodeId ?? '' }}',
         scrollTimeout: null, 
@@ -319,9 +320,27 @@
         </div>
 
 
-        {{-- ================= CONTAINER ================= --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-white">
+        {{-- ================= MAIN TABS ================= --}}
+        <div class="flex gap-4 mb-4">
+            <button @click="activeMainTab = 'kelola'"
+                :class="activeMainTab === 'kelola' ? 'bg-[#112D4E] text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'"
+                class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                <i class="fas fa-sitemap"></i>
+                Kelola Satker
+            </button>
+            <button @click="activeMainTab = 'laporan'"
+                :class="activeMainTab === 'laporan' ? 'bg-[#112D4E] text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'"
+                class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                <i class="fas fa-chart-bar"></i>
+                Laporan Satker
+            </button>
+        </div>
+
+
+        {{-- ================= TAB KELOLA SATKER ================= --}}
+        <div x-show="activeMainTab === 'kelola'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-white">
 
                 <div class="flex items-center justify-between gap-3">
 
@@ -410,9 +429,126 @@
                 </button>
             </div>
         </div>
-    </div>
+        </div>
+    </div> <!-- Close Tab Kelola -->
 
-    </div>
+    {{-- ================= TAB LAPORAN SATKER ================= --}}
+    <div x-show="activeMainTab === 'laporan'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
+            <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-white">
+                <div class="flex flex-col sm:flex-row gap-4 items-end">
+                    <div class="w-full sm:w-auto relative">
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Filter Eselon</label>
+                        <select id="laporan_eselon_filter" class="w-full sm:w-48 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium text-slate-700 h-[42px]">
+                            <option value="">Semua Eselon</option>
+                            @foreach($jenisSatkers as $js)
+                                <option value="{{ $js->id }}">{{ $js->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="w-full sm:flex-1 relative" id="laporan-search-container">
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Cari Kategori Satker</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-slate-400 text-sm"></i>
+                            </div>
+                            <input type="text" id="laporan_satker_search_input" placeholder="Ketik nama satker..." autocomplete="off"
+                                class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium text-slate-700">
+                            <button type="button" id="laporan_clear_search_btn" class="absolute inset-y-0 right-0 pr-3 flex items-center hidden text-slate-400 hover:text-red-500">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" id="laporan_satker_search_hidden">
+                        <ul id="laporan_dropdown_list" class="absolute z-50 w-full bg-white border border-gray-100 rounded-xl shadow-xl mt-2 hidden max-h-64 overflow-y-auto divide-y divide-gray-50"></ul>
+                    </div>
+                    <button type="button" disabled id="btnTampilkanLaporan" class="w-full sm:w-auto bg-[#112D4E] hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition shadow-sm h-[42px] opacity-50 cursor-not-allowed">
+                        <i class="fas fa-search text-xs"></i>
+                        <span>Tampilkan</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="laporan_result_container" class="p-6 bg-slate-50/50 min-h-[300px]">
+                <div id="laporan_empty_state" class="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                    <i class="fas fa-chart-pie text-4xl mb-4 text-slate-300"></i>
+                    <p class="text-sm font-medium">Cari dan pilih nama satker untuk menampilkan laporan agregasi</p>
+                </div>
+
+                <div id="laporan_loading" class="hidden flex flex-col items-center justify-center h-full text-blue-500 py-12">
+                    <i class="fas fa-circle-notch fa-spin text-4xl mb-4"></i>
+                    <p class="text-sm font-medium">Memuat data...</p>
+                </div>
+
+                {{-- HASIL PENCARIAN --}}
+                <div id="laporan_card_result" class="hidden">
+                    {{-- Header Hasil --}}
+                    <div class="p-6 border-b border-gray-100 bg-blue-50/30">
+                        <h3 class="text-lg font-bold text-slate-800" id="laporan_header_title">Hasil Pencarian</h3>
+                        <p class="text-sm text-slate-500 mt-1" id="laporan_header_subtitle">Memuat data...</p>
+                    </div>
+                    
+                    {{-- Container Grid Cards --}}
+                    <div id="laporan_cards_container" class="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 bg-slate-50">
+                        <!-- Cards will be injected here by Javascript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- Close Tab Laporan -->
+        {{-- Floating Action Button (Pilih Satker) --}}
+        <div x-show="activeMainTab === 'kelola'" x-transition class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-40">
+            <button @click="$store.selection.toggleSelectionMode()" 
+                    :class="$store.selection.isSelectionMode ? 'bg-red-600' : 'bg-blue-600'"
+                    class="flex items-center gap-2 px-6 py-3 text-white rounded-full shadow-2xl hover:scale-105 transition-all font-bold">
+                <i class="fas" :class="$store.selection.isSelectionMode ? 'fa-times' : 'fa-check-double'"></i>
+                <span x-text="$store.selection.isSelectionMode ? 'Batal Pilih' : 'Pilih Satker'"></span>
+            </button>
+
+            <div x-show="$store.selection.isSelectionMode && $store.selection.selectedIds.length > 0 && $store.selection.clipboard.mode === ''" 
+                x-transition class="flex gap-2 bg-white p-2 rounded-2xl shadow-xl border border-slate-200">
+                
+                <template x-if="$store.selection.canPerformAction()">
+                    <div class="flex gap-2">
+                        <button @click="$store.selection.setClipboard('copy')" class="p-3 text-blue-600 hover:bg-blue-50 rounded-xl transition" title="Copy"><i class="fas fa-copy"></i></button>
+                        <button @click="$store.selection.setClipboard('move')" class="p-3 text-amber-600 hover:bg-amber-50 rounded-xl transition" title="Potong (Move)"><i class="fas fa-cut"></i></button>
+                    </div>
+                </template>
+                
+                <button @click="$store.selection.confirmBulkDelete()" class="p-3 text-red-600 hover:bg-red-50 rounded-xl transition" title="Hapus Massal"><i class="fas fa-trash"></i></button>
+            </div>
+
+            <div x-show="$store.selection.clipboard.mode !== ''" x-transition 
+                class="flex flex-col items-center gap-3 bg-white p-5 rounded-2xl shadow-2xl border-2 border-emerald-400 animate-fade-in-up">
+                
+                <div class="flex flex-col items-center">
+                    <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded">
+                        Mode: <span x-text="$store.selection.clipboard.mode"></span>
+                    </span>
+                    <p class="text-[11px] font-bold text-slate-600 mt-2">
+                        <span class="text-blue-600" x-text="$store.selection.clipboard.ids.length"></span> Satker siap disalin.
+                    </p>
+                </div>
+
+                <div class="flex gap-2">
+                    <template x-if="$store.selection.selectedIds.length > 0">
+                        <button @click="$store.selection.confirmBulkPaste()" 
+                                class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
+                            <i class="fas fa-paste"></i> Paste ke <span x-text="$store.selection.selectedIds.length"></span> Induk Terpilih
+                        </button>
+                    </template>
+
+                    <template x-if="$store.selection.selectedIds.length === 0">
+                        <div class="px-5 py-2.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold border border-dashed border-slate-300">
+                            <i class="fas fa-mouse-pointer mr-1"></i> Centang satu atau lebih Satker Induk tujuan...
+                        </div>
+                    </template>
+                    
+                    <button @click="$store.selection.clearClipboard()" class="px-5 py-2.5 bg-white text-red-500 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50">Batal</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- Close Alpine Data Component -->
 
     {{-- Modal Tambah Satker --}}
     <div id="modalTambahSatker" class="fixed inset-0 z-50 hidden overflow-y-auto">
@@ -503,7 +639,7 @@
                             {{-- Dropdown 1: Kategori (3 Digit) --}}
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Kategori Jabatan Fungsional</label>
-                                <select id="kategori_jabatan_fungsional" id="select_jabatan_tambah" onchange="handleKategoriJabatanChange()"
+                                <select id="kategori_jabatan_fungsional" onchange="handleKategoriJabatanChange()"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Pilih Kategori (3 Digit) --</option>
                                     @foreach ($jabatanCategories as $cat)
@@ -517,7 +653,7 @@
                             {{-- Dropdown 2: Jenjang (4 Digit) - Akan muncul setelah Kategori dipilih --}}
                             <div id="wrapper_jenjang_jabatan" class="hidden">
                                 <label class="block text-xs font-bold text-slate-700 uppercase mb-2">Jenjang Jabatan</label>
-                                <select name="jabatan_id" id="jabatan_id" id="select_jabatan_tambah" onchange="handleJenjangJabatanChange()"
+                                <select name="jabatan_id" id="jabatan_id" onchange="handleJenjangJabatanChange()"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                     <option value="">-- Cari atau pilih Jenjang (4 Digit) --</option>
                                 </select>
@@ -888,6 +1024,56 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- Modal Laporan Detail --}}
+    <div id="modalLaporanDetail" class="fixed inset-0 z-[70] hidden overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen p-4 text-center">
+            <div class="fixed inset-0 transition-opacity bg-slate-900/60 backdrop-blur-sm" onclick="toggleModal('modalLaporanDetail')"></div>
+            <div class="relative inline-block w-full max-w-4xl overflow-hidden text-left align-middle transition-all transform bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+                
+                {{-- Header --}}
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-[#112D4E] shrink-0">
+                    <div>
+                        <h3 class="text-xl font-bold text-white" id="laporan_detail_nama">Nama Satker</h3>
+                        <p class="text-sm text-blue-200 mt-1" id="laporan_detail_subtitle">Rincian Pegawai dan Penugasan</p>
+                    </div>
+                    <button type="button" onclick="toggleModal('modalLaporanDetail')" class="text-blue-200 hover:text-white transition">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                {{-- Content Scrollable --}}
+                <div class="p-6 bg-slate-50 overflow-y-auto grow">
+                    {{-- Statistik Card --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500 font-bold uppercase">Total Penugasan</p>
+                                <h4 class="text-xl font-black text-slate-800" id="stat_total_penugasan">-</h4>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center text-xl">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500 font-bold uppercase">Total Pegawai</p>
+                                <h4 class="text-xl font-black text-slate-800" id="stat_total_pegawai">-</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Container Rincian Per Satker --}}
+                    <div id="laporan_detail_list" class="space-y-6">
+                        <!-- Data akan dirender di sini via JS -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2031,24 +2217,36 @@
                         // LOGIKA UNTUK TOMBOL (Selalu Tampil, dengan jebakan SweetAlert)
                         let actionButton = '';
                         
+                        let safeName = user.name ? user.name.replace(/'/g, "\\'") : '';
+                        let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${safeName}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
+                        let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${safeName}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
+                        let hapusAction = user.can_delete ? `unassignUser('${user.penugasan_id}', '${safeName}', 'hapus')` : `Swal.fire('Akses Ditolak', 'Hanya Super Admin yang dapat menghapus permanen.', 'error')`;
+
                         if (user.status_aktif == 1 || user.is_cuti) { 
                             actionButton = '<div class="flex flex-col gap-1.5 min-w-[85px]">';
                             
-                            // Siapkan fungsi penolakan atau fungsi asli berdasarkan izin
-                            let safeName = user.name ? user.name.replace(/'/g, "\\'") : '';
-                            let endAction = user.can_end ? `unassignUser('${user.penugasan_id}', '${safeName}', 'selesai')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mengakhiri Tugas pegawai ini.', 'error')`;
-                            let cutiAction = user.can_cuti ? `unassignUser('${user.penugasan_id}', '${safeName}', 'cuti')` : `Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk Mencutikan pegawai ini.', 'error')`;
-
                             if (!user.is_cuti) {
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
                                 actionButton += `<button onclick="${cutiAction}" class="w-full px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Mulai Cuti"><i class="fas fa-calendar-minus mr-1.5"></i> Cuti</button>`;
+                                if (user.can_delete) {
+                                    actionButton += `<button onclick="${hapusAction}" class="w-full px-2 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Hapus Penugasan Tanpa Riwayat"><i class="fas fa-trash-alt mr-1.5"></i> Hapus</button>`;
+                                }
                             } else {
                                 actionButton += `<button onclick="showDetailCuti('${safeName}', '${user.tanggal_mulai_cuti_raw}', '${user.tanggal_selesai_cuti_raw}')" class="w-full px-2 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Lihat Detail Waktu Cuti"><i class="fas fa-info-circle mr-1.5"></i> Detail Cuti</button>`;
                                 actionButton += `<button onclick="${endAction}" class="w-full px-2 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Akhiri Tugas Permanen"><i class="fas fa-check-circle mr-1.5"></i> Selesai</button>`;
+                                if (user.can_delete) {
+                                    actionButton += `<button onclick="${hapusAction}" class="w-full px-2 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Hapus Penugasan Tanpa Riwayat"><i class="fas fa-trash-alt mr-1.5"></i> Hapus</button>`;
+                                }
                             }
                             actionButton += '</div>';
                         } else {
-                            actionButton = '-'; // Jika Non-Aktif, tidak ada tombol aksi
+                            if (user.can_delete) {
+                                actionButton = '<div class="flex flex-col gap-1.5 min-w-[85px]">';
+                                actionButton += `<button onclick="${hapusAction}" class="w-full px-2 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center justify-center" title="Hapus Penugasan Tanpa Riwayat"><i class="fas fa-trash-alt mr-1.5"></i> Hapus</button>`;
+                                actionButton += '</div>';
+                            } else {
+                                actionButton = '-'; // Jika Non-Aktif, tidak ada tombol aksi
+                            }
                         }
 
                         // RENDER BARIS TABEL
@@ -2120,8 +2318,10 @@
         async function unassignUser(penugasanId, namaPegawai, type = 'selesai') {
             const today = new Date().toISOString().split('T')[0];
             
-            let titleTxt = type === 'cuti' ? 'Mulai Cuti' : 'Akhiri Tugas';
-            let descTxt = type === 'cuti' ? `Tentukan rentang tanggal <b>cuti</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.` : `Silakan tentukan tanggal <b>selesai tugas</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.`;
+            let titleTxt = type === 'cuti' ? 'Mulai Cuti' : (type === 'hapus' ? 'Hapus Penugasan' : 'Akhiri Tugas');
+            let descTxt = type === 'cuti' ? `Tentukan rentang tanggal <b>cuti</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.` : 
+                          (type === 'hapus' ? `Anda yakin ingin <b>menghapus</b> penugasan untuk pejabat <b class="text-slate-800">${namaPegawai}</b> secara permanen? Data ini <b>TIDAK</b> akan masuk ke riwayat.` : 
+                          `Silakan tentukan tanggal <b>selesai tugas</b> untuk pejabat <b class="text-slate-800">${namaPegawai}</b>.`);
             
             // Siapkan desain kalender berdasarkan tombol yang diklik
             let htmlContent = '';
@@ -2137,6 +2337,8 @@
                         <input type="date" id="tgl_selesai_cuti" class="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 outline-none" value="${today}">
                     </div>
                 `;
+            } else if (type === 'hapus') {
+                htmlContent = `<div class="text-sm text-slate-500 mb-4 text-left">${descTxt}</div>`;
             } else {
                 htmlContent = `
                     <div class="text-sm text-slate-500 mb-4 text-left">${descTxt}</div>
@@ -2152,9 +2354,9 @@
                 html: htmlContent,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: type === 'cuti' ? '#f59e0b' : '#ef4444', 
+                confirmButtonColor: type === 'cuti' ? '#f59e0b' : (type === 'hapus' ? '#64748b' : '#ef4444'), 
                 cancelButtonColor: '#cbd5e1', 
-                confirmButtonText: type === 'cuti' ? 'Simpan Cuti' : 'Selesaikan Tugas',
+                confirmButtonText: type === 'cuti' ? 'Simpan Cuti' : (type === 'hapus' ? 'Ya, Hapus' : 'Selesaikan Tugas'),
                 cancelButtonText: 'Batal',
                 preConfirm: () => {
                     if (type === 'cuti') {
@@ -2169,6 +2371,8 @@
                             return false;
                         }
                         return { jenis_aksi: 'cuti', tanggal_mulai_cuti: start, tanggal_selesai_cuti: end };
+                    } else if (type === 'hapus') {
+                        return { jenis_aksi: 'hapus' };
                     } else {
                         const tgl = document.getElementById('tgl_selesai_input').value;
                         if (!tgl) {
@@ -2183,10 +2387,20 @@
             if (!isConfirmed) return;
 
             try {
-                const response = await fetch(`{{ url('admin/penugasan/unassign') }}/${penugasanId}`, {
-                    method: 'PUT',
+                let url = `{{ url('admin/penugasan/unassign') }}/${penugasanId}`;
+                let reqMethod = 'PUT';
+                
+                if (type === 'hapus') {
+                    url = `{{ url('admin/penugasan') }}/${penugasanId}`;
+                    reqMethod = 'DELETE';
+                }
+
+                const response = await fetch(url, {
+                    method: reqMethod,
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify(formValues) 
@@ -3535,6 +3749,11 @@
                 if (jfContainer) {
                     jfContainer.classList.remove('hidden');
                     jfContainer.style.pointerEvents = 'auto'; // Mengizinkan klik
+                    
+                    // Inisialisasi atau sinkronisasi TomSelect secara on-demand saat kontainer sudah tidak hidden
+                    if (typeof initJabatanTomSelects === 'function') {
+                        initJabatanTomSelects();
+                    }
                 }
             } else if (status === 'pelaksana') {
                 const pelContainer = document.getElementById('container_pelaksana');
@@ -3880,34 +4099,6 @@
             initAjaxForm('formHapusSatker', 'modalHapusSatker', true);
         });
 
-        function handleKategoriJabatanChange() {
-            const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
-            const jenjangWrapper = document.getElementById('wrapper_jenjang_jabatan');
-            const jenjangSelect = document.getElementById('jabatan_id');
-            const tsJenjang = jenjangSelect.tomselect;
-
-            if (!kategoriVal) {
-                jenjangWrapper.classList.add('hidden');
-                if (tsJenjang) {
-                    tsJenjang.clear();
-                    tsJenjang.clearOptions();
-                    tsJenjang.clearCache();
-                } else {
-                    jenjangSelect.value = "";
-                }
-                return;
-            }
-
-            jenjangWrapper.classList.remove('hidden');
-            if (tsJenjang) {
-                tsJenjang.clear();
-                tsJenjang.clearOptions();
-                tsJenjang.clearCache();
-                tsJenjang.load('');
-            } else {
-                jenjangSelect.value = "";
-            }
-        }
 
         function handleJenjangJabatanChange() {
             const jenjangSelect = document.getElementById('jabatan_id');
@@ -3970,12 +4161,22 @@
                 'container_kategori_unit', 'container_kategori_kotakab', 
                 'container_kabupaten', 'container_jenis_madrasah', 
                 'container_jabatan_fungsional', 'container_rumpun_fakultas',
-                'container_filter_fungsi', 'gap_container'
+                'container_filter_fungsi', 'gap_container', 'wrapper_jenjang_jabatan'
             ];
             containers.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
             });
+
+            // Reset TomSelect Jafung
+            const elKategori = document.getElementById('kategori_jabatan_fungsional');
+            if (elKategori && elKategori.tomselect) elKategori.tomselect.clear();
+            const elJenjang = document.getElementById('jabatan_id');
+            if (elJenjang && elJenjang.tomselect) {
+                elJenjang.tomselect.clear();
+                elJenjang.tomselect.clearOptions();
+                elJenjang.tomselect.clearCache();
+            }
 
             // Reset Dropdown Rumus
             if (typeof updateDropdownRumus === 'function') updateDropdownRumus();
@@ -3986,49 +4187,65 @@
             if (anchorDefault && containerRumus) anchorDefault.appendChild(containerRumus);
         };
 
-    document.addEventListener("DOMContentLoaded", function() {
+    window.initJabatanTomSelects = function() {
         // 1. Inisialisasi TomSelect Kategori (3 Digit)
         const elKategori = document.getElementById('kategori_jabatan_fungsional');
         if (elKategori) {
-            new TomSelect(elKategori, {
-                create: false,
-                placeholder: '-- Cari Kategori (3 Digit) --',
-            });
+            if (elKategori.tomselect) {
+                elKategori.tomselect.sync();
+            } else {
+                new TomSelect(elKategori, {
+                    create: false,
+                    placeholder: '-- Cari Kategori (3 Digit) --',
+                    maxOptions: null
+                });
+            }
         }
 
         // 2. Inisialisasi TomSelect Jenjang (4 Digit)
         const elJenjang = document.getElementById('jabatan_id');
         if (elJenjang) {
-            new TomSelect(elJenjang, {
-                valueField: 'id',
-                labelField: 'full_name',
-                searchField: ['full_name', 'kode_jabatan'],
-                create: false,
-                preload: 'focus',
-                placeholder: '-- Cari Jenjang (4 Digit) --',
-                load: function(query, callback) {
-                    const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
-                    const periodeId = document.getElementById('periode_id')?.value;
-                    if (!kategoriVal) return callback();
+            if (elJenjang.tomselect) {
+                elJenjang.tomselect.sync();
+            } else {
+                new TomSelect(elJenjang, {
+                    valueField: 'id',
+                    labelField: 'full_name',
+                    searchField: ['full_name', 'kode_jabatan'],
+                    create: false,
+                    preload: 'focus',
+                    placeholder: '-- Cari Jenjang (4 Digit) --',
+                    load: function(query, callback) {
+                        const kategoriVal = document.getElementById('kategori_jabatan_fungsional').value;
+                        const periodeId = document.getElementById('periode_id')?.value;
+                        if (!kategoriVal) return callback();
 
-                    const url = new URL('{{ url("admin/satker/api-jabatan") }}');
-                    url.searchParams.append('q', query);
-                    url.searchParams.set('kategori', kategoriVal);
-                    if (periodeId) url.searchParams.set('periode_id', periodeId);
+                        const url = new URL('{{ url("admin/satker/api-jabatan") }}');
+                        url.searchParams.append('q', query);
+                        url.searchParams.set('kategori', kategoriVal);
+                        if (periodeId) url.searchParams.set('periode_id', periodeId);
 
-                    fetch(url)
-                        .then(response => response.json())
-                        .then(json => {
-                            // API sudah mereturn data dengan field id dan full_name
-                            callback(json.items.filter(item => item.kode_jabatan.length === 4));
-                        })
-                        .catch(() => callback());
-                },
-                render: {
-                    option: function(data, escape) { return `<div class="py-1"><div class="text-sm text-slate-700 leading-relaxed">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div></div>`; },
-                    item: function(data, escape) { return `<div class="text-slate-700">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div>`; }
-                }
-            });
+                        fetch(url)
+                            .then(response => response.json())
+                            .then(json => {
+                                callback(json.items.filter(item => item.kode_jabatan.length === 4));
+                            })
+                            .catch(() => callback());
+                    },
+                    render: {
+                        option: function(data, escape) { return `<div class="py-1"><div class="text-sm text-slate-700 leading-relaxed">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div></div>`; },
+                        item: function(data, escape) { return `<div class="text-slate-700">${escape(data.kode_jabatan)} - ${escape(data.full_name)}</div>`; }
+                    }
+                });
+            }
+        }
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Init jika defaultnya ada isinya
+        const statJab = document.getElementById('tanpa_jabatan')?.value;
+        if (statJab === 'jabatan_fungsional') {
+            window.initJabatanTomSelects();
         }
     });
 
@@ -4043,64 +4260,301 @@
             wrapperJenjang.classList.remove('hidden');
             elJenjang.tomselect.clear();
             elJenjang.tomselect.clearOptions();
-            // Akan trigger AJAX saat di-klik/dicari karena pakai load() function
+            elJenjang.tomselect.clearCache();
+            // Paksa load ulang agar cache hilang tidak mencegah render
+            elJenjang.tomselect.load('');
         } else {
             wrapperJenjang.classList.add('hidden');
             elJenjang.tomselect.clear();
             elJenjang.tomselect.clearOptions();
+            elJenjang.tomselect.clearCache();
         }
     };
+    // ==========================================
+    // LAPORAN SATKER LOGIC
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById('laporan_satker_search_input');
+        const hiddenInput = document.getElementById('laporan_satker_search_hidden');
+        const dropdownList = document.getElementById('laporan_dropdown_list');
+        const clearBtn = document.getElementById('laporan_clear_search_btn');
+        let searchTimeout = null;
+
+        function renderLaporanDropdownList(items) {
+            dropdownList.innerHTML = '';
+            if (items.length === 0) {
+                dropdownList.innerHTML = '<li class="px-4 py-3 text-sm text-slate-500 text-center italic">Tidak ditemukan kategori satker</li>';
+                return;
+            }
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition text-sm text-slate-700 border-b border-gray-50 last:border-0 font-medium';
+                li.innerHTML = `<i class="fas fa-building text-slate-400 mr-2 w-4"></i> ${item.nama_satker}`;
+                
+                li.addEventListener('click', function() {
+                    searchInput.value = item.nama_satker;
+                    hiddenInput.value = item.nama_satker;
+                    dropdownList.classList.add('hidden');
+                    
+                    const btnTampilkan = document.getElementById('btnTampilkanLaporan');
+                    if (btnTampilkan) {
+                        btnTampilkan.disabled = false;
+                        btnTampilkan.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+                });
+                
+                dropdownList.appendChild(li);
+            });
+            dropdownList.classList.remove('hidden');
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const val = this.value.trim();
+                
+                if (clearBtn) {
+                    if (val.length > 0) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
+                }
+
+                // If user types, we should clear the hidden input to force them to select again
+                hiddenInput.value = '';
+                const btnTampilkan = document.getElementById('btnTampilkanLaporan');
+                if (btnTampilkan) {
+                    btnTampilkan.disabled = true;
+                    btnTampilkan.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                
+                clearTimeout(searchTimeout);
+
+                if (!val) { 
+                    dropdownList.classList.add('hidden'); 
+                    return; 
+                }
+
+                searchTimeout = setTimeout(() => {
+                    dropdownList.innerHTML = '<li class="px-4 py-3 text-sm text-slate-500 text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Mencari...</li>';
+                    dropdownList.classList.remove('hidden');
+
+                    const activePeriodeId = '{{ $activePeriodeId ?? "" }}';
+                    const eselonId = document.getElementById('laporan_eselon_filter').value;
+                    let url = '{{ route("admin.satker.api-laporan-search") }}?q=' + encodeURIComponent(val);
+                    if (activePeriodeId) {
+                        url += '&periode_id=' + encodeURIComponent(activePeriodeId);
+                    }
+                    if (eselonId) {
+                        url += '&eselon_id=' + encodeURIComponent(eselonId);
+                    }
+                    
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(json => {
+                            if(searchInput.value.trim() === val) { // Ensure still matching query
+                                renderLaporanDropdownList(json.items || []);
+                            }
+                        })
+                        .catch(() => {
+                            dropdownList.innerHTML = '<li class="px-4 py-3 text-sm text-red-500 text-center italic">Gagal memuat data</li>';
+                        });
+                }, 300);
+            });
+
+            searchInput.addEventListener('focus', function() {
+                if(this.value.trim() !== '' && hiddenInput.value === '') {
+                    this.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            const container = document.getElementById('laporan-search-container');
+            if (container && !container.contains(e.target) && dropdownList) {
+                dropdownList.classList.add('hidden');
+            }
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = ''; 
+                hiddenInput.value = ''; 
+                this.classList.add('hidden'); 
+                dropdownList.classList.add('hidden');
+                document.getElementById('btnTampilkanLaporan').disabled = true;
+                document.getElementById('btnTampilkanLaporan').classList.add('opacity-50', 'cursor-not-allowed');
+                
+                // Hide result cards when cleared
+                document.getElementById('laporan_empty_state').classList.remove('hidden');
+                document.getElementById('laporan_card_result').classList.add('hidden');
+            });
+        }
+
+        const btnTampilkan = document.getElementById('btnTampilkanLaporan');
+        if (btnTampilkan) {
+            btnTampilkan.addEventListener('click', function() {
+                const namaSatker = hiddenInput.value;
+                if (!namaSatker) {
+                    Swal.fire('Perhatian', 'Silakan ketik dan pilih nama satker dari daftar yang muncul', 'warning');
+                    return;
+                }
+                loadLaporanDetail(namaSatker);
+            });
+        }
+    });
+
+    let currentLaporanData = null;
+
+    function loadLaporanDetail(namaSatker) {
+        const containerLoading = document.getElementById('laporan_loading');
+        const containerEmpty = document.getElementById('laporan_empty_state');
+        const containerResult = document.getElementById('laporan_card_result');
+        const headerTitle = document.getElementById('laporan_header_title');
+        const headerSubtitle = document.getElementById('laporan_header_subtitle');
+        const cardsContainer = document.getElementById('laporan_cards_container');
+        
+        const activePeriodeId = '{{ $activePeriodeId ?? "" }}';
+        const eselonId = document.getElementById('laporan_eselon_filter').value;
+        const eselonText = eselonId ? document.getElementById('laporan_eselon_filter').options[document.getElementById('laporan_eselon_filter').selectedIndex].text : 'Semua Eselon';
+
+        containerEmpty.classList.add('hidden');
+        containerResult.classList.add('hidden');
+        containerLoading.classList.remove('hidden');
+        cardsContainer.innerHTML = '';
+
+        let url = '{{ route("admin.satker.api-laporan-detail") }}?nama_satker=' + encodeURIComponent(namaSatker);
+        if (activePeriodeId) {
+            url += '&periode_id=' + encodeURIComponent(activePeriodeId);
+        }
+        if (eselonId) {
+            url += '&eselon_id=' + encodeURIComponent(eselonId);
+        }
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                containerLoading.classList.add('hidden');
+                if (data.error || !data.details) {
+                    Swal.fire('Error', data.error || 'Gagal memuat data', 'error');
+                    containerEmpty.classList.remove('hidden');
+                    return;
+                }
+
+                currentLaporanData = data;
+                
+                // Set Header
+                headerTitle.innerText = data.nama_satker;
+                headerSubtitle.innerHTML = `Terdapat <b>${data.jumlah_satker} satker</b> pada filter ${eselonText}`;
+                
+                if (data.details.length === 0) {
+                    cardsContainer.innerHTML = `<div class="col-span-full p-8 text-center bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 italic">Tidak ada satker yang cocok.</div>`;
+                } else {
+                    data.details.forEach((sat, index) => {
+                        cardsContainer.innerHTML += `
+                            <div onclick="openLaporanModal(${index})" class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group">
+                                <div class="p-5 border-b border-slate-100 flex items-start gap-4 hover:bg-slate-50 transition relative">
+                                    <div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </div>
+                                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl flex-shrink-0">
+                                        <i class="fas fa-building"></i>
+                                    </div>
+                                    <div class="flex-1 pr-6">
+                                        <h4 class="font-bold text-slate-800 leading-snug group-hover:text-blue-700 transition">${sat.nama_satker}</h4>
+                                        <div class="flex flex-wrap gap-2 mt-2">
+                                            <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-barcode mr-1"></i> ${sat.kode_satker}</span>
+                                            <span class="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-layer-group mr-1"></i> ${sat.eselon}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50/50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                                    <span class="text-xs font-semibold text-slate-500"><i class="fas fa-map-marker-alt text-red-500 mr-1.5"></i> ${sat.wilayah}</span>
+                                    <div class="flex gap-2">
+                                        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-user-tie mr-1"></i> ${sat.jumlah_penugasan}</span>
+                                        <span class="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-users mr-1"></i> ${sat.jumlah_pegawai}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                containerResult.classList.remove('hidden');
+            })
+            .catch(err => {
+                console.error(err);
+                containerLoading.classList.add('hidden');
+                containerEmpty.classList.remove('hidden');
+                Swal.fire('Error', 'Terjadi kesalahan sistem saat memuat laporan', 'error');
+            });
+    }
+
+    function openLaporanModal(index) {
+        if (!currentLaporanData || !currentLaporanData.details || !currentLaporanData.details[index]) return;
+        const sat = currentLaporanData.details[index];
+        
+        document.getElementById('laporan_detail_nama').innerText = sat.nama_satker;
+        document.getElementById('stat_total_penugasan').innerText = sat.jumlah_penugasan;
+        document.getElementById('stat_total_pegawai').innerText = sat.jumlah_pegawai;
+
+        const listContainer = document.getElementById('laporan_detail_list');
+        
+        let htmlPenugasan = '';
+        if (sat.penugasans.length > 0) {
+            htmlPenugasan = `<ul class="space-y-2 mt-3">`;
+            sat.penugasans.forEach(p => {
+                htmlPenugasan += `
+                    <li class="flex flex-col sm:flex-row justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">${p.nama_pegawai}</p>
+                            <p class="text-xs text-slate-500 font-mono">${p.nip}</p>
+                        </div>
+                        <div class="mt-2 sm:mt-0 flex items-center">
+                            <span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-[10px] font-black tracking-wider uppercase rounded">${p.role}</span>
+                        </div>
+                    </li>
+                `;
+            });
+            htmlPenugasan += `</ul>`;
+        } else {
+            htmlPenugasan = `<p class="text-sm text-slate-400 italic mt-2">Tidak ada data penugasan</p>`;
+        }
+
+        let htmlPegawai = '';
+        if (sat.pegawais.length > 0) {
+            htmlPegawai = `<ul class="space-y-2 mt-3">`;
+            sat.pegawais.forEach(p => {
+                htmlPegawai += `
+                    <li class="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">${p.nama_pegawai}</p>
+                            <p class="text-xs text-slate-500 font-mono">${p.nip}</p>
+                        </div>
+                    </li>
+                `;
+            });
+            htmlPegawai += `</ul>`;
+        } else {
+            htmlPegawai = `<p class="text-sm text-slate-400 italic mt-2">Tidak ada data pegawai terdaftar</p>`;
+        }
+
+        listContainer.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide border-b border-slate-200 pb-2 flex items-center gap-2">
+                        <i class="fas fa-user-tie text-emerald-500"></i> Penugasan Terdaftar
+                    </h4>
+                    ${htmlPenugasan}
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide border-b border-slate-200 pb-2 flex items-center gap-2">
+                        <i class="fas fa-users text-purple-500"></i> Pegawai Struktural
+                    </h4>
+                    ${htmlPegawai}
+                </div>
+            </div>
+        `;
+
+        toggleModal('modalLaporanDetail');
+    }
     </script>
 
-    <div x-data class="fixed bottom-24 md:bottom-8 right-4 md:right-8 flex flex-col items-end gap-3 z-40">
-        <button @click="$store.selection.toggleSelectionMode()" 
-                :class="$store.selection.isSelectionMode ? 'bg-red-600' : 'bg-blue-600'"
-                class="flex items-center gap-2 px-6 py-3 text-white rounded-full shadow-2xl hover:scale-105 transition-all font-bold">
-            <i class="fas" :class="$store.selection.isSelectionMode ? 'fa-times' : 'fa-check-double'"></i>
-            <span x-text="$store.selection.isSelectionMode ? 'Batal Pilih' : 'Pilih Satker'"></span>
-        </button>
-
-        <div x-show="$store.selection.isSelectionMode && $store.selection.selectedIds.length > 0 && $store.selection.clipboard.mode === ''" 
-             x-transition class="flex gap-2 bg-white p-2 rounded-2xl shadow-xl border border-slate-200">
-            
-            <template x-if="$store.selection.canPerformAction()">
-                <div class="flex gap-2">
-                    <button @click="$store.selection.setClipboard('copy')" class="p-3 text-blue-600 hover:bg-blue-50 rounded-xl transition" title="Copy"><i class="fas fa-copy"></i></button>
-                    <button @click="$store.selection.setClipboard('move')" class="p-3 text-amber-600 hover:bg-amber-50 rounded-xl transition" title="Potong (Move)"><i class="fas fa-cut"></i></button>
-                </div>
-            </template>
-            
-            <button @click="$store.selection.confirmBulkDelete()" class="p-3 text-red-600 hover:bg-red-50 rounded-xl transition" title="Hapus Massal"><i class="fas fa-trash"></i></button>
-        </div>
-
-        <div x-show="$store.selection.clipboard.mode !== ''" x-transition 
-             class="flex flex-col items-center gap-3 bg-white p-5 rounded-2xl shadow-2xl border-2 border-emerald-400 animate-fade-in-up">
-            
-            <div class="flex flex-col items-center">
-                <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded">
-                    Mode: <span x-text="$store.selection.clipboard.mode"></span>
-                </span>
-                <p class="text-[11px] font-bold text-slate-600 mt-2">
-                    <span class="text-blue-600" x-text="$store.selection.clipboard.ids.length"></span> Satker siap disalin.
-                </p>
-            </div>
-
-            <div class="flex gap-2">
-                <template x-if="$store.selection.selectedIds.length > 0">
-                    <button @click="$store.selection.confirmBulkPaste()" 
-                            class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">
-                        <i class="fas fa-paste"></i> Paste ke <span x-text="$store.selection.selectedIds.length"></span> Induk Terpilih
-                    </button>
-                </template>
-
-                <template x-if="$store.selection.selectedIds.length === 0">
-                    <div class="px-5 py-2.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold border border-dashed border-slate-300">
-                        <i class="fas fa-mouse-pointer mr-1"></i> Centang satu atau lebih Satker Induk tujuan...
-                    </div>
-                </template>
-                
-                <button @click="$store.selection.clearClipboard()" class="px-5 py-2.5 bg-white text-red-500 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50">Batal</button>
-            </div>
-        </div>
-    </div>
 @endpush

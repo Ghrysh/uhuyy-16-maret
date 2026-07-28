@@ -891,7 +891,14 @@ class PenugasanController extends Controller
 
     public function destroy($id)
     {
-        Penugasan::findOrFail($id)->delete();
+        $perm = $this->getPermissions();
+        if (empty($perm['is_super'])) {
+            if (request()->wantsJson() || request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Akses Ditolak: Hanya Super Admin yang dapat menghapus data secara permanen.'], 403);
+            }
+            return redirect()->back()->with('error', 'Akses Ditolak: Hanya Super Admin yang dapat menghapus data secara permanen.');
+        }
+
         $penugasan = Penugasan::findOrFail($id);
 
         LogSistem::create([
@@ -901,6 +908,13 @@ class PenugasanController extends Controller
             'perubahan' => 'Menghapus penugasan untuk user ID: ' . $penugasan->user_id,
             'user_id' => auth()->id(),
         ]);
+        
+        $penugasan->forceDelete();
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Data penugasan berhasil dihapus secara permanen!']);
+        }
+
         return redirect()->back()->with('success', 'Data penugasan berhasil dihapus!');
     }
 

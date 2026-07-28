@@ -73,7 +73,7 @@ class RoleController extends Controller
         $isAssignable = $request->has('is_assignable');
 
         if ($type === 'penugasan') {
-            MJenisPenugasan::findOrFail($id)->update(['menus' => $menusData, 'is_assignable' => $isAssignable]);
+            MJenisPenugasan::findOrFail($id)->update(['nama' => $request->nama, 'menus' => $menusData, 'is_assignable' => $isAssignable]);
         } else {
             MRole::findOrFail($id)->update(['nama' => $request->nama, 'menus' => $menusData, 'is_assignable' => $isAssignable]);
         }

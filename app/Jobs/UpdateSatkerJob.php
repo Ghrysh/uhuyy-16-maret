@@ -56,6 +56,11 @@ class UpdateSatkerJob implements ShouldQueue
                         $user->update([
                             'satker_id' => $this->satkerId
                         ]);
+                        
+                        \App\Models\PegawaiPeriode::updateOrCreate(
+                            ['user_id' => $user->id, 'periode_id' => $satker->periode_id],
+                            ['satker_id' => $satker->id]
+                        );
 
                         $action = 'memperbarui';
                     } else {
@@ -65,6 +70,12 @@ class UpdateSatkerJob implements ShouldQueue
                             'email'     => $detail->email_dinas ?? $detail->nip_baru . '@kemenag.go.id',
                             'password'  => Hash::make('password123'),
                             'satker_id' => $this->satkerId,
+                        ]);
+
+                        \App\Models\PegawaiPeriode::create([
+                            'user_id' => $user->id,
+                            'periode_id' => $satker->periode_id,
+                            'satker_id' => $satker->id
                         ]);
 
                         $action = 'menambahkan';

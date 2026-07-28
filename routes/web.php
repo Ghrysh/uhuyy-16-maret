@@ -39,6 +39,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/satker/{id}', [SatkerController::class, 'destroy'])->name('satker.destroy');
     Route::get('/satker/users/{id}', [SatkerController::class, 'getUsersBySatker'])->name('satker.users');
     Route::get('/satker/api-search', [SatkerController::class, 'apiSearchSatker'])->name('satker.api-search');
+    Route::get('/satker/api-laporan-search', [SatkerController::class, 'apiLaporanSearch'])->name('satker.api-laporan-search');
+    Route::get('/satker/api-laporan-detail', [SatkerController::class, 'apiLaporanDetail'])->name('satker.api-laporan-detail');
     Route::get('/satker/load-children', [SatkerController::class, 'loadChildren'])->name('satker.load-children');
     Route::get('/satker/get-descendants/{id}', [SatkerController::class, 'getDescendants'])->name('satker.get-descendants');
     Route::get('/satker/search-tree', [SatkerController::class, 'searchTree'])->name('satker.search-tree');

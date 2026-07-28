@@ -221,9 +221,14 @@
             <div class="p-4 bg-blue-50/50 border-b border-blue-100 flex justify-between items-center">
                 <h3 class="font-bold text-blue-900 text-sm">Matriks Alokasi Kuota Satker</h3>
 
-                <div class="relative w-64">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-blue-400 text-xs"></i></span>
-                    <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent placeholder="Cari Satker di Tabel..." class="w-full pl-9 pr-3 py-1.5 border border-blue-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="toggleMatriksMode()" id="btn_toggle_matriks" class="text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-blue-700 shadow-sm hover:bg-blue-50 transition-colors flex items-center gap-2">
+                        <i class="fas fa-sitemap"></i> <span id="text_toggle_matriks">Tampilkan Semua Sekaligus</span>
+                    </button>
+                    <div class="relative w-64">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3"><i class="fas fa-search text-blue-400 text-xs"></i></span>
+                        <input type="text" x-model.debounce.300ms="search" @keydown.enter.prevent placeholder="Cari Satker di Tabel..." class="w-full pl-9 pr-3 py-1.5 border border-blue-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
                 </div>
             </div>
             
@@ -330,6 +335,7 @@
                             </div>
                         </div>
 
+                        @if ($perm['is_super'] || $perm['all_access'] || in_array('set_baseline', $perm['matriks'] ?? []))
                         <div id="container_baseline_tambah" class="hidden mt-4" x-data="{ tabBaseline: 'menpan' }">
                             <div class="flex border-b border-gray-200 mb-3 space-x-4">
                                 <button type="button" @click="tabBaseline = 'menpan'" :class="tabBaseline === 'menpan' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-gray-500'" class="pb-2 border-b-2 text-[11px] uppercase tracking-wider transition">Persetujuan Kebutuhan</button>
@@ -379,6 +385,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
                             <i class="fas fa-info-circle text-blue-500 mt-1"></i>
@@ -417,6 +424,7 @@
                             <input type="text" name="nama_jabatan" id="edit_global_nama" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold">
                         </div>
 
+                        @if ($perm['is_super'] || $perm['all_access'] || in_array('set_baseline', $perm['matriks'] ?? []))
                         <div id="container_baseline_edit" class="mt-4" x-data="{ tabEditBaseline: 'menpan' }">
                             <div class="flex border-b border-gray-200 mb-3 space-x-4">
                                 <button type="button" @click="tabEditBaseline = 'menpan'" :class="tabEditBaseline === 'menpan' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-gray-500'" class="pb-2 border-b-2 text-[11px] uppercase tracking-wider transition">Persetujuan Kebutuhan</button>
@@ -467,6 +475,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                     </div>
                     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 border-t border-gray-100">
@@ -519,7 +528,7 @@
             switchTab(savedTab);
         });
 
-        function switchTab(tabName) {
+        window.switchTab = function(tabName) {
             localStorage.setItem('activeTab_jabatan', tabName);
             document.getElementById('content-master').classList.add('hidden');
             document.getElementById('content-distribusi').classList.add('hidden');
@@ -783,6 +792,37 @@
         window.globalMatriksSums = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
         window.globalMatriksLimits = { kp: 0, kmu: 0, kma: 0, ku: 0, k5: 0, k6: 0, k7: 0, k8: 0 };
         window.colValidationTimers = {};
+        
+        window.isMatriksHierarchical = true;
+        window.expandedMatriksIds = [];
+
+        window.toggleMatriksMode = function() {
+            window.isMatriksHierarchical = !window.isMatriksHierarchical;
+            
+            const btnText = document.getElementById('text_toggle_matriks');
+            const btnIcon = document.querySelector('#btn_toggle_matriks i');
+            
+            if (window.isMatriksHierarchical) {
+                btnText.innerText = "Tampilkan Semua Sekaligus";
+                btnIcon.className = "fas fa-sitemap";
+            } else {
+                btnText.innerText = "Tampilkan Hirarki";
+                btnIcon.className = "fas fa-list";
+            }
+            
+            window.expandedMatriksIds = []; // reset expanded
+            _internalRenderTable(window.currentMatriksTab);
+        }
+
+        window.toggleMatriksNode = function(id) {
+            const idx = window.expandedMatriksIds.indexOf(id);
+            if (idx > -1) {
+                window.expandedMatriksIds.splice(idx, 1);
+            } else {
+                window.expandedMatriksIds.push(id);
+            }
+            _internalRenderTable(window.currentMatriksTab);
+        }
 
         window.renderTableByTab = function(tabName) {
             window.currentMatriksTab = tabName; 
@@ -869,8 +909,46 @@
                 </div>
             `;
 
-            // TAMPILKAN 100 BARIS PERTAMA DEMI KEAMANAN RAM!
-            filteredMatriksData = globalMatriksData; // Reset data ke awal
+            // TAMPILKAN BARIS (Tentukan hirarkis / flat berdasarkan toggle)
+            const xDataEl = document.getElementById('wrapper_matriks_distribusi');
+            const alpineData = window.Alpine ? (Alpine.$data ? Alpine.$data(xDataEl) : xDataEl.__x?.$data) : xDataEl.__x?.$data;
+            const searchKeyword = (alpineData && alpineData.search) ? alpineData.search.toLowerCase() : '';
+            
+            window.isCurrentlySearching = (searchKeyword.length > 0);
+
+            if (window.isCurrentlySearching || !window.isMatriksHierarchical) {
+                // Tampilkan Flat jika sedang mencari ATAU tombol mode diubah ke Semua Sekaligus
+                filteredMatriksData = globalMatriksData; 
+                if (window.isCurrentlySearching) {
+                    filteredMatriksData = globalMatriksData.filter(item => (item.nama_satker || '').toLowerCase().includes(searchKeyword));
+                }
+            } else {
+                // Tampilkan Hierarchical
+                const childrenMap = {};
+                const roots = [];
+                globalMatriksData.forEach(item => {
+                    // Cek jika parent tidak ada ATAU parent tidak ikut dimuat (kasus admin dengan akses terbatas ke child saja)
+                    if (!item.parent_id || !globalMatriksMap[item.parent_id]) {
+                        roots.push(item);
+                    } else {
+                        if (!childrenMap[item.parent_id]) childrenMap[item.parent_id] = [];
+                        childrenMap[item.parent_id].push(item);
+                    }
+                });
+
+                let resultTree = [];
+                const addNodes = (nodes) => {
+                    nodes.forEach(node => {
+                        resultTree.push(node);
+                        if (window.expandedMatriksIds.includes(node.id) && childrenMap[node.id]) {
+                            addNodes(childrenMap[node.id]);
+                        }
+                    });
+                };
+                addNodes(roots);
+                filteredMatriksData = resultTree;
+            }
+
             currentPage = 1; // Kembali ke halaman 1
             window.renderPaginatedTable();
         }
@@ -917,6 +995,7 @@
                         data-type="${type}" 
                         data-oldval="${numVal}" 
                         value="${numVal}" 
+                        ${!isExempt ? 'min="0"' : ''}
                         class="${inputClass}" 
                         ${isReadOnly} 
                         ${isEditable ? `oninput="event.stopPropagation(); autoCalcMatriks(this)" onblur="if(this.value==='') this.value='0'"` : ''}>
@@ -936,7 +1015,15 @@
                 const padStyle = `padding-left: ${1.5 + (level * 2.5)}rem;`; 
                 const bgClass = level === 0 ? 'bg-white' : (level % 2 === 1 ? 'bg-slate-50/70' : 'bg-slate-50');
                 const textClass = level === 0 ? 'font-bold text-slate-800' : (level === 1 ? 'font-semibold text-slate-700' : 'font-medium text-slate-600');
-                const iconHtml = level === 0 ? '<i class="fas fa-building mr-3 text-slate-400"></i>' : '<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>';
+                
+                let toggleIcon = '';
+                let isClickable = window.isMatriksHierarchical && item.has_children && !window.isCurrentlySearching;
+                if (isClickable) {
+                    const isExpanded = window.expandedMatriksIds.includes(item.id);
+                    toggleIcon = `<i class="fas fa-chevron-right chevron-icon mr-2 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-blue-500' : ''}"></i>`;
+                }
+                
+                const iconHtml = level === 0 ? `${toggleIcon}<i class="fas fa-building mr-3 text-slate-400"></i>` : `${toggleIcon}<i class="fas fa-level-up-alt rotate-90 text-slate-300 mr-2 opacity-70 text-xs"></i>`;
 
                 const namaSatkerSafe = item.nama_satker || '';
 
@@ -952,12 +1039,14 @@
                     v5 = item.k5_lowongan; v6 = item.k6_lowongan; v7 = item.k7_lowongan; v8 = item.k8_lowongan;
                 }
 
-                const isReadOnly = (tabName === 'lowongan') ? 'readonly disabled' : '';
+                const isReadOnly = (tabName === 'lowongan' || !permMatriksEditKuota) ? 'readonly disabled' : '';
                 const totalRow = (parseInt(v1)||0) + (parseInt(v2)||0) + (parseInt(v3)||0) + (parseInt(v4)||0) + (isSemua ? (parseInt(v5)||0)+(parseInt(v6)||0)+(parseInt(v7)||0)+(parseInt(v8)||0) : 0);
+                
+                let tdClickAttr = isClickable ? `onclick="toggleMatriksNode('${item.id}')" class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent cursor-pointer hover:bg-blue-50/50 transition-colors"` : `class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent"`;
 
                 finalHtml += `
                     <tr class="matriks-row ${bgClass}" id="row-${item.id}" data-parent="${item.parent_id || 'root'}" data-search="${namaSatkerSafe.toLowerCase()}">
-                        <td class="py-4 pr-4 align-middle border-b border-gray-100 bg-transparent" style="${padStyle}">
+                        <td ${tdClickAttr} style="${padStyle}">
                             <div class="flex items-center ${textClass}">${iconHtml}<span class="text-sm tracking-tight leading-snug satker-name">${namaSatkerSafe}</span></div>
                         </td>
                         ${renderTd('kp', v1, item.id, isReadOnly)}
@@ -967,7 +1056,7 @@
                         ${isSemua ? renderTd('k5', v5, item.id, isReadOnly) + renderTd('k6', v6, item.id, isReadOnly) + renderTd('k7', v7, item.id, isReadOnly) + renderTd('k8', v8, item.id, isReadOnly) : ''}
                         <td class="px-4 py-3 text-center font-bold text-emerald-600 align-top pt-4 border-b border-gray-100 bg-transparent" id="total_${item.id}">${totalRow}</td>
                         <td class="px-4 py-3 text-center align-top pt-3 border-b border-gray-100 bg-transparent">
-                            ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full shadow-sm hover:bg-blue-900 transition">Simpan</button>`) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
+                            ${isParent ? (tabName === 'lowongan' ? '<span class="text-[10px] text-gray-400 italic">Otomatis</span>' : (!permMatriksEditKuota ? '<span class="text-[10px] text-gray-400 italic" title="Anda tidak memiliki hak Edit Kuota">Read Only</span>' : `<button onclick="simpanKuotaGroup('${item.id}', '${tabName}')" class="bg-[#112D4E] text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase w-full shadow-sm hover:bg-blue-900 transition">Simpan</button>`)) : '<span class="text-[10px] text-gray-400 italic">Via Induk</span>'}
                         </td>
                     </tr>
                 `;
@@ -984,9 +1073,18 @@
 
         window.autoCalcMatriks = function(input) {
             const type = input.dataset.type;
-            // PERBAIKAN: Ambil id dengan substring agar lebih aman dari split jika id berupa format kompleks
             const id = input.id.substring(type.length + 1); 
-            const val = parseInt(input.value) || 0;
+            let val = parseInt(input.value) || 0;
+            
+            // Cek pengecualian minus (Ahli Pertama boleh minus jika diset demikian)
+            const kategoriStr = document.getElementById('filter_kategori_fungsional')?.value.toLowerCase() || '';
+            const isExempt = (kategoriStr === 'semua jenjang' && type === 'k5') || (kategoriStr === 'keahlian' && type === 'kp');
+            
+            if (!isExempt && val < 0) {
+                val = 0;
+                input.value = 0;
+            }
+
             const oldVal = parseInt(input.dataset.oldval) || 0; 
             
             // 1. Update data di globalMatriksData

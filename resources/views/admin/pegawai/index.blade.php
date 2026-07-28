@@ -44,9 +44,20 @@
                     <input type="text" name="search" value="{{ request('search') }}"
                         class="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl bg-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-custom/20 focus:border-navy-custom transition-all"
                         placeholder="Cari Nama, NIP, atau Kode Satker...">
+                    <input type="hidden" name="periode_id" value="{{ $activePeriodeId }}">
                 </div>
             </form>
         </div>
+    </div>
+
+    {{-- ================= TABS PERIODE ================= --}}
+    <div class="flex items-center border-b border-gray-200 mb-6 overflow-x-auto">
+        @foreach ($periodes as $pe)
+            <a href="{{ route('admin.pegawai.index', ['periode_id' => $pe->id, 'search' => request('search')]) }}"
+                class="px-6 py-3 border-b-2 font-bold text-xs uppercase tracking-wider transition-all whitespace-nowrap focus:outline-none {{ $activePeriodeId == $pe->id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600' }}">
+                {{ $pe->nama_periode }}
+            </a>
+        @endforeach
     </div>
 
     <div id="ajax-container" class="relative min-h-[400px]">
@@ -62,6 +73,7 @@
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <form action="{{ route('admin.pegawai.update-satker') }}" method="POST" id="bulk-form">
                 @csrf
+                <input type="hidden" name="periode_id" value="{{ $activePeriodeId }}">
 
                 <div id="bulk-action-bar"
                     class="hidden px-6 py-3 bg-blue-50 border-b flex justify-between items-center transition-all">
@@ -126,7 +138,8 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         @php
-                                            $satker = optional(optional($pegawai->user2)->satker);
+                                            $riwayat = $pegawai->riwayatSatkers->first();
+                                            $satker = $riwayat ? $riwayat->satker : null;
                                         @endphp
 
                                         @if ($satker && $satker->kode_satker)
@@ -256,14 +269,7 @@
                     </label>
 
                     <select id="satkerSelect" name="satker_id" form="bulk-form" required class="w-full">
-
                         <option value="">-- Pilih Satker --</option>
-
-                        @foreach ($satkers as $satker)
-                            <option value="{{ $satker->id }}">
-                                {{ $satker->kode_satker }} - {{ $satker->nama_satker }}
-                            </option>
-                        @endforeach
                     </select>
                 </div>
             @endif
@@ -316,7 +322,11 @@
             searchTimeout = setTimeout(() => {
                 const searchTerm = this.value;
                 const url = new URL(window.location.href);
-                url.searchParams.set('search', searchTerm);
+                if (searchTerm) {
+                    url.searchParams.set('search', searchTerm);
+                } else {
+                    url.searchParams.delete('search');
+                }
                 url.searchParams.set('page', 1); // Reset ke halaman 1 saat cari baru
 
                 performAjaxUpdate(url.toString());
@@ -339,7 +349,14 @@
             }
         });
 
+        let currentAbortController = null;
+
         async function performAjaxUpdate(url) {
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+            currentAbortController = new AbortController();
+
             const container = document.getElementById('ajax-container');
             const overlay = document.getElementById('loading-overlay');
 
@@ -351,7 +368,8 @@
                 const response = await fetch(url, {
                     headers: {
                         "X-Requested-With": "XMLHttpRequest"
-                    }
+                    },
+                    signal: currentAbortController.signal
                 });
 
                 if (!response.ok) throw new Error("Gagal mengambil data.");
@@ -369,6 +387,10 @@
                 if (newOverlay) newOverlay.classList.add('hidden');
 
             } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Fetch aborted');
+                    return;
+                }
                 console.error("AJAX Error:", error);
                 alert("Terjadi kesalahan saat memuat data.");
                 container.style.opacity = '1';
@@ -377,14 +399,7 @@
             }
         }
 
-        document.addEventListener('change', function(e) {
-            if (e.target.id === 'check-all') {
-                const checked = e.target.checked;
-                document.querySelectorAll('.row-checkbox').forEach(cb => {
-                    cb.checked = checked;
-                });
-            }
-        });
+        // Listener untuk checkbox sudah digabungkan di bawah
 
         function updateBulkBar() {
             const checkboxes = document.querySelectorAll('.row-checkbox');
@@ -401,16 +416,27 @@
         }
 
         document.addEventListener('change', function(e) {
-
-            if (e.target.classList.contains('row-checkbox')) {
+            // Jika yang di-klik adalah check-all
+            if (e.target.id === 'check-all') {
+                const isChecked = e.target.checked;
+                document.querySelectorAll('.row-checkbox').forEach(cb => {
+                    cb.checked = isChecked;
+                });
                 updateBulkBar();
+                return;
             }
 
-            if (e.target.id === 'check-all') {
-                const checked = e.target.checked;
-                document.querySelectorAll('.row-checkbox').forEach(cb => {
-                    cb.checked = checked;
-                });
+            // Jika yang di-klik adalah checkbox baris
+            if (e.target.classList.contains('row-checkbox')) {
+                // Cek apakah semua baris terpilih
+                const totalBoxes = document.querySelectorAll('.row-checkbox').length;
+                const checkedBoxes = document.querySelectorAll('.row-checkbox:checked').length;
+                const checkAllBox = document.getElementById('check-all');
+                
+                if(checkAllBox) {
+                    checkAllBox.checked = (totalBoxes > 0 && totalBoxes === checkedBoxes);
+                }
+                
                 updateBulkBar();
             }
         });
@@ -429,14 +455,36 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
 
     <script>
+        const activePeriodeId = '{{ $activePeriodeId }}';
         new TomSelect("#satkerSelect", {
+            preload: true,
             create: false,
-            sortField: {
-                field: "text",
-                direction: "asc"
+            valueField: 'id',
+            labelField: 'nama_satker',
+            searchField: ['kode_satker', 'nama_satker'],
+            sortField: [{ field: '$score' }, { field: 'kode_satker', direction: 'asc' }],
+            placeholder: "Cari kode atau nama satker...",
+            render: {
+                option: function(item, escape) {
+                    return `<div><span class="font-bold text-xs">${escape(item.kode_satker)}</span> - <span class="text-xs">${escape(item.nama_satker)}</span></div>`;
+                },
+                item: function(item, escape) {
+                    return `<div><span class="font-bold text-xs">${escape(item.kode_satker)}</span> - <span class="text-xs">${escape(item.nama_satker)}</span></div>`;
+                }
             },
-            searchField: ['text'],
-            placeholder: "Cari kode atau nama satker..."
+            load: function(query, callback) {
+                const url = new URL('{{ url("admin/satker/api-search") }}');
+                url.searchParams.append('q', query);
+                url.searchParams.set('periode_id', activePeriodeId);
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(json => {
+                        callback(json.items);
+                    }).catch(() => {
+                        callback();
+                    });
+            }
         });
     </script>
     <script>

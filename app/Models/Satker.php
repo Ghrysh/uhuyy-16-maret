@@ -58,6 +58,11 @@ class Satker extends Model
         return $this->hasMany(User::class, 'satker_id', 'kode_satker');
     }
 
+    public function pegawaiPeriodes(): HasMany
+    {
+        return $this->hasMany(PegawaiPeriode::class, 'satker_id');
+    }
+
     public function periode(): BelongsTo
     {
         return $this->belongsTo(Periode::class, 'periode_id');

@@ -22,11 +22,23 @@ class UserCheckController extends Controller
             ], 404);
         }
 
+        $data = [
+            'user_id'     => $user->id,
+            'name'        => $user->name,
+            'email'       => $user->email,
+            'nip'         => $user->nip,
+            'satker_id'   => $user->satker_id,
+            'kode_satker' => $user->satker?->kode_satker ?? null,
+            'satker'      => $user->satker?->nama_satker ?? null,
+            'user_detail' => $user->userDetail
+        ];
+
         // Cek apakah user memiliki satker_id
         if (!$user->satker_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda belum memiliki kode satuan kerja baru'
+                'message' => 'Anda belum memiliki kode satuan kerja baru',
+                'data'    => $data
             ], 200);
         }
 
@@ -38,22 +50,15 @@ class UserCheckController extends Controller
         if (!$penugasan) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda belum memiliki admin dan pejabat'
+                'message' => 'Anda belum memiliki admin dan pejabat',
+                'data'    => $data
             ], 200);
         }
 
         // Jika ada penugasan aktif untuk satker
         return response()->json([
             'success' => true,
-            'data' => [
-                'user_id'     => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'nip'         => $user->nip,
-                'satker_id'   => $user->satker_id,
-                'satker'      => $user->satker?->nama_satker ?? null,
-                'user_detail' => $user->userDetail
-            ]
+            'data'    => $data
         ]);
     }
 
