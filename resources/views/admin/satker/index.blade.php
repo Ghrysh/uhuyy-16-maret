@@ -461,7 +461,7 @@
                         <input type="hidden" id="laporan_satker_search_hidden">
                         <ul id="laporan_dropdown_list" class="absolute z-50 w-full bg-white border border-gray-100 rounded-xl shadow-xl mt-2 hidden max-h-64 overflow-y-auto divide-y divide-gray-50"></ul>
                     </div>
-                    <button type="button" disabled id="btnTampilkanLaporan" class="w-full sm:w-auto bg-[#112D4E] hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition shadow-sm h-[42px] opacity-50 cursor-not-allowed">
+                    <button type="button" id="btnTampilkanLaporan" class="w-full sm:w-auto bg-[#112D4E] hover:bg-blue-900 text-white px-6 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition shadow-sm h-[42px]">
                         <i class="fas fa-search text-xs"></i>
                         <span>Tampilkan</span>
                     </button>
@@ -485,6 +485,14 @@
                     <div class="p-6 border-b border-gray-100 bg-blue-50/30">
                         <h3 class="text-lg font-bold text-slate-800" id="laporan_header_title">Hasil Pencarian</h3>
                         <p class="text-sm text-slate-500 mt-1" id="laporan_header_subtitle">Memuat data...</p>
+
+                        {{-- Tab Filter Status Pejabat --}}
+                        <div class="mt-4 flex flex-wrap gap-2" id="laporan_status_tabs">
+                            <button type="button" data-status="semua" class="status-tab active px-4 py-2 rounded-full text-sm font-semibold bg-[#112D4E] text-white transition-all shadow-sm">Semua</button>
+                            <button type="button" data-status="definitif" class="status-tab px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all">Definitif</button>
+                            <button type="button" data-status="plt_plh" class="status-tab px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all">Plt/Plh</button>
+                            <button type="button" data-status="kosong" class="status-tab px-4 py-2 rounded-full text-sm font-semibold bg-white text-slate-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all">Kosong (Belum Ada Pejabat)</button>
+                        </div>
                     </div>
                     
                     {{-- Container Grid Cards --}}
@@ -2203,6 +2211,7 @@
                 tableBody.innerHTML = '';
 
                 if (users.length > 0) {
+                    let tableHtml = '';
                     users.forEach((user, index) => {
                         // LOGIKA UNTUK STATUS BADGE
                         let statusBadge = '';
@@ -2250,7 +2259,7 @@
                         }
 
                         // RENDER BARIS TABEL
-                        tableBody.innerHTML += `
+                        tableHtml += `
                         <tr class="hover:bg-blue-50/50 transition duration-200" 
                             data-name="${(user.name || '').toLowerCase()}" 
                             data-nip="${(user.nip || '').toLowerCase()}">
@@ -2268,6 +2277,7 @@
                         </tr>
                         `;
                     });
+                    tableBody.innerHTML = tableHtml;
 
                     document.getElementById('detail_user_count').innerText = `Menampilkan ${users.length} pejabat`;
 
@@ -4296,12 +4306,6 @@
                     searchInput.value = item.nama_satker;
                     hiddenInput.value = item.nama_satker;
                     dropdownList.classList.add('hidden');
-                    
-                    const btnTampilkan = document.getElementById('btnTampilkanLaporan');
-                    if (btnTampilkan) {
-                        btnTampilkan.disabled = false;
-                        btnTampilkan.classList.remove('opacity-50', 'cursor-not-allowed');
-                    }
                 });
                 
                 dropdownList.appendChild(li);
@@ -4320,11 +4324,6 @@
 
                 // If user types, we should clear the hidden input to force them to select again
                 hiddenInput.value = '';
-                const btnTampilkan = document.getElementById('btnTampilkanLaporan');
-                if (btnTampilkan) {
-                    btnTampilkan.disabled = true;
-                    btnTampilkan.classList.add('opacity-50', 'cursor-not-allowed');
-                }
                 
                 clearTimeout(searchTimeout);
 
@@ -4380,8 +4379,6 @@
                 hiddenInput.value = ''; 
                 this.classList.add('hidden'); 
                 dropdownList.classList.add('hidden');
-                document.getElementById('btnTampilkanLaporan').disabled = true;
-                document.getElementById('btnTampilkanLaporan').classList.add('opacity-50', 'cursor-not-allowed');
                 
                 // Hide result cards when cleared
                 document.getElementById('laporan_empty_state').classList.remove('hidden');
@@ -4393,10 +4390,13 @@
         if (btnTampilkan) {
             btnTampilkan.addEventListener('click', function() {
                 const namaSatker = hiddenInput.value;
-                if (!namaSatker) {
-                    Swal.fire('Perhatian', 'Silakan ketik dan pilih nama satker dari daftar yang muncul', 'warning');
+                const eselonId = document.getElementById('laporan_eselon_filter').value;
+                
+                if (!namaSatker && !eselonId) {
+                    Swal.fire('Perhatian', 'Silakan pilih Filter Eselon atau ketik Kategori Satker terlebih dahulu', 'warning');
                     return;
                 }
+                
                 loadLaporanDetail(namaSatker);
             });
         }
@@ -4414,20 +4414,24 @@
         
         const activePeriodeId = '{{ $activePeriodeId ?? "" }}';
         const eselonId = document.getElementById('laporan_eselon_filter').value;
-        const eselonText = eselonId ? document.getElementById('laporan_eselon_filter').options[document.getElementById('laporan_eselon_filter').selectedIndex].text : 'Semua Eselon';
 
         containerEmpty.classList.add('hidden');
         containerResult.classList.add('hidden');
-        containerLoading.classList.remove('hidden');
         cardsContainer.innerHTML = '';
+        containerLoading.classList.remove('hidden');
 
-        let url = '{{ route("admin.satker.api-laporan-detail") }}?nama_satker=' + encodeURIComponent(namaSatker);
+        let url = '{{ route("admin.satker.api-laporan-detail") }}?';
+        let params = [];
+        if (namaSatker) {
+            params.push('nama_satker=' + encodeURIComponent(namaSatker));
+        }
         if (activePeriodeId) {
-            url += '&periode_id=' + encodeURIComponent(activePeriodeId);
+            params.push('periode_id=' + encodeURIComponent(activePeriodeId));
         }
         if (eselonId) {
-            url += '&eselon_id=' + encodeURIComponent(eselonId);
+            params.push('eselon_id=' + encodeURIComponent(eselonId));
         }
+        url += params.join('&');
 
         fetch(url)
             .then(res => res.json())
@@ -4441,42 +4445,20 @@
 
                 currentLaporanData = data;
                 
-                // Set Header
-                headerTitle.innerText = data.nama_satker;
-                headerSubtitle.innerHTML = `Terdapat <b>${data.jumlah_satker} satker</b> pada filter ${eselonText}`;
-                
-                if (data.details.length === 0) {
-                    cardsContainer.innerHTML = `<div class="col-span-full p-8 text-center bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 italic">Tidak ada satker yang cocok.</div>`;
-                } else {
-                    data.details.forEach((sat, index) => {
-                        cardsContainer.innerHTML += `
-                            <div onclick="openLaporanModal(${index})" class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group">
-                                <div class="p-5 border-b border-slate-100 flex items-start gap-4 hover:bg-slate-50 transition relative">
-                                    <div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors">
-                                        <i class="fas fa-external-link-alt"></i>
-                                    </div>
-                                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl flex-shrink-0">
-                                        <i class="fas fa-building"></i>
-                                    </div>
-                                    <div class="flex-1 pr-6">
-                                        <h4 class="font-bold text-slate-800 leading-snug group-hover:text-blue-700 transition">${sat.nama_satker}</h4>
-                                        <div class="flex flex-wrap gap-2 mt-2">
-                                            <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-barcode mr-1"></i> ${sat.kode_satker}</span>
-                                            <span class="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-layer-group mr-1"></i> ${sat.eselon}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="bg-slate-50/50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
-                                    <span class="text-xs font-semibold text-slate-500"><i class="fas fa-map-marker-alt text-red-500 mr-1.5"></i> ${sat.wilayah}</span>
-                                    <div class="flex gap-2">
-                                        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-user-tie mr-1"></i> ${sat.jumlah_penugasan}</span>
-                                        <span class="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-users mr-1"></i> ${sat.jumlah_pegawai}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
+                // Activate 'Semua' tab by default
+                document.querySelectorAll('.status-tab').forEach(t => {
+                    t.classList.remove('bg-[#112D4E]', 'text-white', 'shadow-sm');
+                    t.classList.add('bg-white', 'text-slate-600', 'border', 'border-gray-200', 'hover:bg-gray-50', 'hover:border-gray-300');
+                });
+                const tabSemua = document.querySelector('.status-tab[data-status="semua"]');
+                if (tabSemua) {
+                    tabSemua.classList.remove('bg-white', 'text-slate-600', 'border', 'border-gray-200', 'hover:bg-gray-50', 'hover:border-gray-300');
+                    tabSemua.classList.add('bg-[#112D4E]', 'text-white', 'shadow-sm');
                 }
+                
+                headerTitle.innerText = data.nama_satker || 'Seluruh Satker';
+                
+                applyStatusFilter('semua');
                 containerResult.classList.remove('hidden');
             })
             .catch(err => {
@@ -4487,9 +4469,95 @@
             });
     }
 
-    function openLaporanModal(index) {
-        if (!currentLaporanData || !currentLaporanData.details || !currentLaporanData.details[index]) return;
-        const sat = currentLaporanData.details[index];
+    function applyStatusFilter(status) {
+        if (!currentLaporanData || !currentLaporanData.details) return;
+        
+        const allSatkers = currentLaporanData.details;
+        let filteredSatkers = allSatkers;
+
+        if (status === 'definitif') {
+            filteredSatkers = allSatkers.filter(s => s.penugasans.some(p => p.role.toLowerCase() === 'definitif'));
+        } else if (status === 'plt_plh') {
+            filteredSatkers = allSatkers.filter(s => s.penugasans.some(p => p.role.toLowerCase() === 'plt' || p.role.toLowerCase() === 'plh'));
+        } else if (status === 'kosong') {
+            filteredSatkers = allSatkers.filter(s => s.penugasans.length === 0);
+        }
+
+        const headerSubtitle = document.getElementById('laporan_header_subtitle');
+        const eselonId = document.getElementById('laporan_eselon_filter').value;
+        const eselonText = eselonId ? document.getElementById('laporan_eselon_filter').options[document.getElementById('laporan_eselon_filter').selectedIndex].text : 'Semua Eselon';
+
+        let statusText = '';
+        if (status === 'definitif') statusText = ' dengan Pejabat Definitif';
+        if (status === 'plt_plh') statusText = ' dengan Jabatan Plt/Plh';
+        if (status === 'kosong') statusText = ' (Belum Ada Pejabat)';
+
+        headerSubtitle.innerHTML = `Terdapat <b>${filteredSatkers.length} satker</b> pada filter ${eselonText}${statusText}`;
+        
+        renderLaporanCards(filteredSatkers);
+    }
+
+    function renderLaporanCards(details) {
+        const cardsContainer = document.getElementById('laporan_cards_container');
+        if (details.length === 0) {
+            cardsContainer.innerHTML = `<div class="col-span-full p-8 text-center bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 italic">Tidak ada satker yang cocok dengan filter saat ini.</div>`;
+            return;
+        }
+
+        let cardsHtml = '';
+        details.forEach((sat) => {
+            cardsHtml += `
+                <div onclick="openLaporanModal('${sat.id}')" class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group">
+                    <div class="p-5 border-b border-slate-100 flex items-start gap-4 hover:bg-slate-50 transition relative">
+                        <div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors">
+                            <i class="fas fa-external-link-alt"></i>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl flex-shrink-0">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="flex-1 pr-6">
+                            <h4 class="font-bold text-slate-800 leading-snug group-hover:text-blue-700 transition">${sat.nama_satker}</h4>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-barcode mr-1"></i> ${sat.kode_satker}</span>
+                                <span class="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-layer-group mr-1"></i> ${sat.eselon}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                        <span class="text-xs font-semibold text-slate-500"><i class="fas fa-map-marker-alt text-red-500 mr-1.5"></i> ${sat.wilayah}</span>
+                        <div class="flex gap-2">
+                            <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-user-tie mr-1"></i> ${sat.jumlah_penugasan}</span>
+                            <span class="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-bold uppercase rounded"><i class="fas fa-users mr-1"></i> ${sat.jumlah_pegawai}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        cardsContainer.innerHTML = cardsHtml;
+    }
+
+    // Setup Tab Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.status-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Update UI active state
+                document.querySelectorAll('.status-tab').forEach(t => {
+                    t.classList.remove('bg-[#112D4E]', 'text-white', 'shadow-sm');
+                    t.classList.add('bg-white', 'text-slate-600', 'border', 'border-gray-200', 'hover:bg-gray-50', 'hover:border-gray-300');
+                });
+                this.classList.remove('bg-white', 'text-slate-600', 'border', 'border-gray-200', 'hover:bg-gray-50', 'hover:border-gray-300');
+                this.classList.add('bg-[#112D4E]', 'text-white', 'shadow-sm');
+
+                // Apply filter
+                applyStatusFilter(this.dataset.status);
+            });
+        });
+    });
+
+    function openLaporanModal(satkerId) {
+        if (!currentLaporanData || !currentLaporanData.details) return;
+        const sat = currentLaporanData.details.find(s => s.id === satkerId);
+        if (!sat) return;
         
         document.getElementById('laporan_detail_nama').innerText = sat.nama_satker;
         document.getElementById('stat_total_penugasan').innerText = sat.jumlah_penugasan;

@@ -373,8 +373,9 @@
                 tableBody.innerHTML = '';
 
                 if (users.length > 0) {
+                    let tableHtml = '';
                     users.forEach((user, index) => {
-                        tableBody.innerHTML += `
+                        tableHtml += `
                     <tr class="hover:bg-blue-50/50 transition duration-200">
                         <td class="px-4 py-3 text-slate-600">${index + 1}</td>
                         <td class="px-4 py-3 font-semibold text-slate-700">${user.name}</td>
@@ -387,6 +388,7 @@
                     </tr>
                 `;
                     });
+                    tableBody.innerHTML = tableHtml;
                     document.getElementById('detail_user_count').innerText = `Menampilkan ${users.length} pejabat`;
                 } else {
                     tableBody.innerHTML = `

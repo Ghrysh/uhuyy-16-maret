@@ -1183,15 +1183,26 @@ class SatkerController extends Controller
         $search = $request->query('q', '');
         $periodeId = $request->query('periode_id');
         $eselonId = $request->query('eselon_id'); // Fitur baru: Filter Eselon
+        $statusPejabat = $request->query('status_pejabat'); // Fitur baru: Filter Status Pejabat
 
-        $query = Satker::select('nama_satker')->distinct();
+        $query = Satker::select('nama_satker', 'kode_satker', 'jenis_satker_id', 'ref_jabatan_satker_id');
 
         if ($periodeId) {
             $query->where('periode_id', $periodeId);
         }
-        
-        if (!empty($eselonId)) {
-            $query->where('jenis_satker_id', $eselonId);
+
+        if (!empty($statusPejabat)) {
+            if ($statusPejabat === 'definitif') {
+                $query->whereHas('penugasan', function($q) {
+                    $q->where('jenis_penugasan_id', 1);
+                });
+            } else if ($statusPejabat === 'plt_plh') {
+                $query->whereHas('penugasan', function($q) {
+                    $q->whereIn('jenis_penugasan_id', [2, 3]);
+                });
+            } else if ($statusPejabat === 'kosong') {
+                $query->whereDoesntHave('penugasan');
+            }
         }
 
         // Terapkan visibility
@@ -1200,62 +1211,72 @@ class SatkerController extends Controller
             $query->whereIn('id', $perm['allowed_ids']);
         }
 
-        $allNames = $query->pluck('nama_satker');
+        $satkers = $query->get();
+        $allNamesArray = [];
 
-        // Daftar Prefix untuk grouping (dari yang terpanjang/paling spesifik ke yang lebih umum)
-        $prefixes = [
-            'Kantor Wilayah Kementerian Agama',
-            'Kantor Kementerian Agama',
-            'Balai Pendidikan dan Pelatihan Keagamaan',
-            'Balai Penelitian dan Pengembangan Agama',
-            'Universitas Islam Negeri',
-            'UIN',
-            'Institut Agama Islam Negeri',
-            'IAIN',
-            'Sekolah Tinggi Agama Islam Negeri',
-            'STAIN',
-            'Institut Agama Kristen Negeri',
-            'IAKN',
-            'Institut Agama Hindu Negeri',
-            'IAHN',
-            'Sekolah Tinggi Agama Buddha Negeri',
-            'STABN',
-            'Madrasah Aliyah Negeri',
-            'MAN',
-            'Madrasah Tsanawiyah Negeri',
-            'MTsN',
-            'Madrasah Ibtidaiyah Negeri',
-            'MIN',
-            'Kantor Urusan Agama'
-        ];
+        foreach ($satkers as $satker) {
+            $isTugasTambahan = false;
 
-        $categories = [];
+            if ($satker->jenis_satker_id == 6) {
+                $isTugasTambahan = true;
+            }
 
-        // Lakukan pengelompokkan
-        foreach ($allNames as $name) {
-            $kategori = $name;
-            foreach ($prefixes as $prefix) {
-                // Gunakan stripos agar case-insensitive
-                if (stripos(trim($name), $prefix) === 0) {
-                    $kategori = $prefix;
-                    break;
+            if (!empty($satker->kode_satker)) {
+                $kode = $satker->kode_satker;
+                $len = strlen($kode);
+                $prefix = substr($kode, 0, 2);
+                
+                if (is_numeric($prefix) && (int)$prefix >= 21) {
+                    $isTugasTambahan = true;
+                } else {
+                    for ($i = 2; $i < $len; $i += 2) {
+                        if (isset($kode[$i]) && $kode[$i] === '9') {
+                            $isTugasTambahan = true;
+                            break;
+                        }
+                    }
                 }
             }
-            // Simpan dalam format [key => value] untuk mendapatkan daftar kategori unik
-            $categories[$kategori] = true;
+
+            if (!empty($eselonId)) {
+                if ($eselonId == 6) {
+                    // Include KUA as they are functionally often considered Tugas Tambahan
+                    if (!$isTugasTambahan && stripos($satker->nama_satker, 'Kantor Urusan Agama') !== 0 && stripos($satker->nama_satker, 'KUA ') !== 0) {
+                        continue; // Skip if not Tugas Tambahan AND not KUA
+                    }
+                } else {
+                    // Filter Eselon 1-5: Harus exclude satker yang ternyata terhitung sebagai Tugas Tambahan
+                    if ($isTugasTambahan) continue; 
+                    // Termasuk exclude KUA karena sudah dikelompokkan ke Tugas Tambahan
+                    if (stripos($satker->nama_satker, 'Kantor Urusan Agama') === 0 || stripos($satker->nama_satker, 'KUA ') === 0) continue;
+
+                    if ($satker->jenis_satker_id != $eselonId) continue;
+                }
+            }
+
+            $allNamesArray[] = $satker->nama_satker;
         }
 
-        $uniqueCategories = array_keys($categories);
+        $uniqueCategories = array_values(array_unique($allNamesArray));
 
         // Filter berdasarkan kata kunci pencarian ($search)
         if (!empty($search)) {
-            $terms = explode(' ', trim(strtolower($search)));
+            $searchLower = strtolower(trim($search));
+            $terms = preg_split('/\s+/', $searchLower);
             
             $filteredCategories = array_filter($uniqueCategories, function($kategori) use ($terms) {
                 $kategoriLower = strtolower($kategori);
-                foreach ($terms as $term) {
+                
+                // Syarat: kategori HARUS diawali dengan term pertama pencarian (sesuai feedback klien)
+                if (!empty($terms[0]) && strpos($kategoriLower, $terms[0]) !== 0) {
+                    return false;
+                }
+
+                // Sisa kata bisa ada di mana saja
+                foreach ($terms as $index => $term) {
+                    if ($index === 0) continue;
                     if (!empty($term) && strpos($kategoriLower, $term) === false) {
-                        return false; // Jika ada 1 term yang tidak cocok, maka gagal
+                        return false; 
                     }
                 }
                 return true;
@@ -1263,8 +1284,49 @@ class SatkerController extends Controller
             $uniqueCategories = array_values($filteredCategories);
         }
 
+        // Buat Grup Otomatis (Dynamic Grouping) dari hasil yang sama
+        $dynamicGroup = '';
+        if (!empty($search) && count($uniqueCategories) > 1) {
+            $firstWords = preg_split('/\s+/', trim($uniqueCategories[0]));
+            $commonWords = [];
+            foreach ($firstWords as $i => $word) {
+                $match = true;
+                foreach ($uniqueCategories as $string) {
+                    $words = preg_split('/\s+/', trim($string));
+                    if (!isset($words[$i]) || strtolower($words[$i]) !== strtolower($word)) {
+                        $match = false;
+                        break;
+                    }
+                }
+                if ($match) {
+                    $commonWords[] = $word;
+                } else {
+                    break; // Berhenti di kata pertama yang berbeda
+                }
+            }
+            if (!empty($commonWords)) {
+                $dynamicGroup = implode(' ', $commonWords);
+            }
+        }
+
+        // Urutkan dan letakkan grup dinamis di posisi pertama
+        if (!empty($dynamicGroup)) {
+            // Hapus jika sudah ada di list untuk menghindari duplikat
+            $uniqueCategories = array_filter($uniqueCategories, function($item) use ($dynamicGroup) {
+                return strtolower($item) !== strtolower($dynamicGroup);
+            });
+            $uniqueCategories = array_values($uniqueCategories); // Reindex
+            
+            // Urutkan sisa data secara abjad
+            sort($uniqueCategories);
+            
+            // Tambahkan grup dinamis di posisi paling atas
+            array_unshift($uniqueCategories, $dynamicGroup);
+        } else {
+            sort($uniqueCategories);
+        }
+
         // Batasi hasil pencarian agar UI tidak berat (misal top 100)
-        sort($uniqueCategories);
         $results = array_slice($uniqueCategories, 0, 100);
 
         return response()->json([
@@ -1284,9 +1346,10 @@ class SatkerController extends Controller
         $namaSatker = $request->query('nama_satker');
         $periodeId = $request->query('periode_id');
         $eselonId = $request->query('eselon_id'); // Fitur baru: Filter Eselon
+        $statusPejabat = $request->query('status_pejabat'); // Fitur baru: Filter Status Pejabat
 
-        if (empty($namaSatker)) {
-            return response()->json(['error' => 'Kategori / Nama Satker wajib diisi'], 400);
+        if (empty($namaSatker) && empty($eselonId)) {
+            return response()->json(['error' => 'Kategori / Nama Satker atau Filter Eselon wajib diisi'], 400);
         }
 
         $query = Satker::with([
@@ -1294,15 +1357,35 @@ class SatkerController extends Controller
             'eselon', 
             'penugasan.user', 
             'penugasan.jenisPenugasan',
-            'pegawaiPeriodes.user' // Gunakan tabel pivot untuk periode terkait
-        ])->where('nama_satker', 'LIKE', "{$namaSatker}%");
+            'pegawaiPeriodes.user', // Gunakan tabel pivot untuk periode terkait
+            'refJabatanSatker' // Tambahkan ini agar bisa mendeteksi jabatan fungsional
+        ]);
+        
+        if (!empty($namaSatker)) {
+            $query->where('nama_satker', 'LIKE', "{$namaSatker}%");
+        }
 
         if ($periodeId) {
             $query->where('periode_id', $periodeId);
         }
 
-        if (!empty($eselonId)) {
+        // Optimize query by filtering Eselon 1-5 at the SQL level
+        if (!empty($eselonId) && $eselonId != 6) {
             $query->where('jenis_satker_id', $eselonId);
+        }
+
+        if (!empty($statusPejabat)) {
+            if ($statusPejabat === 'definitif') {
+                $query->whereHas('penugasan', function($q) {
+                    $q->where('jenis_penugasan_id', 1);
+                });
+            } else if ($statusPejabat === 'plt_plh') {
+                $query->whereHas('penugasan', function($q) {
+                    $q->whereIn('jenis_penugasan_id', [2, 3]);
+                });
+            } else if ($statusPejabat === 'kosong') {
+                $query->whereDoesntHave('penugasan');
+            }
         }
 
         $perm = $this->getPermissions();
@@ -1312,13 +1395,75 @@ class SatkerController extends Controller
 
         $satkers = $query->get();
         
-        $totalSatker = $satkers->count();
         $totalPenugasan = 0;
         $totalPegawai = 0;
 
         $satkerDetails = [];
 
         foreach ($satkers as $satker) {
+            
+            // Hitung nama eselon sesuai logika di _item_hirarki.blade.php
+            $eselonName = $satker->eselon ? $satker->eselon->nama : 'Tidak Ada Eselon';
+            $isTugasTambahan = false;
+
+            if ($satker->jenis_satker_id == 6) {
+                $eselonName = 'Tugas Tambahan';
+                $isTugasTambahan = true;
+            }
+            
+            if (!empty($satker->kode_satker)) {
+                $kode = $satker->kode_satker;
+                $len = strlen($kode);
+                $prefix = substr($kode, 0, 2);
+                
+                if (is_numeric($prefix) && (int)$prefix >= 21) {
+                    $isTugasTambahan = true;
+                    if ($len > 2) {
+                        $eselonName = "Tugas Tambahan $len Digit";
+                    } else {
+                        $eselonName = 'Tugas Tambahan';
+                    }
+                } else {
+                    $isTugasTambahanSembilan = false;
+                    for ($i = 2; $i < $len; $i += 2) {
+                        if (isset($kode[$i]) && $kode[$i] === '9') {
+                            $isTugasTambahanSembilan = true;
+                            break;
+                        }
+                    }
+
+                    if ($isTugasTambahanSembilan) {
+                        $isTugasTambahan = true;
+                        if ($len > 2) {
+                            $eselonName = "Tugas Tambahan $len Digit";
+                        } else {
+                            $eselonName = 'Tugas Tambahan';
+                        }
+                    }
+                }
+            }
+
+            if ($satker->refJabatanSatker && $satker->refJabatanSatker->key_jabatan === 'jabatan_fungsional') {
+                $eselonName = 'Jabatan Fungsional';
+            }
+
+            // FILTER: Terapkan pengecekan eselon_id setelah nama dinamis diketahui
+            if (!empty($eselonId)) {
+                if ($eselonId == 6) {
+                    // Include KUA as they are functionally often considered Tugas Tambahan
+                    if (!$isTugasTambahan && stripos($satker->nama_satker, 'Kantor Urusan Agama') !== 0 && stripos($satker->nama_satker, 'KUA ') !== 0) {
+                        continue; // Skip if not Tugas Tambahan AND not KUA
+                    }
+                } else {
+                    // Filter Eselon 1-5: Harus exclude satker yang ternyata terhitung sebagai Tugas Tambahan
+                    if ($isTugasTambahan) continue; 
+                    // Termasuk exclude KUA karena sudah dikelompokkan ke Tugas Tambahan
+                    if (stripos($satker->nama_satker, 'Kantor Urusan Agama') === 0 || stripos($satker->nama_satker, 'KUA ') === 0) continue;
+
+                    if ($satker->jenis_satker_id != $eselonId) continue;
+                }
+            }
+
             $penugasans = $satker->penugasan->map(function($p) {
                 return [
                     'nama_pegawai' => $p->user ? $p->user->name : 'Tanpa Nama',
@@ -1347,13 +1492,15 @@ class SatkerController extends Controller
                 'nama_satker' => $satker->nama_satker, // Perlu dikirim agar UI bisa merender nama lengkap per satker
                 'kode_satker' => $satker->kode_satker,
                 'wilayah' => $satker->wilayah ? $satker->wilayah->nama_wilayah : 'Tidak Ada Wilayah',
-                'eselon' => $satker->eselon ? $satker->eselon->nama : 'Tidak Ada Eselon',
+                'eselon' => $eselonName,
                 'penugasans' => $penugasans,
                 'pegawais' => $pegawais,
                 'jumlah_penugasan' => $penugasans->count(),
                 'jumlah_pegawai' => $pegawais->count()
             ];
         }
+
+        $totalSatker = count($satkerDetails);
 
         return response()->json([
             'nama_satker' => $namaSatker,
